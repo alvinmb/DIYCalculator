@@ -455,13 +455,18 @@ class BebopMain(QMainWindow):
 
     def _on_power_changed(self, on: bool):
         """Slot for Calculator power_changed — the On/Off button purges all
-        RAM on every transition (both power-on and power-off), and also
-        auto-runs on power-on."""
+        RAM on every transition (both power-on and power-off) and resets
+        the CPU to an idle state.
+
+        Power-on does NOT auto-run: RAM was just zeroed, so there is no
+        program in memory yet — running at that point would just free-run
+        NOP ($00) opcodes forever, incrementing the Program Counter with
+        nothing meaningful executing. Load or assemble a program first,
+        then press Run/Step."""
         self.terminal.set_power(on)
         self._do_purge_ram()
         if on:
             self._do_reset()
-            self._do_run()
 
     def _power_on_clear(self):
         """On calculator power-on: zero data/stack area ($0000–$3FFF) and
@@ -505,7 +510,7 @@ class BebopMain(QMainWindow):
         if getattr(self, "_calc_win", None) is None:
             self._calc_win = Calculator(self)
             self._calc_win.move(10, 65)   # top-left, below main window menu bar
-            # Wire the On/Off button → terminal power + RAM purge on power-on.
+            # Wire the On/Off button → terminal power + RAM purge (both directions).
             self._calc_win.power_changed.connect(self._on_power_changed)
             # Hook memory-mapped port $F031 → calculator display.
             # Any  STORE ($F031), A  instruction sends ACC as one ASCII byte
