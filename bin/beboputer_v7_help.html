@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Beboputer Virtual Computer — Help</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    background: #f4f4f4;
+    color: #222;
+    margin: 0;
+    padding: 0;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 220px;
+    height: 100vh;
+    background: #2a2a3a;
+    color: #ccc;
+    overflow-y: auto;
+    padding: 16px 0;
+    box-sizing: border-box;
+  }
+  .sidebar h2 {
+    font-size: 13px;
+    color: #7ab8f5;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 16px 8px;
+    border-bottom: 1px solid #444;
+    margin: 0 0 8px;
+  }
+  .sidebar a {
+    display: block;
+    color: #bbb;
+    text-decoration: none;
+    font-size: 12px;
+    padding: 5px 16px;
+    line-height: 1.5;
+  }
+  .sidebar a:hover { background: #3a3a5a; color: #fff; }
+  .sidebar .section-head {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 16px 2px;
+  }
+  .content {
+    margin-left: 220px;
+    padding: 32px 48px 64px;
+    max-width: 900px;
+  }
+  h1 {
+    font-size: 26px;
+    color: #1a3a6a;
+    border-bottom: 3px solid #7ab8f5;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 19px;
+    color: #1a3a6a;
+    border-left: 5px solid #7ab8f5;
+    padding-left: 10px;
+    margin-top: 40px;
+  }
+  h3 {
+    font-size: 15px;
+    color: #2a5a9a;
+    margin-top: 20px;
+    margin-bottom: 4px;
+  }
+  .port-tag {
+    display: inline-block;
+    background: #1a3a6a;
+    color: #7ab8f5;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 1px 7px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .key {
+    display: inline-block;
+    background: #ddd;
+    border: 1px solid #999;
+    border-bottom: 2px solid #777;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 1px 6px;
+    margin: 1px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+  }
+  th {
+    background: #2a2a3a;
+    color: #7ab8f5;
+    text-align: left;
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+  td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #ddd;
+    font-size: 13px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  code {
+    font-family: 'Courier New', monospace;
+    background: #e8eef8;
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 13px;
+  }
+  .tip {
+    background: #e8f4e8;
+    border-left: 4px solid #4a9a4a;
+    padding: 8px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .warn {
+    background: #fdf0e0;
+    border-left: 4px solid #c87a20;
+    padding: 8px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .panel-intro {
+    background: #eef3fa;
+    border: 1px solid #c0d0e8;
+    border-radius: 4px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  hr { border: none; border-top: 1px solid #ddd; margin: 32px 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<div class="sidebar">
+  <h2>Beboputer Help</h2>
+  <a href="#overview">Overview</a>
+  <div class="section-head">Menu Bar</div>
+  <a href="#menu-file">File Menu</a>
+  <a href="#menu-memory">Memory Menu</a>
+  <a href="#menu-display">Display Menu</a>
+  <a href="#menu-tools">Tools Menu</a>
+  <div class="section-head">Panels</div>
+  <a href="#memory-walker">Memory Walker</a>
+  <a href="#cpu-panel">CPU Register Display</a>
+  <a href="#message-display">Message Display</a>
+  <a href="#terminal">Terminal</a>
+  <a href="#io-ports">Port Map Status</a>
+  <a href="#disassembler">Disassembler</a>
+  <div class="section-head">Tools</div>
+  <a href="#calculator">Calculator</a>
+  <a href="#keyboard">On-Screen Keyboard</a>
+  <a href="#workbench">Workbench 1</a>
+  <a href="#assembler">Assembler / Editor</a>
+  <a href="#eprom">EPROM Burner</a>
+  <div class="section-head">Reference</div>
+  <a href="#peripherals">Peripherals &amp; I/O Map</a>
+  <a href="#io-map">Full Address Table</a>
+  <a href="#cpu-flags">CPU Flags</a>
+  <a href="#instruction-set">Instruction Summary</a>
+</div>
+
+<!-- ── Content ── -->
+<div class="content">
+
+<h1>Beboputer Virtual Computer — Help</h1>
+<p>The <strong>Beboputer Virtual Computer</strong> is a software emulator of the DIY Calculator CPU
+described in <em>Bebop Bytes Back</em> by Clive "Max" Maxfield &amp; Alvin Brown.
+It provides a full 64 KB RAM space, an assembler, memory inspection tools, and several
+hardware peripherals accessible through memory-mapped I/O.</p>
+
+<!-- ══════════════════════════════════════════════ OVERVIEW -->
+<h2 id="overview">Overview</h2>
+<p>When the application starts, three windows open automatically:</p>
+<ul>
+  <li><strong>Calculator</strong> — top-left of the screen. Its On/Off button controls power to the Terminal and the Workbench.</li>
+  <li><strong>Memory Walker</strong> — left panel. Browse and edit RAM, single-step the CPU, set breakpoints.</li>
+  <li><strong>Message Display</strong> — right panel. Diagnostic log showing every instruction executed and all system events.</li>
+</ul>
+<p>All other panels are available but hidden at startup. Open them from the <strong>Display</strong> or <strong>Tools</strong> menus as needed.</p>
+
+<table>
+  <tr><th>Panel</th><th>Purpose</th><th>Shown at startup</th></tr>
+  <tr><td>Calculator</td><td>Master power switch + display/LED device + standalone calculator</td><td>&#10003; Top-left</td></tr>
+  <tr><td>Memory Walker</td><td>Browse, edit and single-step through RAM</td><td>&#10003; Left panel</td></tr>
+  <tr><td>Message Display</td><td>Diagnostic log of every instruction executed</td><td>&#10003; Right panel</td></tr>
+  <tr><td>CPU Register Display</td><td>Live view of all CPU registers and flags</td><td>Display menu</td></tr>
+  <tr><td>Terminal</td><td>Text output device driven by port $F028</td><td>Display menu — requires power ON</td></tr>
+  <tr><td>Port Map Status</td><td>Monitor the three calculator I/O ports</td><td>Display menu</td></tr>
+  <tr><td>Disassembler</td><td>Live disassembly of RAM from any address</td><td>Display menu</td></tr>
+  <tr><td>Workbench 1</td><td>Toggle switches, LED bar, and 7-segment displays</td><td>Tools menu — requires power ON</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════ MENU BAR -->
+<h2 id="menu-file">File Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>New Project…</td><td>Clears all 64 KB of RAM and resets the CPU. Asks for confirmation first.</td></tr>
+  <tr><td>Open Project…</td><td>Loads a <code>.rom</code> or <code>.ram</code> binary file into RAM.
+    <strong>The calculator must be switched ON</strong> before loading.
+    <code>.rom</code> files load at <code>$0000</code>; <code>.ram</code> files load at <code>$4000</code>.</td></tr>
+  <tr><td>Save Project…</td><td>Saves the entire 64 KB RAM image as a <code>.rom</code> file.</td></tr>
+  <tr><td>Save Project As…</td><td>Same as Save Project — prompts for a new filename.</td></tr>
+  <tr><td>Load RAM…</td><td>Alias for Open Project.</td></tr>
+  <tr><td>Save RAM…</td><td>Alias for Save Project.</td></tr>
+  <tr><td>Purge RAM…</td><td>Zeros every byte of RAM without resetting the CPU. The Memory Walker updates immediately. Asks for confirmation.</td></tr>
+  <tr><td>Exit</td><td>Closes the application.</td></tr>
+</table>
+
+<h2 id="menu-memory">Memory Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>Memory Walker</td><td>Brings the Memory Walker panel to the front.</td></tr>
+  <tr><td>Find Address…</td><td>Prompts for a hex address and scrolls the Memory Walker to that location,
+    aligned to a 16-byte boundary.</td></tr>
+</table>
+
+<h2 id="menu-display">Display Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>CPU Registers</td><td>Brings the CPU Register Display panel to the front.</td></tr>
+  <tr><td>Message Display</td><td>Brings the Message Display panel to the front.</td></tr>
+  <tr><td>Terminal</td><td>Brings the Terminal panel to the front.</td></tr>
+  <tr><td>Port Map Status</td><td>Brings the Port Map Status panel to the front.</td></tr>
+  <tr><td>Disassembler</td><td>Opens the live disassembler view.</td></tr>
+</table>
+
+<h2 id="menu-tools">Tools Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>System Clock…</td><td>Sets the simulated clock speed in Hz (1–10 000). Affects how fast RUN mode
+    executes instructions. Default is 100 Hz.</td></tr>
+  <tr><td>EPROM Burner</td><td>Opens the EPROM Burner dialog for dumping or loading RAM ranges.</td></tr>
+  <tr><td>Calculator…</td><td>Opens or focuses the Calculator window.</td></tr>
+  <tr><td>Keyboard…</td><td>Opens or focuses the on-screen Keyboard.</td></tr>
+  <tr><td>Workbench 1…</td><td>Opens or focuses Workbench 1. Requires the calculator to be switched ON.</td></tr>
+  <tr><td>Assembler / Editor…</td><td>Opens the integrated assembler and code editor.</td></tr>
+</table>
+
+<hr>
+
+<!-- ══════════════════════════════════════════════ MEMORY WALKER -->
+<h2 id="memory-walker">Memory Walker</h2>
+<div class="panel-intro">Browse any address in 64 KB RAM, edit bytes directly, single-step the CPU,
+and set/clear breakpoints — all in one panel.</div>
+
+<h3>Navigation Bar</h3>
+<table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Address field</td><td>Type a 1–4 digit hex address (e.g. <code>4000</code>) and press <strong>GO</strong> to jump to that location.
+    The view locks onto your chosen address until you click STEP.</td></tr>
+  <tr><td><strong>GO</strong> button</td><td>Scrolls the table to the address entered in the address field.</td></tr>
+  <tr><td><strong>RUN to BP</strong></td><td>Runs the CPU continuously until it hits a breakpoint, executes HALT,
+    or reaches the step safety limit. All other panels refresh when it stops.</td></tr>
+  <tr><td><strong>Clear BPs</strong></td><td>Removes every breakpoint at once.</td></tr>
+</table>
+
+<h3>Memory Table Columns</h3>
+<table>
+  <tr><th>Column</th><th>Description</th></tr>
+  <tr><td>BP</td><td>Click any row in this column to <strong>set a breakpoint</strong> (shown as a red ●).
+    Click again to remove it.</td></tr>
+  <tr><td>STEP</td><td>Click any row in this column to <strong>execute one CPU instruction</strong>.
+    The &#9654; amber arrow marks the current Program Counter row. After stepping, all panels update.</td></tr>
+  <tr><td>ADDRESS</td><td>Hex address of the byte on this row. The PC row is highlighted in bright green.</td></tr>
+  <tr><td>DATA</td><td>The hex byte stored at this address. Double-click to <strong>edit the value</strong> —
+    type a new hex byte and press Enter to write it to RAM.</td></tr>
+</table>
+
+<div class="tip"><strong>Tip:</strong> After using GO to navigate away from the PC, the view stays locked
+at your chosen address. Click any STEP cell to resume normal PC-following behaviour.</div>
+
+<!-- ══════════════════════════════════════════════ CPU PANEL -->
+<h2 id="cpu-panel">CPU Register Display</h2>
+<div class="panel-intro">Shows the live state of all CPU registers and status flags, updated after every step or run.</div>
+
+<h3>Registers</h3>
+<table>
+  <tr><th>Register</th><th>Width</th><th>Description</th></tr>
+  <tr><td>Accumulator</td><td>8-bit</td><td>General-purpose working register. Most arithmetic and logic operations use this register.</td></tr>
+  <tr><td>Program Counter</td><td>16-bit</td><td>Address of the next instruction to execute.</td></tr>
+  <tr><td>Instruction Reg</td><td>8-bit</td><td>Opcode of the most recently executed instruction.</td></tr>
+  <tr><td>Index Reg (IX)</td><td>16-bit</td><td>Used for indexed and indirect addressing modes.</td></tr>
+  <tr><td>Interrupt Vector</td><td>16-bit</td><td>Address of the interrupt service routine (set by BLDIV).</td></tr>
+  <tr><td>Stack Pointer</td><td>16-bit</td><td>Points to the top of the hardware stack.</td></tr>
+</table>
+
+<h3>Status Flags</h3>
+<table>
+  <tr><th>Flag</th><th>Name</th><th>Set when…</th></tr>
+  <tr><td>I</td><td>Interrupt Mask</td><td>Interrupts are enabled (SETIM instruction).</td></tr>
+  <tr><td>O</td><td>Overflow (V)</td><td>A signed arithmetic overflow occurred.</td></tr>
+  <tr><td>N</td><td>Negative</td><td>Result bit 7 is 1 (negative in two's complement).</td></tr>
+  <tr><td>Z</td><td>Zero</td><td>The result was zero.</td></tr>
+  <tr><td>C</td><td>Carry</td><td>Unsigned carry out or ACC &gt; operand after compare.</td></tr>
+</table>
+<p>A flag showing <code>x</code> has never been written since the last reset — it is uninitialised.</p>
+
+<!-- ══════════════════════════════════════════════ MESSAGE DISPLAY -->
+<h2 id="message-display">Message Display</h2>
+<div class="panel-intro">An always-on diagnostic log that records every emulator event.</div>
+
+<p>Each entry includes the <strong>instruction name</strong> and addressing mode, the
+<strong>post-execution register snapshot</strong> (ACC, PC, SP, IX), and the <strong>flag state</strong> (I, O, N, Z, C).
+System events also appear here: file loads, clock changes, resets, HALTs, and breakpoint hits.</p>
+
+<!-- ══════════════════════════════════════════════ TERMINAL -->
+<h2 id="terminal">Terminal</h2>
+<div class="panel-intro">A CRT-style text output device driven by the CPU writing to memory-mapped port <span class="port-tag">$F028</span>.</div>
+
+<table>
+  <tr><th>Detail</th><th>Description</th></tr>
+  <tr><td>Power</td><td>Controlled by the Calculator's On/Off button. Characters are silently discarded when off.</td></tr>
+  <tr><td>Input</td><td><code>STA [$F028]</code> sends the Accumulator value as one ASCII byte to the screen.</td></tr>
+  <tr><td>Printable range</td><td>ASCII 32–126 renders as the corresponding character.</td></tr>
+  <tr><td>Line feed</td><td><code>$0A</code> moves to the next line.</td></tr>
+  <tr><td>Other values</td><td>Ignored.</td></tr>
+  <tr><td>On power-off</td><td>The screen is cleared automatically.</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════ IO PORTS -->
+<h2 id="io-ports">Port Map Status</h2>
+<div class="panel-intro">Monitor the three memory-mapped calculator I/O locations in real time.</div>
+
+<table>
+  <tr><th>Address</th><th>Direction</th><th>Purpose</th></tr>
+  <tr><td><span class="port-tag">$F031</span></td><td>Output</td><td>Character written to the Calculator's main display.</td></tr>
+  <tr><td><span class="port-tag">$F032</span></td><td>Output</td><td>Byte written to the Calculator's LED row (bits 5..0).</td></tr>
+  <tr><td><span class="port-tag">$F011</span></td><td>Input</td><td>Keyboard input port. Displays current byte and previous byte.</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════ DISASSEMBLER -->
+<h2 id="disassembler">Disassembler</h2>
+<div class="panel-intro">Displays a live disassembly of RAM from any start address, updated automatically as the CPU steps.</div>
+
+<p>The Disassembler reads the current RAM contents and decodes bytes into human-readable mnemonics.
+It tracks the Program Counter and scrolls to keep the active instruction visible. Use it alongside
+the Memory Walker to understand what a loaded program is doing at each address.</p>
+
+<hr>
+
+<!-- ══════════════════════════════════════════════ CALCULATOR -->
+<h2 id="calculator">Calculator</h2>
+<div class="panel-intro">A standalone scientific calculator that also acts as the master power switch for the
+Terminal and Workbench peripherals.</div>
+
+<table>
+  <tr><th>Feature</th><th>Description</th></tr>
+  <tr><td>On/Off button</td><td>Powers the Calculator, Terminal, and Workbench on or off simultaneously.</td></tr>
+  <tr><td>Display</td><td>Receives ASCII characters from CPU port <span class="port-tag">$F031</span>. Write <code>$1B</code> (ESC) to clear the display.</td></tr>
+  <tr><td>LED strip</td><td>Six LEDs driven by CPU port <span class="port-tag">$F032</span>. Bits 5..0 = LEDs left to right. 1 = bright red, 0 = dark red.</td></tr>
+  <tr><td>Standard calculator</td><td>Fully functional arithmetic calculator — usable independently of the CPU at any time.</td></tr>
+</table>
+
+<div class="warn"><strong>Note:</strong> Files can only be loaded (Open Project) while the calculator is switched ON.</div>
+
+<!-- ══════════════════════════════════════════════ KEYBOARD -->
+<h2 id="keyboard">On-Screen Keyboard</h2>
+<div class="panel-intro">Sends keystrokes to the CPU as ASCII bytes via memory-mapped port <span class="port-tag">$F011</span>.</div>
+
+<h3>Key Layout</h3>
+<p>The layout mirrors the original DIY Calculator keyboard, arranged in six rows:</p>
+<table>
+  <tr><th>Row</th><th>Keys</th></tr>
+  <tr><td>0</td><td>ESC, symbol row (!@#$%^&amp;*()+_), HEX display, double-quote</td></tr>
+  <tr><td>1</td><td>~ and number row (1–0), hyphen, equals, BSpace, &lt;</td></tr>
+  <tr><td>2</td><td>TAB, QWERTYUIOP, [ ] \ &gt;</td></tr>
+  <tr><td>3</td><td>CAPS, ASDFGHJKL, colon, apostrophe, ENTER, ?</td></tr>
+  <tr><td>4</td><td>SHIFT, ZXCVBNM, period, slash, Le (&#8592;), Ri (&#8594;), semicolon</td></tr>
+  <tr><td>5</td><td>CTRL, ALT, SPACE, Up (&#8593;), Do (&#8595;), pipe</td></tr>
+</table>
+
+<h3>Special Keys</h3>
+<table>
+  <tr><th>Key</th><th>Value sent</th><th>Notes</th></tr>
+  <tr><td>CAPS</td><td>—</td><td>Toggle. Red when active. Uppercases letter keys.</td></tr>
+  <tr><td>SHIFT</td><td>—</td><td>Toggle. Red when active. Uppercases letter keys.</td></tr>
+  <tr><td>BSpace</td><td><code>$04</code></td><td>Backspace control code.</td></tr>
+  <tr><td>ENTER</td><td><code>$05</code></td><td>Enter control code.</td></tr>
+  <tr><td>Le &#8592;</td><td><code>$0A</code></td><td>Left arrow.</td></tr>
+  <tr><td>Ri &#8594;</td><td><code>$09</code></td><td>Right arrow.</td></tr>
+  <tr><td>Up &#8593;</td><td><code>$07</code></td><td>Up arrow.</td></tr>
+  <tr><td>Do &#8595;</td><td><code>$08</code></td><td>Down arrow.</td></tr>
+  <tr><td>ESC</td><td><code>$1B</code></td><td>Escape.</td></tr>
+  <tr><td>CTRL / ALT</td><td>—</td><td>Cosmetic only — no value sent.</td></tr>
+</table>
+
+<p>Each key press writes one byte to RAM at <code>$F011</code>. A running program reads it with <code>LDA [$F011]</code>.
+The <strong>HEX display</strong> (top-right of the keyboard) shows the hex value of the last key pressed.</p>
+
+<!-- ══════════════════════════════════════════════ WORKBENCH -->
+<h2 id="workbench">Workbench 1</h2>
+<div class="panel-intro">A hardware simulation panel with two 8-bit toggle switch banks, an 8-bit LED bar, and
+three 7-segment displays. <strong>Requires the calculator to be switched ON.</strong></div>
+
+<h3>Inputs</h3>
+<table>
+  <tr><th>Component</th><th>Port</th><th>Description</th></tr>
+  <tr>
+    <td>8-Bit Switch Bank 1</td>
+    <td><span class="port-tag">$F000</span></td>
+    <td>Eight toggle switches. Flip <strong>down</strong> (green) = ON / logic 1; <strong>up</strong> (red) = OFF / logic 0.
+      Read the combined byte with <code>LDA [$F000]</code>.</td>
+  </tr>
+  <tr>
+    <td>8-Bit Switch Bank 2</td>
+    <td><span class="port-tag">$F001</span></td>
+    <td>Second bank of eight toggle switches, same behaviour as Bank 1.
+      Read with <code>LDA [$F001]</code>.</td>
+  </tr>
+</table>
+
+<h3>Outputs</h3>
+<table>
+  <tr><th>Component</th><th>Port</th><th>Description</th></tr>
+  <tr>
+    <td>7-Seg Undecoded</td>
+    <td><span class="port-tag">$F021</span></td>
+    <td>Raw segment-pattern display. Each of bits 6..0 lights one segment (a–g) directly.
+      Write any value 0–127. <code>STA [$F021]</code></td>
+  </tr>
+  <tr>
+    <td>8-Bit LED Bar</td>
+    <td><span class="port-tag">$F022</span></td>
+    <td>Eight LEDs. Bit 0 = rightmost LED. Bright green = ON, dull green = OFF.
+      <code>STA [$F022]</code></td>
+  </tr>
+  <tr>
+    <td>7-Seg Decoded (single)</td>
+    <td><span class="port-tag">$F023</span></td>
+    <td>Decodes the low nibble of the written byte as a hex digit 0–F using bitmap images.
+      <code>STA [$F023]</code></td>
+  </tr>
+  <tr>
+    <td>Dual 7-Seg Decoded</td>
+    <td><span class="port-tag">$F024</span></td>
+    <td>Two side-by-side decoded digits. High nibble = left digit, low nibble = right digit.
+      Write a full byte to show both simultaneously. <code>STA [$F024]</code></td>
+  </tr>
+</table>
+
+<h3>Power Gating</h3>
+<p>The entire Workbench is disabled when the Calculator is off. Switch interactions and CPU write hooks
+are silently ignored. On power-on, displays update to reflect the current RAM values.</p>
+
+<h3>Example Program</h3>
+<pre style="background:#2a2a3a;color:#ccc;padding:12px;border-radius:4px;font-size:12px;">
+SW1:     .EQU  $F000          # 8-bit switch bank 1
+LED8:    .EQU  $F022          # 8-bit LED bar
+SEG7DD:  .EQU  $F024          # dual 7-seg decoded
+
+         .ORG  $4000
+
+LOOP:    LDA   [SW1]          # read switch byte
+         STA   [LED8]         # mirror to LED bar
+         STA   [SEG7DD]       # hi nibble = left digit, lo = right
+         JMP   [LOOP]         # repeat forever
+</pre>
+
+<!-- ══════════════════════════════════════════════ ASSEMBLER -->
+<h2 id="assembler">Assembler / Editor</h2>
+<div class="panel-intro">Write, edit, and assemble DIY Calculator assembly language programs. The compiled output
+can be loaded straight into the running emulator.</div>
+
+<h3>Editor Features</h3>
+<table>
+  <tr><th>Feature</th><th>Description</th></tr>
+  <tr><td>Syntax highlighting</td><td>Mnemonics, labels, comments, and directives are colour-coded.</td></tr>
+  <tr><td>Find / Replace</td><td>Available from the Edit menu inside the assembler window.</td></tr>
+  <tr><td>Font selection</td><td>Choose any installed monospace font from the Edit menu.</td></tr>
+  <tr><td>Print</td><td>Print the source file via the File menu inside the assembler window.</td></tr>
+</table>
+
+<h3>Assembler Controls</h3>
+<table>
+  <tr><th>Button</th><th>Action</th></tr>
+  <tr><td>Compile</td><td>Assembles the current source. Errors appear in the output pane below the editor.
+    On success, a <code>.ram</code> binary is written next to the source file.</td></tr>
+  <tr><td>Load into CPU</td><td>Loads the most recently compiled <code>.ram</code> file into RAM at <code>$4000</code> and resets the CPU.</td></tr>
+  <tr><td>Open</td><td>Opens an existing <code>.asm</code> source file.</td></tr>
+  <tr><td>Save</td><td>Saves the current source file.</td></tr>
+</table>
+
+<h3>Assembly Language Syntax</h3>
+<table>
+  <tr><th>Element</th><th>Example</th><th>Notes</th></tr>
+  <tr><td>Comment</td><td><code># this is a comment</code></td><td><strong>#</strong> to end of line. No other comment character is supported.</td></tr>
+  <tr><td>Label</td><td><code>LOOP:</code></td><td>Optional. Must end with a colon. Case-insensitive.</td></tr>
+  <tr><td>Equate</td><td><code>PORT  .EQU  $F000</code></td><td>Defines a named constant.</td></tr>
+  <tr><td>Origin</td><td><code>.ORG  $4000</code></td><td>Sets the assembly start address.</td></tr>
+  <tr><td>Immediate operand</td><td><code>LDA  $41</code></td><td>Loads the value $41 directly into the accumulator.</td></tr>
+  <tr><td>Absolute (memory) operand</td><td><code>LDA  [$4000]</code></td><td>Loads from RAM address $4000.</td></tr>
+  <tr><td>Indexed operand</td><td><code>LDA  [$4000+X]</code></td><td>Uses IX register as address offset.</td></tr>
+  <tr><td>Indirect</td><td><code>LDA  [[$4000]]</code></td><td>Reads address stored in RAM, then loads from that address.</td></tr>
+</table>
+
+<div class="tip"><strong>Tip:</strong> Use <code>.EQU</code> constants for all port addresses to keep programs
+readable and easy to update if port addresses change.</div>
+
+<!-- ══════════════════════════════════════════════ EPROM -->
+<h2 id="eprom">EPROM Burner</h2>
+<div class="panel-intro">Dump a range of RAM to a <code>.rom</code> file, or load an existing ROM file back into RAM.</div>
+
+<table>
+  <tr><th>Field / Button</th><th>Description</th></tr>
+  <tr><td>File Name</td><td>Path and name of the target <code>.rom</code> file. Use Browse… to pick from a file dialog.</td></tr>
+  <tr><td>Start Address $</td><td>First RAM address to burn (hex, e.g. <code>0000</code>).</td></tr>
+  <tr><td>End Address $</td><td>Last RAM address to burn (hex, e.g. <code>00FF</code>).</td></tr>
+  <tr><td>Browse…</td><td>Opens a file picker to choose or create a <code>.rom</code> file.</td></tr>
+  <tr><td>Burn ROM</td><td>Writes the specified address range from RAM to the file.</td></tr>
+  <tr><td>Load ROM</td><td>Reads the selected file back into RAM at the start address.</td></tr>
+  <tr><td>Swap ROMs</td><td>Exchanges the contents of two ROM files.</td></tr>
+  <tr><td>Available System EPROMs</td><td>Lists <code>.rom</code> files already present in the system ROM folder.</td></tr>
+</table>
+
+<hr>
+
+<!-- ══════════════════════════════════════════════ PERIPHERALS -->
+<h2 id="peripherals">Peripherals &amp; I/O Map</h2>
+<div class="panel-intro">All hardware peripherals communicate with the CPU through memory-mapped addresses in the
+<code>$F000–$F0FF</code> range. Use <code>LDA [addr]</code> to read an input port and
+<code>STA [addr]</code> to write an output port.</div>
+
+<h3>Workbench 1 — Inputs</h3>
+<table>
+  <tr><th>Peripheral</th><th>Address</th><th>Dir</th><th>Description</th></tr>
+  <tr>
+    <td>8-Bit Switch Bank 1</td>
+    <td><span class="port-tag">$F000</span></td>
+    <td>IN</td>
+    <td>Read the 8 toggle switches as a byte. Bit = 1 when switch is DOWN (ON/green).
+      <em>Example:</em> <code>LDA [$F000]</code></td>
+  </tr>
+  <tr>
+    <td>8-Bit Switch Bank 2</td>
+    <td><span class="port-tag">$F001</span></td>
+    <td>IN</td>
+    <td>Second bank of 8 toggle switches. Same bit convention as Bank 1.
+      <em>Example:</em> <code>LDA [$F001]</code></td>
+  </tr>
+</table>
+
+<h3>Workbench 1 — Outputs</h3>
+<table>
+  <tr><th>Peripheral</th><th>Address</th><th>Dir</th><th>Description</th></tr>
+  <tr>
+    <td>7-Seg Undecoded</td>
+    <td><span class="port-tag">$F021</span></td>
+    <td>OUT</td>
+    <td>Raw segment control. Bits 6..0 map directly to segments a–g.
+      Write values 0–127. <em>Example:</em> <code>STA [$F021]</code></td>
+  </tr>
+  <tr>
+    <td>8-Bit LED Bar</td>
+    <td><span class="port-tag">$F022</span></td>
+    <td>OUT</td>
+    <td>Controls 8 LEDs. Bit 0 = rightmost LED. 1 = bright green, 0 = dull green.
+      <em>Example:</em> <code>STA [$F022]</code></td>
+  </tr>
+  <tr>
+    <td>7-Seg Decoded (single)</td>
+    <td><span class="port-tag">$F023</span></td>
+    <td>OUT</td>
+    <td>Low nibble of the written byte is decoded as a hex digit 0–F.
+      <em>Example:</em> <code>STA [$F023]</code></td>
+  </tr>
+  <tr>
+    <td>Dual 7-Seg Decoded</td>
+    <td><span class="port-tag">$F024</span></td>
+    <td>OUT</td>
+    <td>High nibble drives the left digit; low nibble drives the right digit.
+      Both update from a single byte write. <em>Example:</em> <code>STA [$F024]</code></td>
+  </tr>
+</table>
+
+<h3>Keyboard</h3>
+<table>
+  <tr><th>Peripheral</th><th>Address</th><th>Dir</th><th>Description</th></tr>
+  <tr>
+    <td>On-Screen Keyboard</td>
+    <td><span class="port-tag">$F011</span></td>
+    <td>IN</td>
+    <td>Keyboard writes ASCII key values here. CPU reads with <code>LDA [$F011]</code>.
+      Value is $00 when no key is pressed ($FF = idle sentinel at reset).</td>
+  </tr>
+</table>
+
+<h3>Terminal</h3>
+<table>
+  <tr><th>Peripheral</th><th>Address</th><th>Dir</th><th>Description</th></tr>
+  <tr>
+    <td>Terminal Screen</td>
+    <td><span class="port-tag">$F028</span></td>
+    <td>OUT</td>
+    <td>Write one ASCII byte to print it on the Terminal screen.
+      Printable: 32–126. <code>$0A</code> = newline. Other values ignored.
+      <em>Example:</em> <code>STA [$F028]</code></td>
+  </tr>
+</table>
+
+<h3>Calculator</h3>
+<table>
+  <tr><th>Peripheral</th><th>Address</th><th>Dir</th><th>Description</th></tr>
+  <tr>
+    <td>Calculator Display</td>
+    <td><span class="port-tag">$F031</span></td>
+    <td>OUT</td>
+    <td>Write one ASCII byte to append it to the Calculator's scrolling display.
+      Write <code>$1B</code> (ESC) to clear the display.
+      <em>Example:</em> <code>STA [$F031]</code></td>
+  </tr>
+  <tr>
+    <td>Calculator LED Strip</td>
+    <td><span class="port-tag">$F032</span></td>
+    <td>OUT</td>
+    <td>Write a byte to light up to 6 LEDs. Bits 5..0 = LEDs left to right.
+      1 = bright red, 0 = dark red.
+      <em>Example:</em> <code>STA [$F032]</code></td>
+  </tr>
+</table>
+
+<hr>
+
+<!-- ══════════════════════════════════════════════ IO MAP -->
+<h2 id="io-map">Full Address Table</h2>
+<table>
+  <tr><th>Address</th><th>Dir</th><th>Peripheral</th><th>Notes</th></tr>
+  <tr><td><span class="port-tag">$F000</span></td><td>IN</td><td>Workbench — Switch Bank 1</td><td>Bit = 1 when switch DOWN (ON/green)</td></tr>
+  <tr><td><span class="port-tag">$F001</span></td><td>IN</td><td>Workbench — Switch Bank 2</td><td>Same bit convention as Bank 1</td></tr>
+  <tr><td><span class="port-tag">$F011</span></td><td>IN</td><td>On-Screen Keyboard</td><td>ASCII key value; $00 = no key; $FF = idle</td></tr>
+  <tr><td><span class="port-tag">$F021</span></td><td>OUT</td><td>Workbench — 7-Seg Undecoded</td><td>Bits 6..0 drive segments a–g; values 0–127</td></tr>
+  <tr><td><span class="port-tag">$F022</span></td><td>OUT</td><td>Workbench — 8-Bit LED Bar</td><td>Bit 0 = rightmost LED</td></tr>
+  <tr><td><span class="port-tag">$F023</span></td><td>OUT</td><td>Workbench — 7-Seg Decoded (single)</td><td>Low nibble → hex digit 0–F</td></tr>
+  <tr><td><span class="port-tag">$F024</span></td><td>OUT</td><td>Workbench — Dual 7-Seg Decoded</td><td>Hi nibble = left digit, lo nibble = right digit</td></tr>
+  <tr><td><span class="port-tag">$F028</span></td><td>OUT</td><td>Terminal screen</td><td>ASCII 32–126 printed; $0A = newline</td></tr>
+  <tr><td><span class="port-tag">$F031</span></td><td>OUT</td><td>Calculator display</td><td>ASCII append; $1B = clear</td></tr>
+  <tr><td><span class="port-tag">$F032</span></td><td>OUT</td><td>Calculator LED strip</td><td>Bits 5..0 = 6 LEDs left to right</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════════ FLAGS -->
+<h2 id="cpu-flags">CPU Flags Reference</h2>
+<table>
+  <tr><th>Flag</th><th>Bit</th><th>Set by</th><th>Used by</th></tr>
+  <tr><td>C — Carry</td><td>0</td><td>ADD, ADDC, SUB, SUBC, SHL, SHR, ROLC, RORC, CMPA (set if ACC &gt; operand)</td><td>JC, JNC, ADDC, SUBC</td></tr>
+  <tr><td>Z — Zero</td><td>1</td><td>Any arithmetic/logic instruction that produces zero</td><td>JZ, JNZ</td></tr>
+  <tr><td>N — Negative</td><td>2</td><td>Any instruction that sets bit 7 of the result</td><td>JN, JNN</td></tr>
+  <tr><td>V — Overflow (O)</td><td>3</td><td>Signed overflow in ADD/SUB operations</td><td>JO, JNO</td></tr>
+  <tr><td>I — Interrupt Mask</td><td>4</td><td>SETIM (set), CLRIM (clear)</td><td>Controls whether hardware interrupts are accepted</td></tr>
+</table>
+
+<div class="tip"><strong>CMPA carry note:</strong> Unlike many CPUs, the Carry flag is set when
+ACC <strong>&gt;</strong> operand (not &lt;). To test if a nibble is a hex letter (A–F):
+<code>CMPA $09</code> then <code>JC [letter]</code> — jumps if ACC &gt; 9.</div>
+
+<!-- ══════════════════════════════════════════════ INSTRUCTION SET -->
+<h2 id="instruction-set">Instruction Summary</h2>
+<table>
+  <tr><th>Mnemonic</th><th>Modes</th><th>Description</th></tr>
+  <tr><td>NOP</td><td>—</td><td>No operation.</td></tr>
+  <tr><td>LDA</td><td>imm, abs, abs+X, ind, ind+X</td><td>Load Accumulator.</td></tr>
+  <tr><td>STA</td><td>abs, abs+X, ind, ind+X</td><td>Store Accumulator.</td></tr>
+  <tr><td>ADD</td><td>imm, abs, abs+X</td><td>Add to Accumulator.</td></tr>
+  <tr><td>ADDC</td><td>imm, abs, abs+X</td><td>Add with Carry.</td></tr>
+  <tr><td>SUB</td><td>imm, abs, abs+X</td><td>Subtract from Accumulator.</td></tr>
+  <tr><td>SUBC</td><td>imm, abs, abs+X</td><td>Subtract with borrow (Carry).</td></tr>
+  <tr><td>DADD / DADDC</td><td>imm, abs, abs+X</td><td>BCD decimal add / add with carry.</td></tr>
+  <tr><td>DSUB / DSUBC</td><td>imm, abs, abs+X</td><td>BCD decimal subtract / subtract with carry.</td></tr>
+  <tr><td>CMPA</td><td>imm, abs, abs+X</td><td>Compare Accumulator with operand — sets flags only, ACC unchanged. C=1 if ACC &gt; operand.</td></tr>
+  <tr><td>AND</td><td>imm, abs, abs+X</td><td>Bitwise AND with Accumulator.</td></tr>
+  <tr><td>OR</td><td>imm, abs, abs+X</td><td>Bitwise OR with Accumulator.</td></tr>
+  <tr><td>XOR</td><td>imm, abs, abs+X</td><td>Bitwise XOR with Accumulator.</td></tr>
+  <tr><td>SHL</td><td>—</td><td>Shift Accumulator left one bit (bit 7 → Carry, 0 → bit 0).</td></tr>
+  <tr><td>SHR</td><td>—</td><td>Shift Accumulator right one bit (bit 0 → Carry, 0 → bit 7).</td></tr>
+  <tr><td>ROLC</td><td>—</td><td>Rotate Accumulator left through Carry.</td></tr>
+  <tr><td>RORC</td><td>—</td><td>Rotate Accumulator right through Carry.</td></tr>
+  <tr><td>INCA</td><td>—</td><td>Increment Accumulator.</td></tr>
+  <tr><td>DECA</td><td>—</td><td>Decrement Accumulator.</td></tr>
+  <tr><td>INCX</td><td>—</td><td>Increment Index Register (IX).</td></tr>
+  <tr><td>DECX</td><td>—</td><td>Decrement Index Register (IX).</td></tr>
+  <tr><td>CLRIM</td><td>—</td><td>Clear Interrupt Mask (enable interrupts).</td></tr>
+  <tr><td>SETIM</td><td>—</td><td>Set Interrupt Mask (disable interrupts).</td></tr>
+  <tr><td>PSHA</td><td>—</td><td>Push Accumulator onto stack.</td></tr>
+  <tr><td>POPA</td><td>—</td><td>Pop Accumulator from stack.</td></tr>
+  <tr><td>PUSHSR</td><td>—</td><td>Push Status Register onto stack.</td></tr>
+  <tr><td>POPSR</td><td>—</td><td>Pop Status Register from stack.</td></tr>
+  <tr><td>BLDX</td><td>imm16, abs16</td><td>Load Index Register IX with a 16-bit value.</td></tr>
+  <tr><td>BSTX</td><td>abs16</td><td>Store Index Register IX to a 16-bit RAM address.</td></tr>
+  <tr><td>BLDSP</td><td>imm16</td><td>Load Stack Pointer with a 16-bit immediate value.</td></tr>
+  <tr><td>BSTSP</td><td>abs16</td><td>Store Stack Pointer to a 16-bit RAM address.</td></tr>
+  <tr><td>BLDIV</td><td>abs16</td><td>Load Interrupt Vector from a 16-bit RAM address.</td></tr>
+  <tr><td>JMP</td><td>abs, ind, ind+X</td><td>Unconditional jump.</td></tr>
+  <tr><td>JC / JNC</td><td>abs</td><td>Jump if Carry set / clear.</td></tr>
+  <tr><td>JN / JNN</td><td>abs</td><td>Jump if Negative / Not Negative.</td></tr>
+  <tr><td>JZ / JNZ</td><td>abs</td><td>Jump if Zero / Not Zero.</td></tr>
+  <tr><td>JO / JNO</td><td>abs</td><td>Jump if Overflow / No Overflow.</td></tr>
+  <tr><td>JSR</td><td>abs, ind, ind+X</td><td>Jump to Subroutine — pushes return address onto stack.</td></tr>
+  <tr><td>RTS</td><td>—</td><td>Return from Subroutine.</td></tr>
+  <tr><td>RTI</td><td>—</td><td>Return from Interrupt.</td></tr>
+  <tr><td>HALT</td><td>—</td><td>Stop the CPU. A reset is required to continue execution.</td></tr>
+</table>
+
+<p style="margin-top:32px;font-size:12px;color:#888;">Beboputer Virtual Computer — Help Document &nbsp;|&nbsp;
+Based on the DIY Calculator by Clive "Max" Maxfield &amp; Alvin Brown</p>
+</div>
+
+</body>
+</html>

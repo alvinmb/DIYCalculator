@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Power Button Demo</title>
+<style>
+  :root {
+    --bg-off: #0a0a0d;
+    --bg-on: #07131a;
+    --accent: #38e1ff;
+    --accent-dim: #1b6275;
+    --text-dim: #4a5560;
+    --text-on: #e8faff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg-off);
+    overflow: hidden;
+    transition: background 0.8s ease;
+    user-select: none;
+  }
+
+  body.on { background: var(--bg-on); }
+
+  /* Main screen — the "device" display */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 0.6s ease 0.4s, transform 0.6s ease 0.4s;
+    pointer-events: none;
+  }
+
+  body.on .screen {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .logo {
+    font-size: 14px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.6s;
+  }
+
+  body.on .logo { opacity: 1; }
+
+  .boot-log {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    text-align: left;
+    min-height: 120px;
+    width: min(420px, 80vw);
+    line-height: 1.7;
+  }
+
+  .boot-log .line {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .boot-log .line.show {
+    opacity: 1;
+    transform: none;
+  }
+
+  .clock {
+    font-size: 56px;
+    font-weight: 200;
+    color: var(--text-on);
+    letter-spacing: 2px;
+    opacity: 0;
+    transition: opacity 0.5s ease 1.6s;
+  }
+
+  body.on .clock { opacity: 1; }
+
+  /* Power button — fixed in lower-center */
+  .power-btn {
+    position: absolute;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 2px solid var(--text-dim);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.4s ease;
+    z-index: 10;
+    outline: none;
+  }
+
+  .power-btn:hover {
+    border-color: #8a9099;
+    color: #8a9099;
+  }
+
+  .power-btn:active { transform: translateX(-50%) scale(0.94); }
+
+  body.on .power-btn {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 24px rgba(56, 225, 255, 0.4),
+                inset 0 0 12px rgba(56, 225, 255, 0.15);
+  }
+
+  .power-icon {
+    width: 28px;
+    height: 28px;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    fill: none;
+    stroke-linecap: round;
+  }
+
+  .label {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  body.on .label { color: var(--accent-dim); }
+
+  /* Power-up glow burst */
+  .burst {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    pointer-events: none;
+    filter: blur(20px);
+  }
+
+  body.on .burst {
+    animation: burst 1.2s ease-out forwards;
+  }
+
+  @keyframes burst {
+    0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.9; }
+    60%  { transform: translate(-50%, -50%) scale(40); opacity: 0.3; }
+    100% { transform: translate(-50%, -50%) scale(60); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="burst"></div>
+
+  <div class="screen">
+    <div class="logo">System</div>
+    <div class="boot-log" id="bootLog"></div>
+    <div class="clock" id="clock">--:--</div>
+  </div>
+
+  <button class="power-btn" id="powerBtn" aria-label="Power">
+    <svg class="power-icon" viewBox="0 0 24 24">
+      <path d="M12 3 v9" />
+      <path d="M6.3 7.3 a8 8 0 1 0 11.4 0" />
+    </svg>
+  </button>
+  <div class="label" id="label">Off</div>
+
+<script>
+  const body     = document.body;
+  const btn      = document.getElementById('powerBtn');
+  const label    = document.getElementById('label');
+  const bootLog  = document.getElementById('bootLog');
+  const clockEl  = document.getElementById('clock');
+
+  const bootLines = [
+    '> initializing core...',
+    '> loading modules [ok]',
+    '> mounting interface [ok]',
+    '> system ready.'
+  ];
+
+  let isOn = false;
+  let clockTimer = null;
+
+  function tickClock() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    clockEl.textContent = `${hh}:${mm}:${ss}`;
+  }
+
+  function powerOn() {
+    body.classList.add('on');
+    label.textContent = 'On';
+
+    // Stream boot log
+    bootLog.innerHTML = '';
+    bootLines.forEach((text, i) => {
+      const line = document.createElement('div');
+      line.className = 'line';
+      line.textContent = text;
+      bootLog.appendChild(line);
+      setTimeout(() => line.classList.add('show'), 700 + i * 250);
+    });
+
+    tickClock();
+    clockTimer = setInterval(tickClock, 1000);
+  }
+
+  function powerOff() {
+    body.classList.remove('on');
+    label.textContent = 'Off';
+    if (clockTimer) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    isOn = !isOn;
+    if (isOn) powerOn();
+    else powerOff();
+  });
+</script>
+</body>
+</html>

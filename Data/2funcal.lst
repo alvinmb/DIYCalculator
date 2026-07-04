@@ -1,0 +1,661 @@
+# FILE TYPE: DIY Calculator List (*.lst) file
+# GENERATED: DIY Calculator Assembler V2.0
+# DATE-TIME: Mar 11 07:32:52 2005
+# SOURCEWAS: C:\calculator_tree\Data\2funcal.asm
+
+INSTBYTES: 457
+DATABYTES: 256
+
+LINE  ADDR   DATA      LABEL   OPCODE OPERAND
+----- ---- --------  --------- ------ -------
+00001 #######################################################################
+00002 ## Start of constant declarations ##
+00003 ####################################################################### 
+00004                MAINDISP: .EQU   $F031 
+00005                SIXLEDS:  .EQU   $F032 
+00006                KEYPAD:   .EQU   $F011 
+00007                CLRCODE:  .EQU   $10 
+00008                BELLCODE: .EQU   $11 
+00009                BACKCODE: .EQU   $12 
+00010                BINMODE:  .EQU   %00000100 
+00011                DECMODE:  .EQU   %00000010 
+00012                HEXMODE:  .EQU   %00000001 
+00013                CLRKEY:   .EQU   $10 
+00014                CEKEY:    .EQU   $11 
+00015                BACKKEY:  .EQU   $12 
+00016                ENTERKEY: .EQU   $13 
+00017
+00018 #######################################################################
+00019 ## End of constant declarations ##
+00020 ####################################################################### 
+00021                          .ORG   $4000
+00022 #######################################################################
+00023 ## Start of initialization ##
+00024 ####################################################################### 
+00025 4000 90 10     INIT:     LDA    CLRCODE 
+00026 4002 99 F0 31            STA    [MAINDISP] 
+00027 4005 90 01               LDA    HEXMODE 
+00028 4007 99 F0 32            STA    [SIXLEDS] 
+00029 400A 50 EF FF            BLDSP  $EFFF 
+00030 #######################################################################
+00031 ## End of initialization ##
+00032 ####################################################################### 
+00033
+00034 #######################################################################
+00035 ## Start of main program body ##
+00036 ####################################################################### 
+00037 400D C9 40 30  MAINLOOP: JSR    [GETSTUFF] 
+00038 4010 91 41 E6            LDA    [INSTRING] 
+00039 4013 60 0F               CMPA   $0F 
+00040 4015 E1 40 1E            JC     [DOFUNC] 
+00041 4018 C9 40 77            JSR    [GETNUM] 
+00042 401B C1 40 0D            JMP    [MAINLOOP] 
+00043 ########## Call the appropriate math/other function/subroutine
+00044 401E 20 14     DOFUNC:   SUB    $14 
+00045 4020 70                  SHL    
+00046 4021 99 41 F1            STA    [TEMPX+1] 
+00047 4024 A1 41 F0            BLDX   [TEMPX] 
+00048 4027 CC 42 65            JSR    [[KEY_H14,X]]
+00049 402A C9 40 A0            JSR    [DISPNUM] 
+00050 402D C1 40 0D            JMP    [MAINLOOP] 
+00051 #######################################################################
+00052 ## End of main program body ##
+00053 ####################################################################### 
+00054
+00055 #######################################################################
+00056 ## Start of subroutines ##
+00057 ####################################################################### 
+00058 ########## Start of GETSTUFF subroutine
+00059 ########## Read a series of codes from the keypad until 
+00060 ########## the “Enter” key is pressed 
+00061 ########## Initialize the input string with dummy values 
+00062 4030 A0 00 0A  GETSTUFF: BLDX   10 
+00063 4033 90 FF               LDA    $FF 
+00064 4035 83        _GS_ISTR: DECX   
+00065 4036 9A 41 E6            STA    [INSTRING,X] 
+00066 4039 D6 40 35            JNZ    [_GS_ISTR] 
+00067 ########## Initialize the “first” flag with 1
+00068 403C 90 01     _GS_IFST: LDA    $01 
+00069 403E 99 40 75            STA    [_GS_FST] 
+00070 ########## This is the main loop where we load a series of key codes
+00071 ########## into 'INSTRING' until the enter key is pressed
+00072 4041 A0 00 00            BLDX   0 
+00073 ########## Wait for a key to be pressed
+00074 4044 91 F0 11  _GS_LOOP: LDA    [KEYPAD] 
+00075 4047 D9 40 44            JN     [_GS_LOOP] 
+00076 404A 99 40 76            STA    [_GS_TEMP] 
+00077 ########## If this is the first key, then clear the display
+00078 404D 91 40 75  _GS_TFST: LDA    [_GS_FST] 
+00079 4050 D1 40 5D            JZ     [_GS_DOIT] 
+00080 4053 90 10               LDA    CLRCODE 
+00081 4055 99 F0 31            STA    [MAINDISP] 
+00082 4058 90 00               LDA    $00 
+00083 405A 99 40 75            STA    [_GS_FST] 
+00084 ########## Process the key
+00085 405D 91 40 76  _GS_DOIT: LDA    [_GS_TEMP] 
+00086 4060 60 13               CMPA   ENTERKEY 
+00087 4062 D6 40 66            JNZ    [_GS_STOR] 
+00088 4065 CF                  RTS    
+00089
+00090 4066 9A 41 E6  _GS_STOR: STA    [INSTRING,X] 
+00091 4069 82                  INCX   
+00092 406A 60 09               CMPA   $09 
+00093 406C E1 40 44            JC     [_GS_LOOP] 
+00094 406F 99 F0 31            STA    [MAINDISP] 
+00095 4072 C1 40 44            JMP    [_GS_LOOP] 
+00096 4075 00        _GS_FST:  .BYTE  
+00097 4076 00        _GS_TEMP: .BYTE  
+00098 ########## End of GETSTUFF subroutine 
+00099 #---------------------------------------------------------------------# 
+00100 ########## Start of GETNUM subroutine
+00101 ########## Get four hex digits, use them to form a 16-bit binary 
+00102 ########## value, and store that value on the stack 
+00103 ########## Pop the return address off the stack and save it 
+00104 4077 B0        GETNUM:   POPA   
+00105 4078 99 40 9E            STA    [_GN_RADD] 
+00106 407B B0                  POPA   
+00107 407C 99 40 9F            STA    [_GN_RADD+1] 
+00108 ########## Build a 16-bit binary number and push it in the stack
+00109 407F 91 41 E8  _GN_STR:  LDA    [INSTRING+2] 
+00110 4082 70                  SHL    
+00111 4083 70                  SHL    
+00112 4084 70                  SHL    
+00113 4085 70                  SHL    
+00114 4086 39 41 E9            OR     [INSTRING+3] 
+00115 4089 B2                  PUSHA  
+00116 408A 91 41 E6            LDA    [INSTRING] 
+00117 408D 70                  SHL    
+00118 408E 70                  SHL    
+00119 408F 70                  SHL    
+00120 4090 70                  SHL    
+00121 4091 39 41 E7            OR     [INSTRING+1] 
+00122 4094 B2                  PUSHA  
+00123 ########## Return gracefully from this subroutine
+00124 4095 91 40 9F  _GN_RET:  LDA    [_GN_RADD+1] 
+00125 4098 B2                  PUSHA  
+00126 4099 91 40 9E            LDA    [_GN_RADD] 
+00127 409C B2                  PUSHA  
+00128 409D CF                  RTS    
+00129 409E 00 00     _GN_RADD: .2BYTE 
+00130 # the return address for this routine
+00131 ########## End of GETNUM subroutine 
+00132 #---------------------------------------------------------------------# 
+00133 ########## Start of decimal DISPNUM subroutine
+00134 ########## Assumes a 2-byte integer is on top of the stack 
+00135 ########## Pop the return address off the stack and save it 
+00136 40A0 B0        DISPNUM:  POPA   
+00137 40A1 99 40 E2            STA    [_DN_RADD] 
+00138 40A4 B0                  POPA   
+00139 40A5 99 40 E3            STA    [_DN_RADD+1] 
+00140 ########## Clear the main display
+00141 40A8 90 10     _DN_CDIS: LDA    CLRCODE 
+00142 40AA 99 F0 31            STA    [MAINDISP] 
+00143 ########## Pop the number off the top of the stack
+00144 40AD B0        _DN_GNUM: POPA   
+00145 40AE 99 40 E4            STA    [_DN_TMP] 
+00146 40B1 B0                  POPA   
+00147 40B2 99 40 E5            STA    [_DN_TMP+1] 
+00148 ########## Push a copy of the number back onto the stack
+00149 40B5 B2        _DN_PNUM: PUSHA  
+00150 40B6 91 40 E4            LDA    [_DN_TMP] 
+00151 40B9 B2                  PUSHA  
+00152 ########## Break-out and display the MS byte (1st and 2nd digits)
+00153 40BA 91 40 E4  _DN_MSB:  LDA    [_DN_TMP] 
+00154 40BD 71                  SHR    
+00155 40BE 71                  SHR    
+00156 40BF 71                  SHR    
+00157 40C0 71                  SHR    
+00158 40C1 30 0F               AND    $0F 
+00159 40C3 99 F0 31            STA    [MAINDISP] 
+00160 40C6 91 40 E4            LDA    [_DN_TMP] 
+00161 40C9 30 0F               AND    $0F 
+00162 40CB 99 F0 31            STA    [MAINDISP] 
+00163 ########## Break-out and display the LS byte (3rd and 4th digits)
+00164 40CE 91 40 E5  _DN_LSB:  LDA    [_DN_TMP+1] 
+00165 40D1 71                  SHR    
+00166 40D2 71                  SHR    
+00167 40D3 71                  SHR    
+00168 40D4 71                  SHR    
+00169 40D5 30 0F               AND    $0F 
+00170 40D7 99 F0 31            STA    [MAINDISP] 
+00171 40DA 91 40 E5            LDA    [_DN_TMP+1] 
+00172 40DD 30 0F               AND    $0F 
+00173 40DF 99 F0 31            STA    [MAINDISP] 
+00174 40E2 00 00     _DN_RADD: .2BYTE 
+00175 # the return address for this routine
+00176 40E4 00 00     _DN_TMP:  .2BYTE 
+00177 40E6 00 00     _DN_TMPX: .2BYTE 
+00178 40E8 00        _DN_FST:  .BYTE  
+00179 ########## End of DISPNUM subroutine 
+00180
+00181 #---------------------------------------------------------------------# 
+00182 ########## Start of DISPERR subroutine
+00183 ########## Display an error message and then quit the program 
+00184 ########## First clear the display
+00185 40E9 90 10     DISPERR:  LDA    CLRCODE 
+00186 40EB 99 F0 31            STA    [MAINDISP] 
+00187 ########## Display the word "Error: " (note the space)
+00188 40EE A9 41 F0  _DE_ERR:  BSTX   [TEMPX] 
+00189 40F1 A0 41 F2            BLDX   MSG_000 
+00190 40F4 92 00 00  _DE_LUPA: LDA    [0,X] 
+00191 40F7 D1 41 01            JZ     [_DE_MSG] 
+00192 40FA 99 F0 31            STA    [MAINDISP] 
+00193 40FD 82                  INCX   
+00194 40FE C1 40 F4            JMP    [_DE_LUPA] 
+00195 ########## Now display the main error message then terminate
+00196 4101 A1 41 F0  _DE_MSG:  BLDX   [TEMPX] 
+00197 4104 92 00 00  _DE_LUPB: LDA    [0,X] 
+00198 4107 D1 00 00            JZ     [$0000] 
+00199 410A 99 F0 31            STA    [MAINDISP] 
+00200 410D 82                  INCX   
+00201 410E C1 41 04            JMP    [_DE_LUPB] 
+00202 ########## End of DISPERR subroutine 
+00203 #---------------------------------------------------------------------# 
+00204 ########## Start of CHK2NEG subroutine
+00205 ########## Retrieve a 16-bit binary value from the stack and test it.
+00206 ########## If -32,768, call DISPERR, else return number intact. 
+00207 ########## Pop the return address off the stack and save it 
+00208 4111 B0        CHK2NEG:  POPA   
+00209 4112 99 41 42            STA    [_CN_RADD] 
+00210 4115 B0                  POPA   
+00211 4116 99 41 43            STA    [_CN_RADD+1] 
+00212
+00213 ########## Pop the number to be testes off the stack
+00214 4119 B0        _CN_GNUM: POPA   
+00215 411A 99 41 44            STA    [_CN_NUM] 
+00216 411D B0                  POPA   
+00217 411E 99 41 45            STA    [_CN_NUM+1] 
+00218
+00219 ########## Push a copy of the number back onto the stack
+00220 4121 B2        _CN_PNUM: PUSHA  
+00221 4122 91 41 44            LDA    [_CN_NUM] 
+00222 4125 B2                  PUSHA  
+00223 ########## Check the MS byte to see if it's equal to $80 
+00224 4126 60 80     _CN_CKMS: CMPA   $80 
+00225 4128 D6 41 39            JNZ    [_CN_RET] 
+00226 ########## Check the LS byte to see if it's equal to $00 
+00227 412B 91 41 45  _CN_CKLS: LDA    [_CN_NUM+1] 
+00228 412E 60 00               CMPA   $00 
+00229 4130 D6 41 39            JNZ    [_CN_RET] 
+00230 ########## Call the error message display subroutine 
+00231 4133 A0 42 4D  _CN_DERR: BLDX   MSG_009 
+00232 4136 C9 40 E9            JSR    [DISPERR] 
+00233 # (which terminates the program) 
+00234 ########## Return gracefully from this subroutine
+00235 4139 91 41 43  _CN_RET:  LDA    [_CN_RADD+1] 
+00236 413C B2                  PUSHA  
+00237 413D 91 41 42            LDA    [_CN_RADD] 
+00238 4140 B2                  PUSHA  
+00239 4141 CF                  RTS    
+00240 ########## Reserve temp locations for this subroutine
+00241 4142 00 00     _CN_RADD: .2BYTE 
+00242 # the return address for this routine
+00243 4144 00 00     _CN_NUM:  .2BYTE 
+00244 # the number we're checking
+00245 ########## End of CHK2NEG subroutine 
+00246 #---------------------------------------------------------------------# 
+00247 ########## START OF MATH SUBROUTINES 
+00248 4146 CF        _NOTYET:  RTS    
+00249 4147 CF        _MULT:    RTS    
+00250 4148 CF        _DIV:     RTS    
+00251 #---------------------------------------------------------------------# 
+00252 ########## Get return address from stack and store it
+00253 4149 B0        _ADD:     POPA   
+00254 414A 99 41 7E            STA    [_AD_RADD] 
+00255 414D B0                  POPA   
+00256 414E 99 41 7F            STA    [_AD_RADD+1] 
+00257 ########## Get addend and augend from stack
+00258 4151 B0        _AD_GNUM: POPA   
+00259 4152 99 41 81            STA    [_AD_NUMB] 
+00260 4155 B0                  POPA   
+00261 4156 99 41 82            STA    [_AD_NUMB+1] 
+00262 4159 B0                  POPA   
+00263 415A 99 41 80            STA    [_AD_NUMA] 
+00264 415D B0                  POPA   
+00265 # stack & leave it in the ACC 
+00266 ########## Perform the addition
+00267 415E 11 41 82  _AD_DOIT: ADD    [_AD_NUMB+1] 
+00268 4161 B2                  PUSHA  
+00269 4162 91 41 80            LDA    [_AD_NUMA] 
+00270 # from temp location
+00271 4165 19 41 81            ADDC   [_AD_NUMB] 
+00272 4168 B2                  PUSHA  
+00273 ########## Make sure there isn't an overflow from the MS addition
+00274 4169 EE 41 72  _AD_CHKO: JNO    [_AD_CHKN] 
+00275 416C A0 42 0F            BLDX   MSG_003 
+00276 416F C9 40 E9            JSR    [DISPERR] 
+00277 # (which terminates the program) 
+00278 ########## Call the CHK2NEG subroutine to test for -32,768
+00279 4172 C9 41 11  _AD_CHKN: JSR    [CHK2NEG] 
+00280 ########## Return to main program
+00281 4175 91 41 7F  _AD_RET:  LDA    [_AD_RADD+1] 
+00282 # address from temp location and
+00283 4178 B2                  PUSHA  
+00284 4179 91 41 7E            LDA    [_AD_RADD] 
+00285 # address from temp location and
+00286 417C B2                  PUSHA  
+00287 417D CF                  RTS    
+00288 ########## Reserve temp locations for this subroutine
+00289 417E 00 00     _AD_RADD: .2BYTE 
+00290 # the return address
+00291 4180 00        _AD_NUMA: .BYTE  
+00292 # the MS byte of the augend
+00293 4181 00 00     _AD_NUMB: .2BYTE 
+00294 # the addend
+00295 ########## This is the end of the _ADD subroutine 
+00296 #---------------------------------------------------------------------# 
+00297 ########## Get return address from stack and store it
+00298 4183 B0        _SUB:     POPA   
+00299 4184 99 41 B8            STA    [_SB_RADD] 
+00300 4187 B0                  POPA   
+00301 4188 99 41 B9            STA    [_SB_RADD+1] 
+00302 ########## Get subtrahend and minuend from stack
+00303 418B B0        _SB_GNUM: POPA   
+00304 418C 99 41 BB            STA    [_SB_NUMB] 
+00305 418F B0                  POPA   
+00306 4190 99 41 BC            STA    [_SB_NUMB+1] 
+00307 4193 B0                  POPA   
+00308 4194 99 41 BA            STA    [_SB_NUMA] 
+00309 4197 B0                  POPA   
+00310 # stack & leave it in the ACC 
+00311 ########## Perform the subtraction
+00312 4198 21 41 BC  _SB_DOIT: SUB    [_SB_NUMB+1] 
+00313 419B B2                  PUSHA  
+00314 419C 91 41 BA            LDA    [_SB_NUMA] 
+00315 # from temp location
+00316 419F 29 41 BB            SUBC   [_SB_NUMB] 
+00317 41A2 B2                  PUSHA  
+00318 ########## Make sure there isn't an overflow from the MS subtraction
+00319 41A3 EE 41 AC  _SB_CHKO: JNO    [_SB_CHKN] 
+00320 41A6 A0 42 0F            BLDX   MSG_003 
+00321 41A9 C9 40 E9            JSR    [DISPERR] 
+00322 # (which terminates the program) 
+00323 ########## Call the CHK2NEG subroutine to test for -32,768
+00324 41AC C9 41 11  _SB_CHKN: JSR    [CHK2NEG] 
+00325 ########## Return to main program
+00326 41AF 91 41 B9  _SB_RET:  LDA    [_SB_RADD+1] 
+00327 # address from temp location and
+00328 41B2 B2                  PUSHA  
+00329 41B3 91 41 B8            LDA    [_SB_RADD] 
+00330 # address from temp location and
+00331 41B6 B2                  PUSHA  
+00332 41B7 CF                  RTS    
+00333 ########## Reserve temp locations for this subroutine
+00334 41B8 00 00     _SB_RADD: .2BYTE 
+00335 # the return address
+00336 41BA 00        _SB_NUMA: .BYTE  
+00337 # the MS byte of the minuend
+00338 41BB 00 00     _SB_NUMB: .2BYTE 
+00339 # the subtrahend
+00340 ########## This is the end of the _SUB subroutine 
+00341 ########## Get return address from stack and store it
+00342 41BD B0        _NEG:     POPA   
+00343 41BE 99 41 E2            STA    [_NG_RADD] 
+00344 41C1 B0                  POPA   
+00345 41C2 99 41 E3            STA    [_NG_RADD+1] 
+00346 ########## Get subtrahend and minuend from stack
+00347 41C5 B0        _NG_GNUM: POPA   
+00348 41C6 99 41 E4            STA    [_NG_NUM] 
+00349 41C9 B0                  POPA   
+00350 41CA 99 41 E5            STA    [_NG_NUM+1] 
+00351 ########## Perform the subtraction
+00352 41CD 90 00     _NG_DOIT: LDA    $00 
+00353 41CF 21 41 E5            SUB    [_NG_NUM+1] 
+00354 41D2 B2                  PUSHA  
+00355 41D3 90 00               LDA    $00 
+00356 41D5 29 41 E4            SUBC   [_NG_NUM] 
+00357 41D8 B2                  PUSHA  
+00358 ########## Return to main program
+00359 41D9 91 41 E3  _NG_RET:  LDA    [_NG_RADD+1] 
+00360 # address from temp location and
+00361 41DC B2                  PUSHA  
+00362 41DD 91 41 E2            LDA    [_NG_RADD] 
+00363 # address from temp location and
+00364 41E0 B2                  PUSHA  
+00365 41E1 CF                  RTS    
+00366 ########## Reserve temp locations for this subroutine
+00367 41E2 00 00     _NG_RADD: .2BYTE 
+00368 # the return address
+00369 41E4 00 00     _NG_NUM:  .2BYTE 
+00370 # the number to be negated
+00371 ########## This is the end of the _NEG subroutine 
+00372 #---------------------------------------------------------------------# 
+00373
+00374 #######################################################################
+00375 ## End of subroutines ##
+00376 ####################################################################### 
+00377
+00378 #######################################################################
+00379 ## Start of global data ##
+00380 ####################################################################### 
+00381 41E6 00 00 00  INSTRING: .BYTE  *10 
+      41E9 00 00 00 
+      41EC 00 00 00 
+      41EF 00 
+00382 41F0 00 00     TEMPX:    .2BYTE 
+00383 ########## Start of message strings
+00384 41F2 45 52 52  MSG_000:  .BYTE  $45, $52, $52, $4F, $52, $3A, $20, $00
+      41F5 4F 52 3A 
+      41F8 20 00 
+00385 41FA 43 61 72  MSG_001:  .BYTE  $43, $61, $72, $72, $79, $20, $3D, $20, $31, $00
+      41FD 72 79 20 
+      4200 3D 20 31 
+      4203 00 
+00386 4204 42 6F 72  MSG_002:  .BYTE  $42, $6F, $72, $72, $6F, $77, $20, $3D, $20, $30, $00
+      4207 72 6F 77 
+      420A 20 3D 20 
+      420D 30 00 
+00387 420F 4F 76 65  MSG_003:  .BYTE  $4F, $76, $65, $72, $66, $6C, $6F, $77, $00
+      4212 72 66 6C 
+      4215 6F 77 00 
+00388 4218 55 6E 64  MSG_004:  .BYTE  $55, $6E, $64, $65, $72, $66, $6C, $6F, $77, $00
+      421B 65 72 66 
+      421E 6C 6F 77 
+      4221 00 
+00389 4222 54 6F 6F  MSG_005:  .BYTE  $54, $6F, $6F, $20, $62, $69, $67, $00
+      4225 20 62 69 
+      4228 67 00 
+00390 422A 54 6F 6F  MSG_006:  .BYTE  $54, $6F, $6F, $20, $73, $6D, $61, $6C, $6C, $00
+      422D 20 73 6D 
+      4230 61 6C 6C 
+      4233 00 
+00391 4234 44 69 76  MSG_007:  .BYTE  $44, $69, $76, $69, $64, $65, $20, $62, $79, $20, $30, $00
+      4237 69 64 65 
+      423A 20 62 79 
+      423D 20 30 00 
+00392 4240 4F 75 74  MSG_008:  .BYTE  $4F, $75, $74, $20, $6F, $66, $20, $72, $61, $6E, $67, $65, $00
+      4243 20 6F 66 
+      4246 20 72 61 
+      4249 6E 67 65 
+      424C 00 
+00393 424D 2D 33 32  MSG_009:  .BYTE  $2D, $33, $32, $2C, $37, $36, $38, $00
+      4250 2C 37 36 
+      4253 38 00 
+00394 4255 4E 6F 74  MSG_010:  .BYTE  $4E, $6F, $74, $20, $69, $6D, $70, $6C, $65, $6D, $65, $6E, $74, $65, $64, $00 
+      4258 20 69 6D 
+      425B 70 6C 65 
+      425E 6D 65 6E 
+      4261 74 65 64 
+      4264 00 
+00395 ########## Start of cunning re-direction
+00396 4265 41 BD     KEY_H14:  .2BYTE _NEG 
+00397 4267 41 46     KEY_H15:  .2BYTE _NOTYET 
+00398 4269 41 49     KEY_H16:  .2BYTE _ADD 
+00399 426B 41 83     KEY_H17:  .2BYTE _SUB 
+00400 426D 41 47     KEY_H18:  .2BYTE _MULT 
+00401 426F 41 48     KEY_H19:  .2BYTE _DIV 
+00402 4271 41 46     KEY_H1A:  .2BYTE _NOTYET 
+00403 4273 41 46     KEY_H1B:  .2BYTE _NOTYET 
+00404 4275 41 46     KEY_H1C:  .2BYTE _NOTYET 
+00405 4277 41 46     KEY_H1D:  .2BYTE _NOTYET 
+00406 4279 41 46     KEY_H1E:  .2BYTE _NOTYET 
+00407 427B 41 46     KEY_H1F:  .2BYTE _NOTYET 
+00408 427D 41 46     KEY_H20:  .2BYTE _NOTYET 
+00409 427F 41 46     KEY_H21:  .2BYTE _NOTYET 
+00410 4281 41 46     KEY_H22:  .2BYTE _NOTYET 
+00411 4283 41 46     KEY_H23:  .2BYTE _NOTYET 
+00412 4285 41 46     KEY_H24:  .2BYTE _NOTYET 
+00413 4287 41 46     KEY_H25:  .2BYTE _NOTYET 
+00414 4289 41 46     KEY_H26:  .2BYTE _NOTYET 
+00415 428B 41 46     KEY_H27:  .2BYTE _NOTYET 
+00416 428D 41 46     KEY_H28:  .2BYTE _NOTYET 
+00417 428F 41 46     KEY_H29:  .2BYTE _NOTYET 
+00418 4291 41 46     KEY_H2A:  .2BYTE _NOTYET 
+00419 4293 41 46     KEY_H2B:  .2BYTE _NOTYET 
+00420 4295 41 46     KEY_H2C:  .2BYTE _NOTYET 
+00421 4297 41 46     KEY_H2D:  .2BYTE _NOTYET 
+00422 4299 41 46     KEY_H2E:  .2BYTE _NOTYET 
+00423 429B 41 46     KEY_H2F:  .2BYTE _NOTYET 
+00424 429D 41 46     KEY_H30:  .2BYTE _NOTYET 
+00425 429F 41 46     KEY_H31:  .2BYTE _NOTYET 
+00426 42A1 41 46     KEY_H32:  .2BYTE _NOTYET 
+00427 42A3 41 46     KEY_H33:  .2BYTE _NOTYET 
+00428 42A5 41 46     KEY_H34:  .2BYTE _NOTYET 
+00429 42A7 41 46     KEY_H35:  .2BYTE _NOTYET 
+00430 42A9 41 46     KEY_H36:  .2BYTE _NOTYET 
+00431 42AB 41 46     KEY_H37:  .2BYTE _NOTYET 
+00432 42AD 41 46     KEY_H38:  .2BYTE _NOTYET 
+00433 42AF 41 46     KEY_H39:  .2BYTE _NOTYET 
+00434 42B1 41 46     KEY_H3A:  .2BYTE _NOTYET 
+00435 42B3 41 46     KEY_H3B:  .2BYTE _NOTYET 
+00436 42B5 41 46     KEY_H3C:  .2BYTE _NOTYET 
+00437 42B7 41 46     KEY_H3D:  .2BYTE _NOTYET 
+00438 42B9 41 46     KEY_H3E:  .2BYTE _NOTYET 
+00439 42BB 41 46     KEY_H3F:  .2BYTE _NOTYET 
+00440 42BD 41 46     KEY_H40:  .2BYTE _NOTYET 
+00441 42BF 41 46     KEY_H41:  .2BYTE _NOTYET 
+00442 42C1 41 46     KEY_H42:  .2BYTE _NOTYET 
+00443 42C3 41 46     KEY_H43:  .2BYTE _NOTYET 
+00444 42C5 41 46     KEY_H44:  .2BYTE _NOTYET 
+00445 42C7 41 46     KEY_H45:  .2BYTE _NOTYET 
+00446 #######################################################################
+00447 ## End of global data ##
+00448 #######################################################################
+00449
+00450                          .END
+
+
+
+CONSTANT LABELS CROSS-REFERENCE
+
+  NAME     VALUE   LINE NUMBERS WHERE USED (* INDICATES DECLARATION)
+-------- --------- ---------------------------------------------------
+BACKCODE 00000012  00009* 
+BACKKEY  00000012  00015* 
+BELLCODE 00000011  00008* 
+BINMODE  00000004  00010* 
+CEKEY    00000011  00014* 
+CLRCODE  00000010  00007* 00025  00080  00141  00185  
+CLRKEY   00000010  00013* 
+DECMODE  00000002  00011* 
+ENTERKEY 00000013  00016* 00086  
+HEXMODE  00000001  00012* 00027  
+KEYPAD   0000F011  00006* 00074  
+MAINDISP 0000F031  00004* 00026  00081  00094  00142  00159  00162  
+                   00170  00173  00186  00192  00199  
+SIXLEDS  0000F032  00005* 00028  
+
+
+
+ADDRESS LABELS CROSS-REFERENCE
+
+  NAME     VALUE   LINE NUMBERS WHERE USED (* INDICATES DECLARATION)
+-------- --------- ---------------------------------------------------
+CHK2NEG  ....4111  00208* 00279  00324  
+DISPERR  ....40E9  00185* 00232  00276  00321  
+DISPNUM  ....40A0  00049  00136* 
+DOFUNC   ....401E  00040  00044* 
+GETNUM   ....4077  00041  00104* 
+GETSTUFF ....4030  00037  00062* 
+INIT     ....4000  00025* 
+INSTRING ....41E6  00038  00065  00090  00109  00114  00116  00121  
+                   00381* 
+KEY_H1A  ....4271  00402* 
+KEY_H1B  ....4273  00403* 
+KEY_H1C  ....4275  00404* 
+KEY_H1D  ....4277  00405* 
+KEY_H1E  ....4279  00406* 
+KEY_H1F  ....427B  00407* 
+KEY_H2A  ....4291  00418* 
+KEY_H2B  ....4293  00419* 
+KEY_H2C  ....4295  00420* 
+KEY_H2D  ....4297  00421* 
+KEY_H2E  ....4299  00422* 
+KEY_H2F  ....429B  00423* 
+KEY_H3A  ....42B1  00434* 
+KEY_H3B  ....42B3  00435* 
+KEY_H3C  ....42B5  00436* 
+KEY_H3D  ....42B7  00437* 
+KEY_H3E  ....42B9  00438* 
+KEY_H3F  ....42BB  00439* 
+KEY_H14  ....4265  00048  00396* 
+KEY_H15  ....4267  00397* 
+KEY_H16  ....4269  00398* 
+KEY_H17  ....426B  00399* 
+KEY_H18  ....426D  00400* 
+KEY_H19  ....426F  00401* 
+KEY_H20  ....427D  00408* 
+KEY_H21  ....427F  00409* 
+KEY_H22  ....4281  00410* 
+KEY_H23  ....4283  00411* 
+KEY_H24  ....4285  00412* 
+KEY_H25  ....4287  00413* 
+KEY_H26  ....4289  00414* 
+KEY_H27  ....428B  00415* 
+KEY_H28  ....428D  00416* 
+KEY_H29  ....428F  00417* 
+KEY_H30  ....429D  00424* 
+KEY_H31  ....429F  00425* 
+KEY_H32  ....42A1  00426* 
+KEY_H33  ....42A3  00427* 
+KEY_H34  ....42A5  00428* 
+KEY_H35  ....42A7  00429* 
+KEY_H36  ....42A9  00430* 
+KEY_H37  ....42AB  00431* 
+KEY_H38  ....42AD  00432* 
+KEY_H39  ....42AF  00433* 
+KEY_H40  ....42BD  00440* 
+KEY_H41  ....42BF  00441* 
+KEY_H42  ....42C1  00442* 
+KEY_H43  ....42C3  00443* 
+KEY_H44  ....42C5  00444* 
+KEY_H45  ....42C7  00445* 
+MAINLOOP ....400D  00037* 00042  00050  
+MSG_000  ....41F2  00189  00384* 
+MSG_001  ....41FA  00385* 
+MSG_002  ....4204  00386* 
+MSG_003  ....420F  00275  00320  00387* 
+MSG_004  ....4218  00388* 
+MSG_005  ....4222  00389* 
+MSG_006  ....422A  00390* 
+MSG_007  ....4234  00391* 
+MSG_008  ....4240  00392* 
+MSG_009  ....424D  00231  00393* 
+MSG_010  ....4255  00394* 
+TEMPX    ....41F0  00046  00047  00188  00196  00382* 
+_ADD     ....4149  00253* 00398  
+_AD_CHKN ....4172  00274  00279* 
+_AD_CHKO ....4169  00274* 
+_AD_DOIT ....415E  00267* 
+_AD_GNUM ....4151  00258* 
+_AD_NUMA ....4180  00263  00269  00291* 
+_AD_NUMB ....4181  00259  00261  00267  00271  00293* 
+_AD_RADD ....417E  00254  00256  00281  00284  00289* 
+_AD_RET  ....4175  00281* 
+_CN_CKLS ....412B  00227* 
+_CN_CKMS ....4126  00224* 
+_CN_DERR ....4133  00231* 
+_CN_GNUM ....4119  00214* 
+_CN_NUM  ....4144  00215  00217  00221  00227  00243* 
+_CN_PNUM ....4121  00220* 
+_CN_RADD ....4142  00209  00211  00235  00237  00241* 
+_CN_RET  ....4139  00225  00229  00235* 
+_DE_ERR  ....40EE  00188* 
+_DE_LUPA ....40F4  00190* 00194  
+_DE_LUPB ....4104  00197* 00201  
+_DE_MSG  ....4101  00191  00196* 
+_DIV     ....4148  00250* 00401  
+_DN_CDIS ....40A8  00141* 
+_DN_FST  ....40E8  00178* 
+_DN_GNUM ....40AD  00144* 
+_DN_LSB  ....40CE  00164* 
+_DN_MSB  ....40BA  00153* 
+_DN_PNUM ....40B5  00149* 
+_DN_RADD ....40E2  00137  00139  00174* 
+_DN_TMP  ....40E4  00145  00147  00150  00153  00160  00164  00171  
+                   00176* 
+_DN_TMPX ....40E6  00177* 
+_GN_RADD ....409E  00105  00107  00124  00126  00129* 
+_GN_RET  ....4095  00124* 
+_GN_STR  ....407F  00109* 
+_GS_DOIT ....405D  00079  00085* 
+_GS_FST  ....4075  00069  00078  00083  00096* 
+_GS_IFST ....403C  00068* 
+_GS_ISTR ....4035  00064* 00066  
+_GS_LOOP ....4044  00074* 00075  00093  00095  
+_GS_STOR ....4066  00087  00090* 
+_GS_TEMP ....4076  00076  00085  00097* 
+_GS_TFST ....404D  00078* 
+_MULT    ....4147  00249* 00400  
+_NEG     ....41BD  00342* 00396  
+_NG_DOIT ....41CD  00352* 
+_NG_GNUM ....41C5  00347* 
+_NG_NUM  ....41E4  00348  00350  00353  00356  00369* 
+_NG_RADD ....41E2  00343  00345  00359  00362  00367* 
+_NG_RET  ....41D9  00359* 
+_NOTYET  ....4146  00248* 00397  00402  00403  00404  00405  00406  
+                   00407  00408  00409  00410  00411  00412  00413  
+                   00414  00415  00416  00417  00418  00419  00420  
+                   00421  00422  00423  00424  00425  00426  00427  
+                   00428  00429  00430  00431  00432  00433  00434  
+                   00435  00436  00437  00438  00439  00440  00441  
+                   00442  00443  00444  00445  
+_SB_CHKN ....41AC  00319  00324* 
+_SB_CHKO ....41A3  00319* 
+_SB_DOIT ....4198  00312* 
+_SB_GNUM ....418B  00303* 
+_SB_NUMA ....41BA  00308  00314  00336* 
+_SB_NUMB ....41BB  00304  00306  00312  00316  00338* 
+_SB_RADD ....41B8  00299  00301  00326  00329  00334* 
+_SB_RET  ....41AF  00326* 
+_SUB     ....4183  00298* 00399  

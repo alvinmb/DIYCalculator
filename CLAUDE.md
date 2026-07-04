@@ -1,0 +1,1 @@
+This folder contains the PY-DIYCALCULATOR python application
