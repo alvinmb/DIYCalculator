@@ -454,10 +454,12 @@ class BebopMain(QMainWindow):
         self.msg_display.message("RAM purged.")
 
     def _on_power_changed(self, on: bool):
-        """Slot for Calculator power_changed — purge all RAM and auto-run on power-on."""
+        """Slot for Calculator power_changed — the On/Off button purges all
+        RAM on every transition (both power-on and power-off), and also
+        auto-runs on power-on."""
         self.terminal.set_power(on)
+        self._do_purge_ram()
         if on:
-            self._do_purge_ram()
             self._do_reset()
             self._do_run()
 
