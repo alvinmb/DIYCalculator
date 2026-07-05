@@ -487,11 +487,6 @@ class CompilerWindow(QMainWindow):
         )
         self.messages.setFont(font)
 
-    def _ensure_printer(self):
-        if self._printer is None:
-            self._printer = QPrinter(QPrinter.HighResolution)
-        return self._printer
-
     def _ensure_printer(self) -> QPrinter:
         if self._printer is None:
             self._printer = QPrinter(QPrinter.HighResolution)
@@ -605,4 +600,5 @@ class CompilerWindow(QMainWindow):
             self, "About Assembler / Editor",
             "<b>Beboputer Assembler / Editor</b><br><br>"
             "Edit .asm source, assemble via the DAS engine, and "
-            "load the resulting RAM image straight
+            "load the resulting RAM image straight into the Beboputer CPU."
+        )
