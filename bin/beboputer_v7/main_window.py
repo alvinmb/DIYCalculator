@@ -584,4 +584,5 @@ class BebopMain(QMainWindow):
         QMessageBox.information(self, "The Crew....",
             "PY-DIYCALCULATOR\n\n"
             "by Clive 'Max' Maxfield & Alvin Brown\n"
-            "Python/PyQt5 port\n\n")
+            "Python/PyQt5 port\n\n"
+            "Assembler based on DAS by David Venhoek\n\n")
