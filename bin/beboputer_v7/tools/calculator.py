@@ -48,9 +48,19 @@ from .diy_button import (
 
 _BUTTON_DEFAULTS = {
     # base-mode switches
-    "Bin":  (0x02, "Switch to binary mode"),
-    "Dec":  (0x0A, "Switch to decimal mode"),
-    "Hex":  (0x10, "Switch to hexadecimal mode"),
+    # NOTE: these three used to be $02/$0A/$10. $02 is the same byte a
+    # digit-"2" keypress sends (DIYButton._execute() converts digits down
+    # to raw nibbles 0-9, hex letters to 10-15 - see tools/diy_button.py),
+    # and $0A is identical to what hex-letter "A" sends (raw nibble 10) -
+    # the same kind of collision Clear Entry/digit-"1" had before CE was
+    # moved to $7F. Any program that branches on these exact byte values
+    # to mean "Bin"/"Dec" (see tutorial 14) would misread a plain digit
+    # "2" or hex letter "A" as a mode switch. Moved to $43/$44/$45,
+    # outside the 0-15 nibble range, to match the shipped
+    # Config/defbuttons.ini and remove the collision for good.
+    "Bin":  (0x43, "Switch to binary mode"),
+    "Dec":  (0x44, "Switch to decimal mode"),
+    "Hex":  (0x45, "Switch to hexadecimal mode"),
     # trig / scientific functions
     "Sin":  (0x73, "Sine of x"),
     "Cos":  (0x63, "Cosine of x"),
