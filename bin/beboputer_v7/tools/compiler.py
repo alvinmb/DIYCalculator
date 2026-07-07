@@ -51,38 +51,21 @@ if str(_BIN_DIR) not in sys.path:
     sys.path.insert(0, str(_BIN_DIR))
 
 # ── Cross-platform file-dialog directories ───────────────────────────────────
-# resource_path() resolves to:
-#   Windows source : Bebop_python/           (project root)
-#   Pi .deb install: /usr/share/beboputer/bin/
-# We derive Data/ and WorkInProgress/ from it for default open/save dirs.
+# default_open_dir()/default_save_dir() (see ../paths.py) point at Data/
+# WorkInProgress when running from source, and at a single writable
+# ~/Documents/PY-DIYCALCULATOR workspace (seeded with the sample files) in
+# packaged builds, since the app's install folder is not reliably writable
+# by a non-admin user there (Program Files, Pi's root-owned /usr/share, …).
 try:
-    from ..paths import resource_path as _resource_path
-    _DATA_DIR = Path(_resource_path('Data'))
-    _WIP_DIR  = Path(_resource_path('WorkInProgress'))
+    from ..paths import default_open_dir as _default_open_dir, default_save_dir as _default_save_dir
 except Exception:
-    _DATA_DIR = Path(_BIN_DIR).parent / 'Data'
-    _WIP_DIR  = Path(_BIN_DIR).parent / 'WorkInProgress'
+    def _default_open_dir() -> str:
+        return str(Path.home())
 
-
-def _default_open_dir() -> str:
-    """Best initial directory for Open dialogs (read-only sample files)."""
-    if _DATA_DIR.is_dir():
-        return str(_DATA_DIR)
-    return str(Path.home())
-
-
-def _default_save_dir() -> str:
-    """Best writable initial directory for Save dialogs.
-
-    On Windows the WorkInProgress folder is writable.
-    On Pi /usr/share/beboputer is root-owned, so we fall back to
-    ~/beboputer/ (created on first use).
-    """
-    if _WIP_DIR.is_dir() and os.access(str(_WIP_DIR), os.W_OK):
-        return str(_WIP_DIR)
-    user_dir = Path.home() / 'beboputer'
-    user_dir.mkdir(exist_ok=True)
-    return str(user_dir)
+    def _default_save_dir() -> str:
+        user_dir = Path.home() / 'beboputer'
+        user_dir.mkdir(exist_ok=True)
+        return str(user_dir)
 
 try:
     from compiler_core import Compiler as _AsmCompiler
@@ -446,17 +429,6 @@ class CompilerWindow(QMainWindow):
         im.addSeparator()
         im.addAction(self._mk("Insert &String...", self.on_insert_string))
         im.addAction(self._mk("Insert &File...",   self.on_insert_file))
-
-        wm = mb.addMenu("&Window")
-        self._act_toggle_msgs = QAction("Show &Messages Pane", self)
-        self._act_toggle_msgs.setCheckable(True)
-        self._act_toggle_msgs.setChecked(True)
-        self._act_toggle_msgs.triggered.connect(self.on_toggle_messages)
-        wm.addAction(self._act_toggle_msgs)
-        wm.addAction(self._mk("&Clear Messages", self.messages.clear))
-
-        hm = mb.addMenu("&Help")
-        hm.addAction(self._mk("&About...", self.on_about))
 
     # ------------------------------------------------------- file menu ------
 

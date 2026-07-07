@@ -34,27 +34,21 @@ from PyQt5.QtWidgets import (
 from ..styles import C
 
 # ── Cross-platform file-dialog default directories ──────────────────────────
+# default_open_dir()/default_save_dir() (see ../paths.py) point at Data/
+# WorkInProgress when running from source, and at a single writable
+# ~/Documents/PY-DIYCALCULATOR workspace (seeded with the sample files) in
+# packaged builds, since the app's install folder is not reliably writable
+# by a non-admin user there (Program Files, Pi's root-owned /usr/share, …).
 try:
-    from ..paths import resource_path as _rp
-    _DATA_DIR = Path(_rp('Data'))
-    _WIP_DIR  = Path(_rp('WorkInProgress'))
+    from ..paths import default_open_dir as _default_open_dir, default_save_dir as _default_save_dir
 except Exception:
-    _DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'Data'
-    _WIP_DIR  = Path(__file__).resolve().parent.parent.parent / 'WorkInProgress'
+    def _default_open_dir() -> str:
+        return str(Path.home())
 
-
-def _default_open_dir() -> str:
-    if _DATA_DIR.is_dir():
-        return str(_DATA_DIR)
-    return str(Path.home())
-
-
-def _default_save_dir() -> str:
-    if _WIP_DIR.is_dir() and os.access(str(_WIP_DIR), os.W_OK):
-        return str(_WIP_DIR)
-    d = Path.home() / 'beboputer'
-    d.mkdir(exist_ok=True)
-    return str(d)
+    def _default_save_dir() -> str:
+        d = Path.home() / 'beboputer'
+        d.mkdir(exist_ok=True)
+        return str(d)
 
 
 class EpromBurner(QDialog):

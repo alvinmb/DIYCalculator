@@ -1,5 +1,6 @@
 @echo off
-cd /d "C:\Users\Alvin-Dell\OneDrive\Desktop\Bebop_python"
+rem %~dp0 = this script's folder (bin\beboputer_v7\); project root is two levels up.
+cd /d "%~dp0..\.."
 echo ============================================================
 echo  Step 1: PyInstaller -- bundling app into dist\Beboputer\
 echo ============================================================

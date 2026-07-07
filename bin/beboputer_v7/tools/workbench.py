@@ -175,6 +175,13 @@ class SwitchBank(QWidget):
                 v |= 1 << (7 - i)
         return v
 
+    def reset(self):
+        """Flip every switch back to OFF (no click sound) and push the
+        resulting all-zero value out to whatever is listening."""
+        for sw in self._switches:
+            sw.set_on(False)
+        self.value_changed.emit(self.value())
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 8-Bit LED Bar  (output)
@@ -481,6 +488,19 @@ class WorkbenchPanel(QDialog):
             self._seg1.set_value(0)
             self._seg2.set_value(0)
             self._seg3.set_value(0)
+
+    # ── reset ──────────────────────────────────────────────────────────────────
+
+    def reset(self):
+        """Reset switches to OFF and blank all outputs. Called on the
+        calculator's RESET button — unlike set_power(False), the board
+        stays enabled/powered; only its state is cleared."""
+        self._sw1.reset()
+        self._sw2.reset()
+        self._leds.set_value(0)
+        self._seg1.set_value(0)
+        self._seg2.set_value(0)
+        self._seg3.set_value(0)
 
     # ── lifecycle ──────────────────────────────────────────────────────────────
 

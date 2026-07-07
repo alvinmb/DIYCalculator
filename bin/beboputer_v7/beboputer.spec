@@ -19,7 +19,10 @@
 block_cipher = None
 
 import os
-_root = r'C:\Users\Alvin-Dell\OneDrive\Desktop\Bebop_python'
+# SPECPATH is injected by PyInstaller = the folder containing this .spec file
+# (bin/beboputer_v7/). Project root is two levels up. Resolving it this way
+# means the build works regardless of where the repo is checked out.
+_root = os.path.normpath(os.path.join(SPECPATH, '..', '..'))
 
 a = Analysis(
     # ── entry point ──────────────────────────────────────────────────────────
@@ -36,6 +39,10 @@ a = Analysis(
     datas=[
         (os.path.join(_root, 'BITMAPS'),                    'BITMAPS'),
         (os.path.join(_root, 'Config'),                     'Config'),
+        (os.path.join(_root, 'Data'),                       'Data'),
+        (os.path.join(_root, 'WorkInProgress'),              'WorkInProgress'),
+        (os.path.join(_root, 'databook'),                   'databook'),
+        (os.path.join(_root, 'tutorial'),                   'tutorial'),
         (os.path.join(_root, 'bin', 'beboputer_v7_help.html'), '.'),
     ],
 
@@ -72,7 +79,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon='assets/beboputer.ico',   # uncomment and supply an .ico / .icns file
+    icon=os.path.join(SPECPATH, 'beboputer.ico'),
 )
 
 coll = COLLECT(
@@ -90,12 +97,4 @@ coll = COLLECT(
 import sys
 if sys.platform == 'darwin':
     app = BUNDLE(
-        coll,
-        name='Beboputer.app',
-        # icon='assets/beboputer.icns',  # uncomment and supply an .icns file
-        bundle_identifier='com.beboputer.app',
-        info_plist={
-            'NSHighResolutionCapable': True,
-            'CFBundleShortVersionString': '7.0',
-        },
-    )
+      

@@ -129,6 +129,13 @@ class Terminal(QWidget):
         """Slot — connected to Calculator.power_changed signal."""
         self._apply_power(on)
 
+    # ── reset ──────────────────────────────────────────────────────────────────
+
+    def clear(self):
+        """Wipe the screen buffer. Called on the calculator's RESET button —
+        does not change the power state, just blanks whatever was printed."""
+        self.screen.clear()
+
     # ── device output ─────────────────────────────────────────────────────────
 
     def write_char(self, ch: int):

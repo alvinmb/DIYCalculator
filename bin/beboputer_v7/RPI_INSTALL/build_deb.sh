@@ -71,6 +71,11 @@ cp -r "$PROJECT_ROOT/Config"          "$APP_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$APP_DIR/"
 cp -r "$PROJECT_ROOT/databook"        "$APP_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$APP_DIR/"
+cp -r "$PROJECT_ROOT/tutorial"        "$APP_DIR/"
+
+# Strip stale bytecode caches -- they bloat the package and can shadow
+# the .py sources with a different Python version on the target machine.
+find "$APP_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # ── Launcher script ───────────────────────────────────────────────
 cat > "$BIN_DIR/beboputer" << 'EOF'

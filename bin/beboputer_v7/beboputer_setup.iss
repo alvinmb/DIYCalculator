@@ -14,7 +14,10 @@
 #define AppVersion   "7.0.0"
 #define AppPublisher "Alvin Brown & Clive Maxfield"
 #define AppURL       "https://www.clivemaxfield.com/diycalculator/downloads.shtml"
-#define BuildDir     "C:\Users\Alvin-Dell\OneDrive\Desktop\Bebop_python\dist\Beboputer"
+; SourcePath = folder containing this .iss file (bin\beboputer_v7\).
+; ProjectRoot is two levels up, so this works regardless of where the repo lives.
+#define ProjectRoot  SourcePath + "..\..\"
+#define BuildDir     ProjectRoot + "dist\Beboputer"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -26,7 +29,7 @@ AppSupportURL={#AppURL}
 AppUpdatesURL={#AppURL}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
-OutputDir=C:\Users\Alvin-Dell\OneDrive\Desktop\Bebop_python\dist
+OutputDir={#ProjectRoot}dist
 OutputBaseFilename=BeboputerSetup
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -34,8 +37,7 @@ WizardStyle=modern
 MinVersion=10.0
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
-; Optional: supply an .ico file to brand the installer
-; SetupIconFile=assets\beboputer.ico
+SetupIconFile={#SourcePath}beboputer.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 
 [Languages]

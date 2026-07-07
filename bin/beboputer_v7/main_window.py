@@ -39,36 +39,14 @@ import os
 import webbrowser
 from pathlib import Path
 
-from .paths import resource_path
+from .paths import resource_path, default_open_dir as _default_open_dir, default_save_dir as _default_save_dir
 
 # ── Cross-platform file-dialog default directories ──────────────────────────
-# resource_path() resolves to:
-#   Windows source : Bebop_python/            (project root)
-#   Pi .deb install: /usr/share/beboputer/bin/
-try:
-    _DATA_DIR = Path(resource_path('Data'))
-    _WIP_DIR  = Path(resource_path('WorkInProgress'))
-except Exception:
-    _DATA_DIR = Path(__file__).resolve().parent.parent.parent / 'Data'
-    _WIP_DIR  = Path(__file__).resolve().parent.parent.parent / 'WorkInProgress'
-
-
-def _default_open_dir() -> str:
-    """Initial directory for ROM/RAM open dialogs."""
-    if _DATA_DIR.is_dir():
-        return str(_DATA_DIR)
-    return str(Path.home())
-
-
-def _default_save_dir() -> str:
-    """Writable initial directory for save dialogs.
-    On Pi /usr/share/beboputer is root-owned — fall back to ~/beboputer/.
-    """
-    if _WIP_DIR.is_dir() and os.access(str(_WIP_DIR), os.W_OK):
-        return str(_WIP_DIR)
-    user_dir = Path.home() / 'beboputer'
-    user_dir.mkdir(exist_ok=True)
-    return str(user_dir)
+# See paths.py: default_open_dir()/default_save_dir() point at Data/
+# WorkInProgress when running from source, and at a single writable
+# ~/Documents/PY-DIYCALCULATOR workspace (seeded with the sample files)
+# in packaged builds, since the app's install folder is not reliably
+# writable by a non-admin user there.
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication
@@ -269,12 +247,24 @@ class BebopMain(QMainWindow):
             self.statusBar().showMessage("HALT instruction executed.")
             self.msg_display.message("--- HALT ---")
 
-    def _do_reset(self):
+    def _do_reset(self, clear_calc_display=True):
+        """Reset the CPU (and Workbench/Terminal/port monitor) to idle.
+
+        clear_calc_display=False is used on power-on (see
+        _on_power_changed): _apply_power_state() has just written the
+        boot dash sequence to the calculator, and clearing the display
+        here would immediately wipe it back to "0" before the user ever
+        sees the dashes. The explicit Reset button always wants the
+        clear, so it keeps the default of True.
+        """
         self._run_timer.stop()
         self.cpu.reset()
-        if getattr(self, "_calc_win", None) is not None:
+        if clear_calc_display and getattr(self, "_calc_win", None) is not None:
             self._calc_win.write_display(0x10)  # clear the calculator display
         self.port_mon.reset()   # clear I/O port display
+        if getattr(self, "_workbench_win", None) is not None:
+            self._workbench_win.reset()   # switches back to OFF, outputs blanked
+        self.terminal.clear()   # blank the terminal screen, if anything was printed
         self.msg_display.message("↺ CPU Reset.")
         self.statusBar().showMessage("Reset")
         self._refresh_all()
@@ -466,7 +456,7 @@ class BebopMain(QMainWindow):
         self.terminal.set_power(on)
         self._do_purge_ram()
         if on:
-            self._do_reset()
+            self._do_reset(clear_calc_display=False)
 
     def _power_on_clear(self):
         """On calculator power-on: zero data/stack area ($0000–$3FFF) and

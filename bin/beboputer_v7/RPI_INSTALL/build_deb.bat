@@ -2,7 +2,10 @@
 echo ============================================================
 echo  Building Beboputer Raspberry Pi .deb package via WSL
 echo ============================================================
-wsl bash /mnt/c/Users/Alvin-Dell/OneDrive/Desktop/Bebop_python/bin/beboputer_v7/RPI_INSTALL/build_deb.sh
+rem %~dp0 = this script's folder on Windows; convert to a WSL path so this
+rem works regardless of where the repo is checked out.
+for /f "delims=" %%i in ('wsl wslpath -a "%~dp0build_deb.sh"') do set WSL_SCRIPT=%%i
+wsl bash "%WSL_SCRIPT%"
 if errorlevel 1 (
     echo.
     echo ERROR: Build failed. See output above.

@@ -96,8 +96,17 @@ _BUTTON_DEFAULTS = {
     "E":    (0x45, "Hex digit E"),
     "F":    (0x46, "Hex digit F"),
     # control
+    # NOTE: Clear/CE/Enter must stay outside $00-$0F. Digit and hex-letter
+    # buttons are sent to the CPU as a raw nibble (0-15), not their ASCII
+    # code (see DIYButton._execute() in diy_button.py) - so any control
+    # key using a byte in that same range is indistinguishable from
+    # whichever digit/hex-letter happens to convert to the same nibble.
+    # CE used to be $01, which is bit-for-bit identical to what the "1"
+    # digit button actually sends, so a CPU program watching for CE could
+    # never reliably tell "CE" and "1" apart. $7F (ASCII DEL) is outside
+    # that range and free.
     "Clear":(0x1B, "Clear display"),
-    "CE":   (0x01, "Clear entry"),
+    "CE":   (0x7F, "Clear entry"),
     "Back": (0x08, "Backspace"),
     "Enter":(0x0D, "Evaluate expression"),
 }
@@ -566,10 +575,10 @@ class Calculator(QMainWindow):
 
         if self.powered:
             self.display.setStyleSheet(_DISPLAY_ON_CSS)
-            # Boot sequence: write 22 dashes to port $F031.
+            # Boot sequence: write 24 dashes to port $F031.
             # expression is already cleared by control() before we get here,
             # so write_display appends directly onto a blank slate.
-            for _ in range(22):
+            for _ in range(24):
                 self.write_display(ord('-'))   # 0x2D via $F031
         else:
             self.display.setStyleSheet(_DISPLAY_OFF_CSS)
