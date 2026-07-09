@@ -22,6 +22,13 @@ import os, sys
 _here   = os.path.dirname(os.path.abspath(SPEC))
 _root   = os.path.normpath(os.path.join(_here, '..', '..', '..'))
 
+# Version is the single source of truth in bin/beboputer_v7/__init__.py
+# (__version__) — nothing to edit here, this always tracks the app.
+# __init__.py only defines __version__ (no heavy imports), so this is
+# a cheap, safe import to do at spec-parse time.
+sys.path.insert(0, os.path.join(_root, 'bin'))
+from beboputer_v7 import __version__ as _app_version
+
 a = Analysis(
     [os.path.join(_root, 'bin', 'run_beboputer_v7.py')],
 
@@ -32,6 +39,10 @@ a = Analysis(
     datas=[
         (os.path.join(_root, 'BITMAPS'),                       'BITMAPS'),
         (os.path.join(_root, 'Config'),                        'Config'),
+        (os.path.join(_root, 'Data'),                          'Data'),
+        (os.path.join(_root, 'WorkInProgress'),                'WorkInProgress'),
+        (os.path.join(_root, 'databook'),                      'databook'),
+        (os.path.join(_root, 'tutorial'),                      'tutorial'),
         (os.path.join(_root, 'bin', 'beboputer_v7_help.html'), '.'),
     ],
 
@@ -63,30 +74,4 @@ exe = EXE(
     target_arch=None,        # 'arm64' | 'x86_64' | None (native)
     codesign_identity=None,  # set to your Developer ID to sign
     entitlements_file=None,
-    # icon='MAC_INSTALL/beboputer.icns',   # uncomment + supply .icns
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Beboputer',
-)
-
-app = BUNDLE(
-    coll,
-    name='Beboputer.app',
-    # icon='MAC_INSTALL/beboputer.icns',   # uncomment + supply .icns
-    bundle_identifier='com.beboputer.app',
-    info_plist={
-        'CFBundleDisplayName':        'PY-DIYCALCULATOR',
-        'CFBundleShortVersionString': '7.0.0',
-        'CFBundleVersion':            '7.0.0',
-        'NSHighResolutionCapable':    True,
-        'NSHumanReadableCopyright':   'Copyright © 2026 Alvin Brown & Clive Maxfield',
-    },
-)
+    # icon='MAC_INSTALL/

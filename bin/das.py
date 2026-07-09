@@ -57,6 +57,7 @@ Numbers:
 
 import sys
 import re
+import datetime
 
 # ---------------------------------------------------------------------------
 # Opcode table
@@ -226,7 +227,7 @@ def tokenize_line(raw_line):
     return label, mnemonic, operand
 
 
-def parse_operand(operand_str, labels, line_num, pass_num):
+def parse_operand(operand_str, labels, line_num, pass_num, on_label_used=None):
     """
     Parse an operand string and return (mode, value_16bit).
     Handles:
@@ -236,6 +237,11 @@ def parse_operand(operand_str, labels, line_num, pass_num):
       [[addr]]                      -> 'ind', address
       [[addr,X]]                    -> 'iix', address
     'addr' can be a label, a number, or label+offset (label+N or label-N).
+
+    `on_label_used`, if given, is called as `on_label_used(name, line_num)`
+    each time a label reference is actually resolved (pass 2 only). This is
+    an optional hook used by the listing generator to build the label
+    cross-reference tables; it has no effect on assembly output.
     """
     if operand_str is None:
         return 'none', 0
@@ -263,6 +269,8 @@ def parse_operand(operand_str, labels, line_num, pass_num):
             return 0  # placeholder during pass 1
         if name not in labels:
             raise AssemblerError(line_num, f"Label doesn't exist: '{name}'")
+        if on_label_used is not None:
+            on_label_used(name, line_num)
         return labels[name]
 
     # Indirect indexed: [[addr,X]]
@@ -468,6 +476,323 @@ def assemble(source_lines):
     # Pass 2: emit code
     memory = do_pass(2)
     return memory
+
+
+# ---------------------------------------------------------------------------
+# Listing (.lst) generation
+#
+# Reproduces the "DIY Calculator Assembler V2.0" listing format used by the
+# original tool (see Data/2funcal.lst for a real reference listing, paired
+# with its source at Data/2funcal.asm). This is a second, independent
+# two-pass walk over the same source — it does not reuse assemble()'s
+# do_pass() closures, because it needs to retain far more per-line detail
+# (addresses, emitted bytes, and label cross-reference usage) than the flat
+# {address: byte} map assemble() returns. Instruction encoding is still
+# driven by the same OPCODES table, so a listing and its .ram will never
+# disagree about what bytes an instruction assembles to.
+# ---------------------------------------------------------------------------
+
+def _fmt_data_bytes(byte_list):
+    return " ".join(f"{b:02X}" for b in byte_list)
+
+
+def _split_chunks(byte_list, size=3):
+    if not byte_list:
+        return [[]]
+    return [byte_list[i:i + size] for i in range(0, len(byte_list), size)]
+
+
+def _format_row(line_num, addr, data_chunk, label, opcode, operand):
+    addr_field = f"{addr:04X}" if addr is not None else "    "
+    data_field = _fmt_data_bytes(data_chunk).ljust(8)
+    label_field = (f"{label}:" if label else "").ljust(9)
+    opcode_field = (opcode or "").ljust(6)
+    row = f"{line_num:05d} {addr_field} {data_field}  {label_field} {opcode_field} "
+    if operand:
+        row += f"{operand} "
+    return row
+
+
+def _format_line_rows(line_num, start_addr, data, label, opcode, operand):
+    """Build the main row plus any continuation rows (>3 data bytes wrap)."""
+    chunks = _split_chunks(data, 3)
+    out = [_format_row(line_num, start_addr, chunks[0], label, opcode, operand)]
+    if start_addr is not None:
+        addr = start_addr + len(chunks[0])
+        for chunk in chunks[1:]:
+            out.append(f"      {addr:04X} {_fmt_data_bytes(chunk)} ")
+            addr += len(chunk)
+    return out
+
+
+def _render_header(source_path, inst_bytes, data_bytes, generated_by, when=None):
+    stamp = (when or datetime.datetime.now()).strftime("%b %d %H:%M:%S %Y")
+    src = source_path if source_path else "(unsaved)"
+    return [
+        "# FILE TYPE: DIY Calculator List (*.lst) file",
+        f"# GENERATED: {generated_by}",
+        f"# DATE-TIME: {stamp}",
+        f"# SOURCEWAS: {src}",
+        "",
+        f"INSTBYTES: {inst_bytes}",
+        f"DATABYTES: {data_bytes}",
+        "",
+        "LINE  ADDR   DATA      LABEL   OPCODE OPERAND",
+        "----- ---- --------  --------- ------ -------",
+    ]
+
+
+def _render_xref_table(title, entries, value_fmt):
+    out = [
+        "", "", "",
+        title,
+        "",
+        "  NAME     VALUE   LINE NUMBERS WHERE USED (* INDICATES DECLARATION)",
+        "-------- --------- ---------------------------------------------------",
+    ]
+    for name, value, uses in sorted(entries, key=lambda e: e[0]):
+        merged = {}
+        for ln, is_decl in uses:
+            merged[ln] = merged.get(ln, False) or is_decl
+        entry_strs = [f"{ln:05d}{'*' if d else ' '} " for ln, d in sorted(merged.items())]
+        value_str = value_fmt(value)
+        if not entry_strs:
+            out.append(f"{name:<8} {value_str}  ")
+            continue
+        for i in range(0, len(entry_strs), 7):
+            chunk = "".join(entry_strs[i:i + 7])
+            if i == 0:
+                out.append(f"{name:<8} {value_str}  {chunk}")
+            else:
+                out.append(f"{'':19}{chunk}")
+    return out
+
+
+def generate_listing(source_lines, source_path=None,
+                      generated_by="DIY Calculator Assembler V2.0",
+                      when=None):
+    """
+    Assemble `source_lines` and return a formatted .lst listing (str),
+    matching the DIY Calculator Assembler V2.0 format. Raises
+    AssemblerError under the same conditions as `assemble()`.
+    """
+    labels = {}          # name -> value (address or .EQU constant)
+    label_kind = {}       # name -> 'equ' | 'addr'
+    label_decl_line = {}  # name -> 1-based source line number
+    label_uses = {}       # name -> [(line_num, is_decl), ...]
+
+    def note_use(name, line_num, is_decl=False):
+        label_uses.setdefault(name, []).append((line_num, is_decl))
+
+    # ---- Pass 1: collect labels (mirrors assemble()'s pass 1) ----
+    pc = 0
+    origin_set = False
+    for raw_line_num, raw_line in enumerate(source_lines):
+        line_num = raw_line_num + 1
+        if isinstance(raw_line, bytes):
+            raw_line = raw_line.decode('latin-1')
+        label, mnemonic, operand = tokenize_line(raw_line)
+
+        if label is not None and (mnemonic or '').upper() != '.EQU':
+            if label in labels:
+                raise AssemblerError(raw_line_num, f"Duplicate label: '{label}'")
+            labels[label] = pc
+            label_kind[label] = 'addr'
+            label_decl_line[label] = line_num
+
+        if mnemonic is None:
+            continue
+
+        if mnemonic == '.ORG':
+            if operand is None:
+                raise AssemblerError(raw_line_num, ".ORG requires an address operand.")
+            pc = parse_number(operand, raw_line_num)
+            if label is not None:
+                labels[label] = pc
+            origin_set = True
+            continue
+
+        if mnemonic == '.EQU':
+            if label is not None:
+                if operand is None:
+                    raise AssemblerError(raw_line_num, ".EQU requires a value operand.")
+                eq_label, eq_val_str = label, operand.strip()
+            else:
+                if operand is None:
+                    raise AssemblerError(raw_line_num, ".EQU requires label and value.")
+                parts = operand.split(None, 1)
+                if len(parts) < 2:
+                    raise AssemblerError(raw_line_num, ".EQU requires label and value.")
+                eq_label, eq_val_str = parts[0], parts[1].strip()
+            eq_val = parse_number(eq_val_str, raw_line_num)
+            if eq_label in labels:
+                raise AssemblerError(raw_line_num, f"Duplicate label: '{eq_label}'")
+            labels[eq_label] = eq_val
+            label_kind[eq_label] = 'equ'
+            label_decl_line[eq_label] = line_num
+            continue
+
+        if not origin_set:
+            raise AssemblerError(raw_line_num, "Commentary or .ORG expected.")
+
+        if mnemonic == '.END':
+            break
+
+        if mnemonic in ('.2BYTE', '.4BYTE'):
+            pc += 2 if mnemonic == '.2BYTE' else 4
+            continue
+
+        if mnemonic == '.BYTE':
+            if operand is None or operand.strip() == '':
+                pc += 1
+            elif operand.strip().startswith('*'):
+                pc += parse_number(operand.strip()[1:], raw_line_num)
+            elif operand.startswith('"'):
+                end = operand.rfind('"')
+                if end <= 0:
+                    raise AssemblerError(raw_line_num, "Unterminated string in .BYTE.")
+                pc += len(operand[1:end])
+            else:
+                pc += len([v for v in operand.split(',') if v.strip()])
+            continue
+
+        if mnemonic not in OPCODES:
+            raise AssemblerError(raw_line_num, f"Unknown mnemonic: '{mnemonic}'")
+
+        mode_table = OPCODES[mnemonic]
+        mode, _ = parse_operand(operand, labels, raw_line_num, 1)
+        if mode == 'none' and 'none' not in mode_table:
+            raise AssemblerError(raw_line_num, f"Mode Not Supported for {mnemonic}.")
+        if mode not in mode_table:
+            if mode == 'imm' and 'dir' in mode_table:
+                mode = 'dir'
+            elif mode == 'imm' and 'none' in mode_table:
+                mode = 'none'
+            else:
+                raise AssemblerError(raw_line_num,
+                    f"Mode Not Supported for {mnemonic} (mode={mode}).")
+        _, size = mode_table[mode]
+        pc += size
+
+    # ---- Pass 2: build listing rows + label usage ----
+    rows = []
+    inst_bytes = 0
+    data_bytes = 0
+    pc = 0
+    origin_set = False
+
+    for raw_line_num, raw_line in enumerate(source_lines):
+        line_num = raw_line_num + 1
+        if isinstance(raw_line, bytes):
+            raw_line = raw_line.decode('latin-1')
+        label, mnemonic, operand = tokenize_line(raw_line)
+
+        if label is not None and label_decl_line.get(label) == line_num:
+            note_use(label, line_num, is_decl=True)
+
+        if mnemonic is None:
+            if label is not None:
+                rows.extend(_format_line_rows(line_num, None, [], label, None, None))
+            else:
+                text = raw_line if raw_line.strip() != '' else ''
+                rows.append(f"{line_num:05d}" + (f" {text}" if text else ""))
+            continue
+
+        if mnemonic == '.ORG':
+            pc = parse_number(operand, raw_line_num)
+            origin_set = True
+            rows.extend(_format_line_rows(line_num, None, [], label, mnemonic, operand))
+            continue
+
+        if mnemonic == '.EQU':
+            if label is not None:
+                eq_label, eq_val_str = label, operand.strip()
+            else:
+                parts = operand.split(None, 1)
+                eq_label, eq_val_str = parts[0], parts[1].strip()
+            rows.extend(_format_line_rows(line_num, None, [], eq_label, mnemonic, eq_val_str))
+            continue
+
+        if not origin_set:
+            raise AssemblerError(raw_line_num, "Commentary or .ORG expected.")
+
+        if mnemonic == '.END':
+            rows.extend(_format_line_rows(line_num, None, [], label, mnemonic, None))
+            break
+
+        if mnemonic in ('.2BYTE', '.4BYTE'):
+            count = 2 if mnemonic == '.2BYTE' else 4
+            start = pc
+            if operand and operand.strip():
+                _, val = parse_operand(operand.strip(), labels, line_num, 2,
+                                        on_label_used=note_use)
+                data = [(val >> shift) & 0xFF for shift in range((count - 1) * 8, -1, -8)]
+            else:
+                data = [0] * count
+            data_bytes += len(data)
+            pc += count
+            rows.extend(_format_line_rows(line_num, start, data, label, mnemonic, operand))
+            continue
+
+        if mnemonic == '.BYTE':
+            start = pc
+            if operand is None or operand.strip() == '':
+                data = [0]
+            elif operand.strip().startswith('*'):
+                data = [0] * parse_number(operand.strip()[1:], raw_line_num)
+            elif operand.startswith('"'):
+                end = operand.rfind('"')
+                text = operand[1:end]
+                data = [ord(ch) & 0xFF for ch in text]
+            else:
+                data = [parse_number(v.strip(), raw_line_num) & 0xFF
+                        for v in operand.split(',') if v.strip()]
+            data_bytes += len(data)
+            pc += len(data)
+            rows.extend(_format_line_rows(line_num, start, data, label, mnemonic, operand))
+            continue
+
+        # ---- Instructions ----
+        mode_table = OPCODES[mnemonic]
+        mode, value = parse_operand(operand, labels, line_num, 2, on_label_used=note_use)
+        if mode == 'none' and 'none' not in mode_table:
+            raise AssemblerError(raw_line_num, f"Mode Not Supported for {mnemonic}.")
+        if mode not in mode_table:
+            if mode == 'imm' and 'dir' in mode_table:
+                mode = 'dir'
+            elif mode == 'imm' and 'none' in mode_table:
+                mode = 'none'
+            else:
+                raise AssemblerError(raw_line_num,
+                    f"Mode Not Supported for {mnemonic} (mode={mode}).")
+        opcode, size = mode_table[mode]
+
+        start = pc
+        if size == 1:
+            data = [opcode]
+        elif size == 2:
+            data = [opcode, value & 0xFF]
+        else:
+            data = [opcode, (value >> 8) & 0xFF, value & 0xFF]
+        inst_bytes += size
+        pc += size
+        rows.extend(_format_line_rows(line_num, start, data, label, mnemonic, operand))
+
+    out = []
+    out.extend(_render_header(source_path, inst_bytes, data_bytes, generated_by, when))
+    out.extend(rows)
+    out.extend(_render_xref_table(
+        "CONSTANT LABELS CROSS-REFERENCE",
+        [(name, labels[name], label_uses.get(name, []))
+         for name in label_kind if label_kind[name] == 'equ'],
+        value_fmt=lambda v: f"{v & 0xFFFFFFFF:08X}"))
+    out.extend(_render_xref_table(
+        "ADDRESS LABELS CROSS-REFERENCE",
+        [(name, labels[name], label_uses.get(name, []))
+         for name in label_kind if label_kind[name] == 'addr'],
+        value_fmt=lambda v: f"....{v & 0xFFFF:04X}"))
+
+    return "\n".join(out) + "\n"
 
 
 def write_ram(memory, output_path):

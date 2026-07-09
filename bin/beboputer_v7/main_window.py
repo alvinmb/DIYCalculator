@@ -36,6 +36,7 @@ Terminal         — CRT-style device driven by the Beboputer itself via
 """
 
 import os
+import random
 import webbrowser
 from pathlib import Path
 
@@ -104,6 +105,7 @@ from .tools.compiler import CompilerWindow
 from .tools.keyboard import KeyboardPanel
 from .tools.workbench import WorkbenchPanel
 from .instruction_messages import InstructionMessages
+from . import __version__
 
 
 class BebopMain(QMainWindow):
@@ -115,7 +117,7 @@ class BebopMain(QMainWindow):
         self._run_timer = QTimer(self)
         self._run_timer.timeout.connect(self._run_tick)
         self._clock_hz = 100   # simulated Hz (ticks/sec)
-        self.setWindowTitle("PY-DIYCALCULATOR")
+        self.setWindowTitle(f"PY-DIYCALCULATOR  v{__version__}")
         # Remove the OS close, minimise and maximise buttons.
         self.setWindowFlags(
             self.windowFlags()
@@ -434,29 +436,67 @@ class BebopMain(QMainWindow):
             self._do_purge_ram()
 
     def _do_purge_ram(self):
-        """Zero all RAM in-place and restore I/O sentinels."""
+        """Zero all RAM in-place and restore I/O sentinels.
+
+        Every byte is now a known, deterministic value ($00), so mark
+        all of RAM as "touched" — Memory Walker should display $00,
+        not the undefined-garbage placeholder ($XX).
+        """
         for i in range(self.cpu.RAM_SIZE):
             self.cpu.ram[i] = 0
+            self.cpu.ram_touched[i] = 1
         self.cpu.ram[0xF011] = 0xFF  # restore keypad idle sentinel
         self.cpu.ram[0xF031] = 0x00  # clear display port
         self.cpu.ram[0xF032] = 0x00  # clear LED port
         self._refresh_all()
         self.msg_display.message("RAM purged.")
 
-    def _on_power_changed(self, on: bool):
-        """Slot for Calculator power_changed — the On/Off button purges all
-        RAM on every transition (both power-on and power-off) and resets
-        the CPU to an idle state.
+    def _do_random_fill_ram(self):
+        """Fill all RAM with random bytes in-place and restore I/O sentinels.
 
-        Power-on does NOT auto-run: RAM was just zeroed, so there is no
-        program in memory yet — running at that point would just free-run
-        NOP ($00) opcodes forever, incrementing the Program Counter with
-        nothing meaningful executing. Load or assemble a program first,
-        then press Run/Step."""
+        Real SRAM powers up in whatever state it happens to settle into —
+        every location holds unpredictable garbage ($XX), not a suspiciously
+        tidy $00. Used on power-on instead of _do_purge_ram() so the
+        emulator matches that behaviour; Purge RAM (explicit menu action)
+        and power-off keep the deterministic all-zero clear.
+
+        Every byte's "touched" flag is cleared along with the refill —
+        without this, addresses touched in a *previous* power cycle
+        (e.g. the default program at $4000-$400C, or I/O sentinels)
+        would keep showing their stale "known" status in Memory Walker,
+        displaying the new random garbage as if it were a real value
+        instead of the undefined-garbage placeholder ($XX).
+        """
+        for i in range(self.cpu.RAM_SIZE):
+            self.cpu.ram[i] = random.randint(0, 255)
+            self.cpu.ram_touched[i] = 0
+        self.cpu.ram[0xF011] = 0xFF  # restore keypad idle sentinel
+        self.cpu.ram[0xF031] = 0x00  # clear display port
+        self.cpu.ram[0xF032] = 0x00  # clear LED port
+        for addr in (0xF011, 0xF031, 0xF032):
+            self.cpu.ram_touched[addr] = 1  # sentinels are known, not garbage
+        self._refresh_all()
+        self.msg_display.message("Power on: RAM randomized (real hardware powers up with garbage, not zeros).")
+
+    def _on_power_changed(self, on: bool):
+        """Slot for Calculator power_changed — the On/Off button resets RAM
+        on every transition and resets the CPU to an idle state.
+
+        Power-on fills RAM with random garbage (matching real SRAM
+        power-up behaviour) rather than zeroing it, so it does NOT
+        auto-run: running at that point would free-run through random
+        opcodes with nothing meaningful executing. Load or assemble a
+        program first, then press Run/Step.
+
+        Power-off deterministically zeroes RAM instead, since there's no
+        "real hardware" state to emulate once the board is off.
+        """
         self.terminal.set_power(on)
-        self._do_purge_ram()
         if on:
+            self._do_random_fill_ram()
             self._do_reset(clear_calc_display=False)
+        else:
+            self._do_purge_ram()
 
     def _power_on_clear(self):
         """On calculator power-on: zero data/stack area ($0000–$3FFF) and

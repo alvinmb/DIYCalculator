@@ -5,7 +5,15 @@ a = Analysis(
     ['bin\\run_beboputer_v7.py'],
     pathex=['bin'],
     binaries=[],
-    datas=[('BITMAPS', 'BITMAPS'), ('Config', 'Config'), ('bin\\beboputer_v7_help.html', '.')],
+    datas=[
+        ('BITMAPS', 'BITMAPS'),
+        ('Config', 'Config'),
+        ('Data', 'Data'),
+        ('WorkInProgress', 'WorkInProgress'),
+        ('databook', 'databook'),
+        ('tutorial', 'tutorial'),
+        ('bin\\beboputer_v7_help.html', '.'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -30,15 +38,4 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Beboputer',
-)
+    codesign_identit

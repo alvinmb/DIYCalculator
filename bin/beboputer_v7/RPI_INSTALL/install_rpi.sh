@@ -58,6 +58,7 @@ cp -r "$PROJECT_ROOT/Config"          "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/databook"        "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$INSTALL_DIR/"
+cp -r "$PROJECT_ROOT/tutorial"        "$INSTALL_DIR/"
 
 # ── 4. Launcher ──────────────────────────────────────────────────
 echo "==> Creating launcher at $BIN_LINK ..."
@@ -92,4 +93,4 @@ echo "============================================================"
 echo " Installation complete!"
 echo " Run with:  beboputer"
 echo " Or find '$APP_NAME' in the application menu."
-echo "============================================================"
+echo "========

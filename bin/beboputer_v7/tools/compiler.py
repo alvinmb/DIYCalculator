@@ -108,6 +108,15 @@ class AssemblerRunner:
             return None
         return self._compiler.compile_source(source)
 
+    def generate_listing(self, source: str, source_path=None):
+        """Assemble *source* and return the :class:`compiler_core.ListingResult`
+        containing the formatted .lst text. Returns ``None`` if the
+        back-end is not available.
+        """
+        if self._compiler is None:
+            return None
+        return self._compiler.generate_listing(source, source_path=source_path)
+
     def build_image(self, bytecode: bytes) -> bytes:
         """Wrap *bytecode* in a full 64KB RAM image starting at LOAD_ADDR."""
         max_bytes = self.RAM_SIZE - self.LOAD_ADDR
@@ -206,6 +215,13 @@ class CompilerWindow(QMainWindow):
         self.editor.setTabStopDistance(
             4 * self.editor.fontMetrics().horizontalAdvance(" ")
         )
+        # Assembly source relies on column alignment (label / mnemonic /
+        # operand / comment). QTextEdit word-wraps by default, which folds
+        # long aligned lines onto the next row and makes the formatting
+        # look "stripped" as soon as a line is wider than the pane. Disable
+        # wrapping so long lines scroll horizontally instead, preserving
+        # the on-disk formatting exactly as loaded.
+        self.editor.setLineWrapMode(QTextEdit.NoWrap)
         ed_lay.addWidget(self.editor, 1)
 
         msg_box = QWidget()
@@ -348,6 +364,26 @@ class CompilerWindow(QMainWindow):
         except Exception as exc:
             self.messages.append(f"Failed to write RAM image: {exc}")
             self.statusBar().showMessage("Write failed", 4000)
+            return
+
+        self._save_listing(out_path.with_suffix(".lst"))
+
+    def _save_listing(self, lst_path: Path):
+        """Generate and write the .lst listing alongside the .ram image."""
+        source_label = str(self.current_path) if self.current_path else None
+        listing = self._runner.generate_listing(self.editor.toPlainText(), source_path=source_label)
+        if listing is None:
+            return  # back-end unavailable; RAM image already reported that above
+        if not listing.success:
+            self.messages.append("Listing not written:")
+            for msg in listing.messages:
+                self.messages.append(f"  {msg}")
+            return
+        try:
+            lst_path.write_text(listing.text, encoding="utf-8")
+            self.messages.append(f"Listing written to: {lst_path}")
+        except Exception as exc:
+            self.messages.append(f"Failed to write listing: {exc}")
 
     # -------------------------------------------------- load into CPU -------
 

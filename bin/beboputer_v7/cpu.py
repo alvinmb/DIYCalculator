@@ -54,7 +54,15 @@ class CPU:
     RAM_SIZE     = 0x10000  # 64 KB
 
     def __init__(self):
-        self.ram       = bytearray(self.RAM_SIZE)
+        self.ram         = bytearray(self.RAM_SIZE)
+        # Real RAM chips power up with indeterminate contents — every
+        # location is "undefined" ($XX) until something actually writes
+        # to it. This flag array lets the UI (Memory Walker) show "XX"
+        # for bytes the program hasn't touched yet, instead of a
+        # misleading $00. It is only reset on power-on (here), not on
+        # every CPU Reset, since RAM contents survive a reset in
+        # real hardware.
+        self.ram_touched = bytearray(self.RAM_SIZE)
         self.ports_in  = bytearray(16)
         self.ports_out = bytearray(16)
         self._write_hooks: dict = {}
@@ -77,6 +85,8 @@ class CPU:
         self.ram[0xF011]   = 0xFF  # keypad idle sentinel (no key pressed)
         self.ram[0xF031]   = 0x00  # clear display port
         self.ram[0xF032]   = 0x00  # clear LED port
+        for addr in (0xF011, 0xF031, 0xF032):
+            self.ram_touched[addr] = 1
 
     def _load_default_program(self):
         prog = [
@@ -90,6 +100,7 @@ class CPU:
         ]
         for i, b in enumerate(prog):
             self.ram[self.RESET_VECTOR + i] = b
+            self.ram_touched[self.RESET_VECTOR + i] = 1
 
     def _read(self, addr):
         addr &= 0xFFFF
@@ -103,6 +114,7 @@ class CPU:
         addr &= 0xFFFF
         val  &= 0xFF
         self.ram[addr] = val
+        self.ram_touched[addr] = 1
         hook = self._write_hooks.get(addr)
         if hook is not None:
             hook(val)

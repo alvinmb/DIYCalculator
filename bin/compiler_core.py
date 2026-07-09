@@ -92,6 +92,18 @@ class CompileResult:
         return self.success
 
 
+@dataclass
+class ListingResult:
+    """Outcome of a single `Compiler.generate_listing()` call."""
+    success: bool = False
+    text:    Optional[str] = None   # full .lst file contents
+    messages: List[str]    = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.success
+
+
 # ---------------------------------------------------------------------------
 # Compiler facade
 # ---------------------------------------------------------------------------
@@ -174,6 +186,40 @@ class Compiler:
             f"Range: ${start_addr:04X} - ${end_addr:04X} "
             f"({size} byte{'s' if size != 1 else ''})."
         )
+        return result
+
+    # ------------------------------------------------------------------
+    # Listing (.lst) generation
+    # ------------------------------------------------------------------
+    def generate_listing(self, text: str, source_path: Optional[str] = None) -> ListingResult:
+        """Assemble `text` and return a `ListingResult` containing the full
+        .lst listing (DIY Calculator Assembler V2.0 format — see
+        das.generate_listing for the format spec and Data/2funcal.lst for
+        a reference example).
+
+        `source_path`, if given, is recorded in the listing's SOURCEWAS
+        header line; pass the .asm file's path on disk when known.
+        """
+        result = ListingResult()
+
+        if text is None:
+            result.messages.append("No source provided.")
+            return result
+
+        source_lines = text.splitlines()
+
+        try:
+            listing_text = das.generate_listing(source_lines, source_path=source_path)
+        except das.AssemblerError as exc:
+            result.messages.append(str(exc))
+            return result
+        except Exception as exc:                      # pragma: no cover
+            result.messages.append(f"Internal listing-generator error: {exc}")
+            result.messages.append(traceback.format_exc().rstrip())
+            return result
+
+        result.success = True
+        result.text = listing_text
         return result
 
     # ------------------------------------------------------------------

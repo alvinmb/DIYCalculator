@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ================================================================
-# build_deb.sh — Build beboputer_7.0.0_all.deb for Raspberry Pi
+# build_deb.sh — Build beboputer_<version>_all.deb for Raspberry Pi
 #
 # CAN BE RUN ON WINDOWS via WSL:
 #   wsl bash bin/beboputer_v7/RPI_INSTALL/build_deb.sh
@@ -8,10 +8,10 @@
 # Or run directly on Linux / Raspberry Pi:
 #   bash bin/beboputer_v7/RPI_INSTALL/build_deb.sh
 #
-# Output: dist/beboputer_7.0.0_all.deb
+# Output: dist/beboputer_<version>_all.deb
 #
 # To install on Pi:
-#   sudo dpkg -i beboputer_7.0.0_all.deb
+#   sudo dpkg -i beboputer_<version>_all.deb
 #   sudo apt-get install -f     # fix any missing dependencies
 # ================================================================
 
@@ -21,7 +21,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 PKG_NAME="beboputer"
-PKG_VERSION="7.0.0"
+# Version is the single source of truth in bin/beboputer_v7/__init__.py
+# (__version__) — nothing to edit here, this always tracks the app.
+PKG_VERSION="$(cd "$PROJECT_ROOT/bin" && python3 -c "from beboputer_v7 import __version__; print(__version__)")"
+if [ -z "$PKG_VERSION" ]; then
+    echo "ERROR: Could not read __version__ from beboputer_v7 (is python3 available?)."
+    exit 1
+fi
 PKG_ARCH="all"           # Python source — runs on Pi 1/2/3/4/5, any ARM
 INSTALL_ROOT="/usr"
 
@@ -34,6 +40,7 @@ DEB_OUT="$PROJECT_ROOT/dist/${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
 
 echo "============================================================"
 echo " Beboputer Raspberry Pi .deb Builder"
+echo " Version      : $PKG_VERSION"
 echo " Project root : $PROJECT_ROOT"
 echo " Output       : $DEB_OUT"
 echo "============================================================"
@@ -150,16 +157,4 @@ dpkg-deb --build --root-owner-group "$STAGING" "$DEB_TMP"
 mkdir -p "$PROJECT_ROOT/dist"
 cp "$DEB_TMP" "$DEB_OUT"
 
-# ── Clean up staging and temp .deb ───────────────────────────────
-rm -rf "$STAGING" "$DEB_TMP"
-
-echo ""
-echo "============================================================"
-echo " Done!"
-echo " Package : $DEB_OUT"
-echo ""
-echo " To install on Raspberry Pi:"
-echo "   Copy the .deb to the Pi, then run:"
-echo "   sudo dpkg -i beboputer_${PKG_VERSION}_${PKG_ARCH}.deb"
-echo "   sudo apt-get install -f"
-echo "============================================================"
+# ── Clean up staging and temp .deb ──────────────────────────�

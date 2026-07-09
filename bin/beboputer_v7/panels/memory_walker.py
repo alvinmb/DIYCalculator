@@ -116,7 +116,12 @@ class MemoryWalker(QWidget):
         layout.addWidget(self.status_lbl)
 
         # Memory table  (BP | STEP | ADDRESS | DATA)
-        self.table = QTableWidget(500, 4)
+        # Row count must match the 256-row visible window that
+        # _refresh() populates (see VISIBLE_ROWS in highlight_pc) —
+        # with more rows than _refresh() ever fills, the extra rows
+        # stayed permanently blank (no address, no "$XX"), which
+        # looked like the table "stopped displaying" partway down.
+        self.table = QTableWidget(256, 4)
         self.table.setHorizontalHeaderLabels(["BP", "STEP", "ADDRESS", "DATA"])
         self.table.verticalHeader().setVisible(False)
         self.table.setColumnWidth(0, 100)
@@ -185,9 +190,14 @@ class MemoryWalker(QWidget):
                 addr_item.setFont(QFont("Courier New", 14, QFont.Bold))
             self.table.setItem(row, 2, addr_item)
 
-            # DATA column
-            data_item = QTableWidgetItem(f"{b:02X}")
+            # DATA column — undefined (never-written) RAM shows as "XX",
+            # matching real hardware where power-on RAM contents are
+            # indeterminate until the program writes to them.
+            touched = self.cpu.ram_touched[addr]
+            data_item = QTableWidgetItem(f"{b:02X}" if touched else "XX")
             data_item.setTextAlignment(Qt.AlignCenter)
+            if not touched:
+                data_item.setForeground(QBrush(QColor(C['grey'])))
             if is_pc:
                 data_item.setForeground(QBrush(QColor(C['amber'])))
                 data_item.setFont(QFont("Courier New", 14, QFont.Bold))
@@ -268,6 +278,7 @@ class MemoryWalker(QWidget):
             return
         try:
             self.cpu.ram[addr] = int(item.text(), 16) & 0xFF
+            self.cpu.ram_touched[addr] = 1
         except Exception:
             pass
 

@@ -590,6 +590,12 @@ class Calculator(QMainWindow):
             # so write_display appends directly onto a blank slate.
             for _ in range(24):
                 self.write_display(ord('-'))   # 0x2D via $F031
+            # Light up the top-row LEDs as part of power-on, same as real
+            # hardware would (the indicator LEDs come alive with the board,
+            # independent of whatever a loaded program later does with them
+            # via port $F032/write_leds()).
+            for led in self.leds:
+                led.setStyleSheet(_LED_ON_CSS)
         else:
             self.display.setStyleSheet(_DISPLAY_OFF_CSS)
             self.display.setText("")
@@ -726,6 +732,12 @@ class Calculator(QMainWindow):
 
         if cmd in ("Reset", "Step", "Run"):
             self._drive_host(cmd)
+            if cmd == "Reset":
+                # Reset clears CPU/port state but doesn't otherwise touch
+                # this widget -- blank the top-row LEDs to match, same as
+                # they'd go dark on real hardware.
+                for led in self.leds:
+                    led.setStyleSheet(_LED_OFF_CSS)
             return
 
         if cmd in ("Clear", "CE"):

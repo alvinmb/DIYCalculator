@@ -3,7 +3,7 @@ Beboputer — Raspberry Pi Installer
 
 FILES
 -----
-  build_deb.sh      Builds beboputer_7.0.0_all.deb  (run on Windows/WSL or Linux)
+  build_deb.sh      Builds beboputer_<version>_all.deb  (run on Windows/WSL or Linux)
   install_rpi.sh    One-shot installer (run directly on the Pi)
   README.txt        This file
 
@@ -16,11 +16,12 @@ TWO WAYS TO INSTALL
 
     wsl bash bin/beboputer_v7/RPI_INSTALL/build_deb.sh
 
-  This produces:  dist/beboputer_7.0.0_all.deb
+  This produces:  dist/beboputer_<version>_all.deb
+  (<version> comes from bin/beboputer_v7/__init__.py's __version__)
 
   Copy the .deb to the Raspberry Pi, then on the Pi run:
 
-    sudo dpkg -i beboputer_7.0.0_all.deb
+    sudo dpkg -i beboputer_<version>_all.deb
     sudo apt-get install -f        # installs any missing dependencies
 
   To uninstall later:
@@ -49,5 +50,4 @@ REQUIREMENTS (handled automatically)
 SUPPORTED PI MODELS
 ====================
   Package architecture is 'all' (Python source, not compiled) so it
-  runs on every Pi model: Pi 1, 2, 3, 4, 5, Zero, Zero 2W — any OS
-  based on Raspberry Pi OS / Raspbian / Debian.
+  runs on every Pi model: Pi 1, 2, 3,

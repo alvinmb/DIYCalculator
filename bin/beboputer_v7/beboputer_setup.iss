@@ -11,7 +11,17 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 #define AppName      "PY-DIYCALCULATOR"
 #define AppExeName   "Beboputer.exe"
-#define AppVersion   "7.0.0"
+; Version is the single source of truth in bin/beboputer_v7/__init__.py
+; (__version__). build_installer.bat sets the BEBOPUTER_VERSION
+; environment variable before invoking iscc.exe so this always tracks
+; the app's real version automatically — nothing to edit here.
+; Falls back to a clearly-fake placeholder if compiled directly (e.g.
+; by opening this file in the Inno Setup IDE) without going through
+; build_installer.bat first.
+#define AppVersion   GetEnv("BEBOPUTER_VERSION")
+#if AppVersion == ""
+  #define AppVersion "0.0.0-dev"
+#endif
 #define AppPublisher "Alvin Brown & Clive Maxfield"
 #define AppURL       "https://www.clivemaxfield.com/diycalculator/downloads.shtml"
 ; SourcePath = folder containing this .iss file (bin\beboputer_v7\).
@@ -45,18 +55,4 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon";   Description: "Create a &desktop shortcut";   GroupDescription: "Additional icons:"; Flags: unchecked
-Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescription: "Additional icons:"
-
-[Files]
-Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"
-Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}";     Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
-
-[Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName} now"; Flags: nowait postinstall skipifsilent
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}"
+Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescription: "Additional 

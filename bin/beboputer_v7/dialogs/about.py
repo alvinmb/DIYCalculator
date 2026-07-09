@@ -23,6 +23,7 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QDialog, QLabel, QPushButton, QVBoxLayout
 
+from .. import __version__
 from ..styles import C
 
 
@@ -40,7 +41,7 @@ class AboutDialog(QDialog):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        sub = QLabel("Python/PyQt5 Edition")
+        sub = QLabel(f"Python/PyQt5 Edition  —  v{__version__}")
         sub.setStyleSheet(f"color:{C['green_mid']}; font-size:14px;")
         sub.setAlignment(Qt.AlignCenter)
         layout.addWidget(sub)

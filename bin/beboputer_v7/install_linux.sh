@@ -53,9 +53,17 @@ echo "==> Copying application files..."
 rm -rf "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 
-cp -r "$SCRIPT_DIR/bin"     "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/BITMAPS" "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/Config"  "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/bin"             "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/BITMAPS"         "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/Config"          "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/Data"            "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/databook"        "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/WorkInProgress"  "$INSTALL_DIR/"
+cp -r "$SCRIPT_DIR/tutorial"        "$INSTALL_DIR/"
+
+# Stale bytecode caches bloat the copy and can shadow the .py sources
+# with a different Python version on the target machine.
+find "$INSTALL_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 echo "    Files copied to $INSTALL_DIR"
 
@@ -95,15 +103,4 @@ fi
 
 echo "    Desktop entry: $DESKTOP_DIR/beboputer.desktop"
 
-# ── 6. Add ~/.local/bin to PATH if needed ─────────────────────────
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo ""
-    echo "NOTE: Add this line to your ~/.bashrc or ~/.profile:"
-    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    echo "Then run:  source ~/.bashrc"
-fi
-
-echo ""
-echo "==> Installation complete!"
-echo "    Run with: beboputer"
-echo "    Or find '$APP_NAME' in your application menu."
+# ── 6. Add ~/.loca
