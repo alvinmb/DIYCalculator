@@ -69,17 +69,17 @@ class TestDescribe:
         self.msgs = InstructionMessages()
 
     def test_describe_returns_string(self):
-        cpu = make_cpu_after(0x01, 0x05)   # LDA $05
+        cpu = make_cpu_after(0x90, 0x05)   # LDA $05
         result = self.msgs.describe(cpu)
         assert isinstance(result, str)
 
     def test_describe_contains_register_values(self):
-        cpu = make_cpu_after(0x01, 0x42)   # LDA $42
+        cpu = make_cpu_after(0x90, 0x42)   # LDA $42
         result = self.msgs.describe(cpu)
         assert 'ACC' in result or '$42' in result or '66' in result
 
     def test_describe_halt(self):
-        cpu = make_cpu_after(0x3C)         # HALT
+        cpu = make_cpu_after(0x01)         # HALT
         result = self.msgs.describe(cpu)
         assert isinstance(result, str)
         assert len(result) > 0
@@ -145,12 +145,12 @@ class TestOpcodeCoverage:
         assert missing == [], f"Missing messages for opcodes: {missing}"
 
     def test_opcode_map_covers_halt(self):
-        assert 0x3C in _OPCODE_MSG
+        assert 0x01 in _OPCODE_MSG
 
     def test_opcode_map_covers_all_lda_modes(self):
-        for op in [0x01, 0x02, 0x03, 0x04, 0x05]:
+        for op in [0x90, 0x91, 0x92, 0x93, 0x94, 0x95]:
             assert op in _OPCODE_MSG, f"LDA opcode ${op:02X} not in map"
 
     def test_opcode_map_covers_jumps(self):
-        for op in [0x45, 0x48, 0x49, 0x4C, 0x4D, 0x4A, 0x4B]:
+        for op in [0xC1, 0xE1, 0xE6, 0xD1, 0xD6, 0xD9, 0xDE]:
             assert op in _OPCODE_MSG, f"Jump opcode ${op:02X} not in map"

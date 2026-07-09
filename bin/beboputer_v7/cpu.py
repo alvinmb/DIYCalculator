@@ -21,13 +21,21 @@
 """
 Beboputer 8-bit virtual CPU — instruction set aligned to das.py.
 
+Opcode numbering matches Appendix A (Tables A-2a/A-2b) of The Official
+DIY Calculator Data Book.
+
 Addressing modes
 ----------------
   imm          opcode + 1-byte operand
-  dir          opcode + 16-bit big-endian address
-  idx          opcode + 16-bit big-endian address  (effective = addr + IX)
+               (BLDX/BLDSP/BLDIV use a 16-bit immediate -> 2-byte operand)
+  dir (abs)    opcode + 16-bit big-endian address
+  idx (abs-x)  opcode + 16-bit big-endian address  (effective = addr + IX)
   ind          opcode + 16-bit addr of pointer     (pointer is 16-bit BE in RAM)
-  iix          opcode + 16-bit addr of pointer     (pointer addr = addr + IX)
+  xind (x-ind) opcode + 16-bit addr of pointer      (pointer addr = addr + IX;
+               i.e. IX is added BEFORE the pointer is fetched)
+  indx (ind-x) opcode + 16-bit addr of pointer      (pointer = mem[addr];
+               effective = pointer + IX; i.e. IX is added AFTER the
+               pointer is fetched)
 
 Registers
 ---------
@@ -90,13 +98,13 @@ class CPU:
 
     def _load_default_program(self):
         prog = [
-            0x01, 0x05,
-            0x0A, 0x03,
-            0x06, 0x40, 0x50,
-            0x01, 0x0A,
-            0x10, 0x05,
-            0x32,
-            0x3C,
+            0x90, 0x05,        # LDA  $05
+            0x10, 0x03,        # ADD  $03
+            0x99, 0x40, 0x50,  # STA  [$4050]
+            0x90, 0x0A,        # LDA  $0A
+            0x20, 0x05,        # SUB  $05
+            0x80,              # INCA
+            0x01,              # HALT
         ]
         for i, b in enumerate(prog):
             self.ram[self.RESET_VECTOR + i] = b
@@ -204,69 +212,61 @@ class CPU:
             op = self.instr
 
             if   op == 0x00: pass                                                          # NOP
+            elif op == 0x01: self.halted = True                                            # HALT
 
-            elif op == 0x01: self.acc = self._fetch();               self._set_nz(self.acc)
-            elif op == 0x02: self.acc = self._read(self._fetch16()); self._set_nz(self.acc)
-            elif op == 0x03: self.acc = self._read((self._fetch16() + self.ix) & 0xFFFF);  self._set_nz(self.acc)
-            elif op == 0x04: self.acc = self._read(self._read16(self._fetch16()));          self._set_nz(self.acc)
-            elif op == 0x05: self.acc = self._read(self._read16((self._fetch16() + self.ix) & 0xFFFF)); self._set_nz(self.acc)
-
-            elif op == 0x06: self._write(self._fetch16(), self.acc)
-            elif op == 0x07: self._write((self._fetch16() + self.ix) & 0xFFFF, self.acc)
-            elif op == 0x08: self._write(self._read16(self._fetch16()), self.acc)
-            elif op == 0x09: self._write(self._read16((self._fetch16() + self.ix) & 0xFFFF), self.acc)
-
-            elif op == 0x0A:
-                n = self._fetch();  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x0B:
-                n = self._read(self._fetch16());  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x0C:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-
-            elif op == 0x0D:
-                n = self._fetch();  c = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x0E:
-                n = self._read(self._fetch16());  c = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x0F:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-
-            elif op == 0x10:
-                n = self._fetch();  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x11:
-                n = self._read(self._fetch16());  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x12:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-
-            elif op == 0x13:
-                n = self._fetch();  bw = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x14:
-                n = self._read(self._fetch16());  bw = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-            elif op == 0x15:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw = 1 if (self.flags & FLAG_C) else 0
-                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
-
-            elif op == 0x16:
+            # DADD  (BCD add) — provisional placeholder opcodes
+            elif op == 0x02:
                 n = self._fetch();  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x17:
+            elif op == 0x03:
                 n = self._read(self._fetch16());  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x18:
+            elif op == 0x04:
                 n = self._read((self._fetch16() + self.ix) & 0xFFFF);  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
 
-            elif op == 0x19:
+            # DADDC (BCD add with carry) — provisional placeholder opcodes
+            elif op == 0x05:
                 n = self._fetch();  c_in = 1 if (self.flags & FLAG_C) else 0
                 res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x1A:
+            elif op == 0x06:
                 n = self._read(self._fetch16());  c_in = 1 if (self.flags & FLAG_C) else 0
                 res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x1B:
+            elif op == 0x07:
                 n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c_in = 1 if (self.flags & FLAG_C) else 0
                 res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
 
+            elif op == 0x08: self.flags |=  FLAG_I;  self.flags_touched |= FLAG_I           # SETIM
+            elif op == 0x09: self.flags &= ~FLAG_I;  self.flags_touched |= FLAG_I           # CLRIM
+
+            # DSUBC (BCD subtract with borrow) — provisional placeholder opcodes
+            elif op == 0x0A:
+                n = self._fetch();  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+            elif op == 0x0B:
+                n = self._read(self._fetch16());  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+            elif op == 0x0C:
+                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+
+            # ADD
+            elif op == 0x10:
+                n = self._fetch();  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x11:
+                n = self._read(self._fetch16());  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x12:
+                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  r = self.acc + n;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+
+            # ADDC
+            elif op == 0x18:
+                n = self._fetch();  c = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x19:
+                n = self._read(self._fetch16());  c = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x1A:
+                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
+
+            # DSUB (BCD subtract) — unchanged opcodes, provisional semantics
             elif op == 0x1C:
                 n = self._fetch();  res, bw = self._bcd_sub(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, bw)
             elif op == 0x1D:
@@ -274,97 +274,142 @@ class CPU:
             elif op == 0x1E:
                 n = self._read((self._fetch16() + self.ix) & 0xFFFF);  res, bw = self._bcd_sub(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, bw)
 
-            elif op == 0x1F:
-                n = self._fetch();  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+            # SUB
             elif op == 0x20:
-                n = self._read(self._fetch16());  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+                n = self._fetch();  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
             elif op == 0x21:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
+                n = self._read(self._fetch16());  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x22:
+                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  r = self.acc - n;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
 
-            elif op == 0x22: n = self._fetch();                                           self._set_sub_flags(self.acc, n, self.acc - n)
-            elif op == 0x23: n = self._read(self._fetch16());                             self._set_sub_flags(self.acc, n, self.acc - n)
-            elif op == 0x24: n = self._read((self._fetch16() + self.ix) & 0xFFFF);        self._set_sub_flags(self.acc, n, self.acc - n)
+            # SUBC
+            elif op == 0x28:
+                n = self._fetch();  bw = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x29:
+                n = self._read(self._fetch16());  bw = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
+            elif op == 0x2A:
+                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw = 1 if (self.flags & FLAG_C) else 0
+                r = self.acc - n - bw;  self._set_sub_flags(self.acc, n, r);  self.acc = r & 0xFF
 
-            elif op == 0x25: self.acc &= self._fetch();                                   self._set_nz(self.acc)
-            elif op == 0x26: self.acc &= self._read(self._fetch16());                     self._set_nz(self.acc)
-            elif op == 0x27: self.acc &= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
+            # AND
+            elif op == 0x30: self.acc &= self._fetch();                                   self._set_nz(self.acc)
+            elif op == 0x31: self.acc &= self._read(self._fetch16());                     self._set_nz(self.acc)
+            elif op == 0x32: self.acc &= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
 
-            elif op == 0x28: self.acc |= self._fetch();                                   self._set_nz(self.acc)
-            elif op == 0x29: self.acc |= self._read(self._fetch16());                     self._set_nz(self.acc)
-            elif op == 0x2A: self.acc |= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
+            # OR
+            elif op == 0x38: self.acc |= self._fetch();                                   self._set_nz(self.acc)
+            elif op == 0x39: self.acc |= self._read(self._fetch16());                     self._set_nz(self.acc)
+            elif op == 0x3A: self.acc |= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
 
-            elif op == 0x2B: self.acc ^= self._fetch();                                   self._set_nz(self.acc)
-            elif op == 0x2C: self.acc ^= self._read(self._fetch16());                     self._set_nz(self.acc)
-            elif op == 0x2D: self.acc ^= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
+            # XOR
+            elif op == 0x40: self.acc ^= self._fetch();                                   self._set_nz(self.acc)
+            elif op == 0x41: self.acc ^= self._read(self._fetch16());                     self._set_nz(self.acc)
+            elif op == 0x42: self.acc ^= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
 
-            elif op == 0x2E:
-                c = (self.acc >> 7) & 1;  self.acc = (self.acc << 1) & 0xFF
+            # BLDSP  (big load stack pointer)
+            elif op == 0x50: self.sp = self._fetch16()
+            elif op == 0x51: self.sp = self._read16(self._fetch16())
+            # BSTSP  (big store stack pointer)
+            elif op == 0x59: self._write16(self._fetch16(), self.sp)
+
+            # CMPA (compare — subtract without storing result)
+            elif op == 0x60: n = self._fetch();                                           self._set_sub_flags(self.acc, n, self.acc - n)
+            elif op == 0x61: n = self._read(self._fetch16());                             self._set_sub_flags(self.acc, n, self.acc - n)
+            elif op == 0x62: n = self._read((self._fetch16() + self.ix) & 0xFFFF);        self._set_sub_flags(self.acc, n, self.acc - n)
+
+            elif op == 0x70:
+                c = (self.acc >> 7) & 1;  self.acc = (self.acc << 1) & 0xFF               # SHL
                 self.flags = (self.flags & ~FLAG_C) | c;  self.flags_touched |= FLAG_C;  self._set_nz(self.acc)
-            elif op == 0x2F:
-                c = self.acc & 1;  self.acc = (self.acc >> 1) & 0xFF
+            elif op == 0x71:
+                c = self.acc & 1;  self.acc = (self.acc >> 1) & 0xFF                      # SHR
                 self.flags = (self.flags & ~FLAG_C) | c;  self.flags_touched |= FLAG_C;  self._set_nz(self.acc)
-            elif op == 0x30:
-                old_c = 1 if (self.flags & FLAG_C) else 0;  new_c = (self.acc >> 7) & 1
+            elif op == 0x78:
+                old_c = 1 if (self.flags & FLAG_C) else 0;  new_c = (self.acc >> 7) & 1   # ROLC
                 self.acc = ((self.acc << 1) | old_c) & 0xFF
                 self.flags = (self.flags & ~FLAG_C) | new_c;  self.flags_touched |= FLAG_C;  self._set_nz(self.acc)
-            elif op == 0x31:
-                old_c = 1 if (self.flags & FLAG_C) else 0;  new_c = self.acc & 1
+            elif op == 0x79:
+                old_c = 1 if (self.flags & FLAG_C) else 0;  new_c = self.acc & 1          # RORC
                 self.acc = ((self.acc >> 1) | (old_c << 7)) & 0xFF
                 self.flags = (self.flags & ~FLAG_C) | new_c;  self.flags_touched |= FLAG_C;  self._set_nz(self.acc)
 
-            elif op == 0x32: self.acc = (self.acc + 1) & 0xFF;  self._set_nz(self.acc)
-            elif op == 0x33: self.acc = (self.acc - 1) & 0xFF;  self._set_nz(self.acc)
-            elif op == 0x34: self.ix = (self.ix + 1) & 0xFFFF; self._set_nz(self.ix)
-            elif op == 0x35: self.ix = (self.ix - 1) & 0xFFFF; self._set_nz(self.ix)
+            elif op == 0x80: self.acc = (self.acc + 1) & 0xFF;  self._set_nz(self.acc)     # INCA
+            elif op == 0x81: self.acc = (self.acc - 1) & 0xFF;  self._set_nz(self.acc)     # DECA
+            elif op == 0x82: self.ix  = (self.ix + 1) & 0xFFFF; self._set_nz(self.ix)      # INCX
+            elif op == 0x83: self.ix  = (self.ix - 1) & 0xFFFF; self._set_nz(self.ix)      # DECX
 
-            elif op == 0x36: self.flags &= ~FLAG_I;  self.flags_touched |= FLAG_I
-            elif op == 0x37: self.flags |=  FLAG_I;  self.flags_touched |= FLAG_I
+            # LDA — imm / dir / idx / ind / xind (x-ind) / indx (ind-x)
+            elif op == 0x90: self.acc = self._fetch();               self._set_nz(self.acc)
+            elif op == 0x91: self.acc = self._read(self._fetch16()); self._set_nz(self.acc)
+            elif op == 0x92: self.acc = self._read((self._fetch16() + self.ix) & 0xFFFF);  self._set_nz(self.acc)
+            elif op == 0x93: self.acc = self._read(self._read16(self._fetch16()));          self._set_nz(self.acc)
+            elif op == 0x94: self.acc = self._read(self._read16((self._fetch16() + self.ix) & 0xFFFF)); self._set_nz(self.acc)
+            elif op == 0x95: self.acc = self._read((self._read16(self._fetch16()) + self.ix) & 0xFFFF); self._set_nz(self.acc)
 
-            elif op == 0x38: self._push(self.acc)
-            elif op == 0x39: self.acc = self._pop();  self._set_nz(self.acc)
-            elif op == 0x3A: self._push(self.flags)
-            elif op == 0x3B: self.flags = self._pop();  self.flags_touched = 0xFF
+            # STA — dir / idx / ind / xind (x-ind) / indx (ind-x)
+            elif op == 0x99: self._write(self._fetch16(), self.acc)
+            elif op == 0x9A: self._write((self._fetch16() + self.ix) & 0xFFFF, self.acc)
+            elif op == 0x9B: self._write(self._read16(self._fetch16()), self.acc)
+            elif op == 0x9C: self._write(self._read16((self._fetch16() + self.ix) & 0xFFFF), self.acc)
+            elif op == 0x9D: self._write((self._read16(self._fetch16()) + self.ix) & 0xFFFF, self.acc)
 
-            elif op == 0x3C: self.halted = True
-            elif op == 0x3D:
+            # BLDX (big load index register) / BSTX (big store index register)
+            elif op == 0xA0: self.ix = self._fetch16()
+            elif op == 0xA1: self.ix = self._read16(self._fetch16())
+            elif op == 0xA9: self._write16(self._fetch16(), self.ix)
+
+            elif op == 0xB0: self.acc = self._pop();  self._set_nz(self.acc)               # POPA
+            elif op == 0xB1: self.flags = self._pop();  self.flags_touched = 0xFF          # POPSR
+            elif op == 0xB2: self._push(self.acc)                                          # PSHA / PUSHA
+            elif op == 0xB3: self._push(self.flags)                                        # PUSHSR
+
+            # JMP — dir / idx / ind / xind (x-ind) / indx (ind-x)
+            elif op == 0xC1: self.pc = self._fetch16()
+            elif op == 0xC2: self.pc = (self._fetch16() + self.ix) & 0xFFFF
+            elif op == 0xC3: self.pc = self._read16(self._fetch16())
+            elif op == 0xC4: self.pc = self._read16((self._fetch16() + self.ix) & 0xFFFF)
+            elif op == 0xC5: self.pc = (self._read16(self._fetch16()) + self.ix) & 0xFFFF
+
+            elif op == 0xC7:                                                               # RTI
                 lo = self._pop();  hi = self._pop()
                 self.pc    = (hi << 8) | lo
                 self.flags = self._pop();  self.flags_touched = 0xFF
-            elif op == 0x3E:
+
+            # JSR — dir / idx / ind / xind (x-ind) / indx (ind-x)
+            elif op == 0xC9:
+                addr = self._fetch16()
+                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+            elif op == 0xCA:
+                addr = (self._fetch16() + self.ix) & 0xFFFF
+                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+            elif op == 0xCB:
+                addr = self._read16(self._fetch16())
+                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+            elif op == 0xCC:
+                addr = self._read16((self._fetch16() + self.ix) & 0xFFFF)
+                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+            elif op == 0xCD:
+                addr = (self._read16(self._fetch16()) + self.ix) & 0xFFFF
+                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+
+            elif op == 0xCF:                                                               # RTS
                 lo = self._pop();  hi = self._pop()
                 self.pc = (hi << 8) | lo
 
-            elif op == 0x3F: self.ix = self._fetch16()
-            elif op == 0x40: self.ix = self._read16(self._fetch16())
-            elif op == 0x41: self._write16(self._fetch16(), self.ix)
-            elif op == 0x42: self.sp = self._fetch16()
-            elif op == 0x43: self._write16(self._fetch16(), self.sp)
-            elif op == 0x44: self._intr_vector = self._read16(self._fetch16())
+            # Conditional jumps (dir only)
+            elif op == 0xD1: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_Z) else None)       # JZ
+            elif op == 0xD6: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_Z) else None)   # JNZ
+            elif op == 0xD9: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_N) else None)       # JN
+            elif op == 0xDE: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_N) else None)   # JNN
+            elif op == 0xE1: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_C) else None)       # JC
+            elif op == 0xE6: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_C) else None)   # JNC
+            elif op == 0xE9: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_V) else None)       # JO
+            elif op == 0xEE: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_V) else None)   # JNO
 
-            elif op == 0x45: self.pc = self._fetch16()
-            elif op == 0x46: self.pc = self._read16(self._fetch16())
-            elif op == 0x47: self.pc = self._read16((self._fetch16() + self.ix) & 0xFFFF)
-            elif op == 0x48: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_C) else None)
-            elif op == 0x49: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_C) else None)
-            elif op == 0x4A: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_N) else None)
-            elif op == 0x4B: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_N) else None)
-            elif op == 0x4C: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_Z) else None)
-            elif op == 0x4D: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_Z) else None)
-            elif op == 0x4E: addr = self._fetch16(); (setattr(self, 'pc', addr) if (self.flags & FLAG_V) else None)
-            elif op == 0x4F: addr = self._fetch16(); (setattr(self, 'pc', addr) if not (self.flags & FLAG_V) else None)
-
-            elif op == 0x50:
-                addr = self._fetch16()
-                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
-            elif op == 0x51:
-                addr = self._read16(self._fetch16())
-                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
-            elif op == 0x52:
-                addr = self._read16((self._fetch16() + self.ix) & 0xFFFF)
-                self._push((self.pc >> 8) & 0xFF);  self._push(self.pc & 0xFF);  self.pc = addr
+            # BLDIV (big load interrupt vector)
+            elif op == 0xF0: self._intr_vector = self._fetch16()
+            elif op == 0xF1: self._intr_vector = self._read16(self._fetch16())
 
             else:
                 return f"ILLEGAL ${op:02X}"

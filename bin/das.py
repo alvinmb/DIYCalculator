@@ -37,12 +37,18 @@ DIY Calculator CPU Summary (from "How Computers Do Math" by Maxfield & Brown):
   - Memory: 16-bit address space
   - All instructions are 1, 2, or 3 bytes
 
-Addressing modes (as used in source):
-  LDA  $nn          - immediate (1-byte value)
-  LDA  [addr]       - direct (absolute address, 16-bit)
-  LDA  [addr,X]     - indexed (address + X register)
-  LDA  [[addr]]     - indirect (address holds pointer)
-  LDA  [[addr,X]]   - indirect indexed
+Addressing modes (as used in source) — terminology and opcodes match
+Appendix A ("Addressing Modes and Instruction Set"), Tables A-2a/A-2b,
+of The Official DIY Calculator Data Book:
+  LDA  $nn           - imm    immediate            (1-byte value)
+  LDA  [addr]         - dir    absolute (abs)        (2-byte address)
+  LDA  [addr,X]       - idx    absolute indexed (abs-x)
+  LDA  [[addr]]       - ind    indirect
+  LDA  [[addr,X]]     - xind   pre-indexed indirect (x-ind): X is added to
+                                the address BEFORE the pointer is fetched.
+  LDA  [[addr],X]     - indx   indirect post-indexed (ind-x): the pointer
+                                is fetched from addr FIRST, then X is added
+                                to the resulting address.
 
 Directives:
   .ORG  <addr>       - set origin (program counter)
@@ -61,104 +67,128 @@ import datetime
 
 # ---------------------------------------------------------------------------
 # Opcode table
-# Each entry: opcode_base, supported_modes
+#
+# Opcodes below match Appendix A, Tables A-2a/A-2b of The Official DIY
+# Calculator Data Book (pages A-11/A-12). Each entry: opcode_base, total
+# instruction size in bytes.
+#
 # Modes:
-#   'imm'   = immediate:         LDA $FF       -> 1-byte operand
-#   'dir'   = direct:            LDA [addr]    -> 2-byte address
-#   'idx'   = indexed:           LDA [addr,X]  -> 2-byte address
-#   'ind'   = indirect:          LDA [[addr]]  -> 2-byte address
-#   'iix'   = indirect indexed:  LDA [[addr,X]]-> 2-byte address
-#   'none'  = no operand:        NOP
-#   'rel'   = relative/absolute jump target (always stored as 2-byte absolute address)
+#   'imm'   = immediate:               LDA $FF        -> 1-byte operand
+#             (BLDX/BLDSP/BLDIV use a 16-bit immediate -> 2-byte operand)
+#   'dir'   = absolute (abs):          LDA [addr]      -> 2-byte address
+#   'idx'   = absolute indexed (abs-x):LDA [addr,X]    -> 2-byte address
+#   'ind'   = indirect:                LDA [[addr]]    -> 2-byte address
+#   'xind'  = pre-indexed indirect (x-ind):
+#             LDA [[addr,X]]  -> 2-byte address; X added to addr BEFORE
+#             the pointer is fetched.
+#   'indx'  = indirect post-indexed (ind-x):
+#             LDA [[addr],X]  -> 2-byte address; pointer fetched from addr
+#             FIRST, then X is added to the resulting address.
+#   'none'  = no operand:              NOP
+#
+# DADD/DADDC/DSUBC opcodes below are PROVISIONAL placeholders — the
+# official databook opcodes for these BCD instructions reassign bytes
+# also used by ADDC/SUB in the new table, so they've been relocated to
+# unused slots ($02-$04 / $05-$07 / $0A-$0C) pending the official BCD
+# appendix. DSUB keeps its original opcodes ($1C-$1E); those don't
+# collide with anything in the new table.
 # ---------------------------------------------------------------------------
 
 # fmt: off
 OPCODES = {
     # Mnemonic : { mode: (opcode_byte, total_instruction_bytes) }
     'NOP'   : { 'none': (0x00, 1) },
-    'LDA'   : { 'imm':  (0x01, 2),
-                'dir':  (0x02, 3),
-                'idx':  (0x03, 3),
-                'ind':  (0x04, 3),
-                'iix':  (0x05, 3) },
-    'STA'   : { 'dir':  (0x06, 3),
-                'idx':  (0x07, 3),
-                'ind':  (0x08, 3),
-                'iix':  (0x09, 3) },
-    'ADD'   : { 'imm':  (0x0A, 2),
+    'HALT'  : { 'none': (0x01, 1) },
+    'DADD'  : { 'imm':  (0x02, 2),   # provisional — pending official BCD appendix
+                'dir':  (0x03, 3),
+                'idx':  (0x04, 3) },
+    'DADDC' : { 'imm':  (0x05, 2),   # provisional
+                'dir':  (0x06, 3),
+                'idx':  (0x07, 3) },
+    'SETIM' : { 'none': (0x08, 1) },
+    'CLRIM' : { 'none': (0x09, 1) },
+    'DSUBC' : { 'imm':  (0x0A, 2),   # provisional
                 'dir':  (0x0B, 3),
                 'idx':  (0x0C, 3) },
-    'ADDC'  : { 'imm':  (0x0D, 2),
-                'dir':  (0x0E, 3),
-                'idx':  (0x0F, 3) },
-    'SUB'   : { 'imm':  (0x10, 2),
+    'ADD'   : { 'imm':  (0x10, 2),
                 'dir':  (0x11, 3),
                 'idx':  (0x12, 3) },
-    'SUBC'  : { 'imm':  (0x13, 2),
-                'dir':  (0x14, 3),
-                'idx':  (0x15, 3) },
-    'DADD'  : { 'imm':  (0x16, 2),
-                'dir':  (0x17, 3),
-                'idx':  (0x18, 3) },
-    'DADDC' : { 'imm':  (0x19, 2),
-                'dir':  (0x1A, 3),
-                'idx':  (0x1B, 3) },
-    'DSUB'  : { 'imm':  (0x1C, 2),
+    'ADDC'  : { 'imm':  (0x18, 2),
+                'dir':  (0x19, 3),
+                'idx':  (0x1A, 3) },
+    'DSUB'  : { 'imm':  (0x1C, 2),   # provisional — unchanged, no collision
                 'dir':  (0x1D, 3),
                 'idx':  (0x1E, 3) },
-    'DSUBC' : { 'imm':  (0x1F, 2),
-                'dir':  (0x20, 3),
-                'idx':  (0x21, 3) },
-    'CMPA'  : { 'imm':  (0x22, 2),
-                'dir':  (0x23, 3),
-                'idx':  (0x24, 3) },
-    'AND'   : { 'imm':  (0x25, 2),
-                'dir':  (0x26, 3),
-                'idx':  (0x27, 3) },
-    'OR'    : { 'imm':  (0x28, 2),
+    'SUB'   : { 'imm':  (0x20, 2),
+                'dir':  (0x21, 3),
+                'idx':  (0x22, 3) },
+    'SUBC'  : { 'imm':  (0x28, 2),
                 'dir':  (0x29, 3),
                 'idx':  (0x2A, 3) },
-    'XOR'   : { 'imm':  (0x2B, 2),
-                'dir':  (0x2C, 3),
-                'idx':  (0x2D, 3) },
-    'SHL'   : { 'none': (0x2E, 1) },
-    'SHR'   : { 'none': (0x2F, 1) },
-    'ROLC'  : { 'none': (0x30, 1) },
-    'RORC'  : { 'none': (0x31, 1) },
-    'INCA'  : { 'none': (0x32, 1) },
-    'DECA'  : { 'none': (0x33, 1) },
-    'INCX'  : { 'none': (0x34, 1) },
-    'DECX'  : { 'none': (0x35, 1) },
-    'CLRIM' : { 'none': (0x36, 1) },
-    'SETIM' : { 'none': (0x37, 1) },
-    'PSHA'  : { 'none': (0x38, 1) },  # also named PUSHA
-    'PUSHA' : { 'none': (0x38, 1) },
-    'POPA'  : { 'none': (0x39, 1) },
-    'PUSHSR': { 'none': (0x3A, 1) },
-    'POPSR' : { 'none': (0x3B, 1) },
-    'HALT'  : { 'none': (0x3C, 1) },
-    'RTI'   : { 'none': (0x3D, 1) },
-    'RTS'   : { 'none': (0x3E, 1) },
-    'BLDX'  : { 'imm':  (0x3F, 3),   # BLDX is always 16-bit immediate
-                'dir':  (0x40, 3) },
-    'BSTX'  : { 'dir':  (0x41, 3) },
-    'BLDSP' : { 'imm':  (0x42, 3) },  # BLDSP 16-bit immediate
-    'BSTSP' : { 'dir':  (0x43, 3) },
-    'BLDIV' : { 'dir':  (0x44, 3) },
-    'JMP'   : { 'dir':  (0x45, 3),
-                'ind':  (0x46, 3),
-                'iix':  (0x47, 3) },
-    'JC'    : { 'dir':  (0x48, 3) },
-    'JNC'   : { 'dir':  (0x49, 3) },
-    'JN'    : { 'dir':  (0x4A, 3) },
-    'JNN'   : { 'dir':  (0x4B, 3) },
-    'JZ'    : { 'dir':  (0x4C, 3) },
-    'JNZ'   : { 'dir':  (0x4D, 3) },
-    'JO'    : { 'dir':  (0x4E, 3) },
-    'JNO'   : { 'dir':  (0x4F, 3) },
-    'JSR'   : { 'dir':  (0x50, 3),
-                'ind':  (0x51, 3),
-                'iix':  (0x52, 3) },
+    'AND'   : { 'imm':  (0x30, 2),
+                'dir':  (0x31, 3),
+                'idx':  (0x32, 3) },
+    'OR'    : { 'imm':  (0x38, 2),
+                'dir':  (0x39, 3),
+                'idx':  (0x3A, 3) },
+    'XOR'   : { 'imm':  (0x40, 2),
+                'dir':  (0x41, 3),
+                'idx':  (0x42, 3) },
+    'BLDSP' : { 'imm':  (0x50, 3),   # 16-bit immediate
+                'dir':  (0x51, 3) },
+    'BSTSP' : { 'dir':  (0x59, 3) },
+    'CMPA'  : { 'imm':  (0x60, 2),
+                'dir':  (0x61, 3),
+                'idx':  (0x62, 3) },
+    'SHL'   : { 'none': (0x70, 1) },
+    'SHR'   : { 'none': (0x71, 1) },
+    'ROLC'  : { 'none': (0x78, 1) },
+    'RORC'  : { 'none': (0x79, 1) },
+    'INCA'  : { 'none': (0x80, 1) },
+    'DECA'  : { 'none': (0x81, 1) },
+    'INCX'  : { 'none': (0x82, 1) },
+    'DECX'  : { 'none': (0x83, 1) },
+    'LDA'   : { 'imm':  (0x90, 2),
+                'dir':  (0x91, 3),
+                'idx':  (0x92, 3),
+                'ind':  (0x93, 3),
+                'xind': (0x94, 3),
+                'indx': (0x95, 3) },
+    'STA'   : { 'dir':  (0x99, 3),
+                'idx':  (0x9A, 3),
+                'ind':  (0x9B, 3),
+                'xind': (0x9C, 3),
+                'indx': (0x9D, 3) },
+    'BLDX'  : { 'imm':  (0xA0, 3),   # BLDX is always 16-bit immediate
+                'dir':  (0xA1, 3) },
+    'BSTX'  : { 'dir':  (0xA9, 3) },
+    'POPA'  : { 'none': (0xB0, 1) },
+    'POPSR' : { 'none': (0xB1, 1) },
+    'PSHA'  : { 'none': (0xB2, 1) },  # also named PUSHA
+    'PUSHA' : { 'none': (0xB2, 1) },
+    'PUSHSR': { 'none': (0xB3, 1) },
+    'JMP'   : { 'dir':  (0xC1, 3),
+                'idx':  (0xC2, 3),
+                'ind':  (0xC3, 3),
+                'xind': (0xC4, 3),
+                'indx': (0xC5, 3) },
+    'RTI'   : { 'none': (0xC7, 1) },
+    'JSR'   : { 'dir':  (0xC9, 3),
+                'idx':  (0xCA, 3),
+                'ind':  (0xCB, 3),
+                'xind': (0xCC, 3),
+                'indx': (0xCD, 3) },
+    'RTS'   : { 'none': (0xCF, 1) },
+    'JZ'    : { 'dir':  (0xD1, 3) },
+    'JNZ'   : { 'dir':  (0xD6, 3) },
+    'JN'    : { 'dir':  (0xD9, 3) },
+    'JNN'   : { 'dir':  (0xDE, 3) },
+    'JC'    : { 'dir':  (0xE1, 3) },
+    'JNC'   : { 'dir':  (0xE6, 3) },
+    'JO'    : { 'dir':  (0xE9, 3) },
+    'JNO'   : { 'dir':  (0xEE, 3) },
+    'BLDIV' : { 'imm':  (0xF0, 3),   # 16-bit immediate
+                'dir':  (0xF1, 3) },
 }
 # fmt: on
 
@@ -235,7 +265,8 @@ def parse_operand(operand_str, labels, line_num, pass_num, on_label_used=None):
       [addr]                        -> 'dir', address
       [addr,X]                      -> 'idx', address
       [[addr]]                      -> 'ind', address
-      [[addr,X]]                    -> 'iix', address
+      [[addr,X]]                    -> 'xind', address   (pre-indexed indirect / x-ind)
+      [[addr],X]                    -> 'indx', address   (indirect post-indexed / ind-x)
     'addr' can be a label, a number, or label+offset (label+N or label-N).
 
     `on_label_used`, if given, is called as `on_label_used(name, line_num)`
@@ -273,10 +304,15 @@ def parse_operand(operand_str, labels, line_num, pass_num, on_label_used=None):
             on_label_used(name, line_num)
         return labels[name]
 
-    # Indirect indexed: [[addr,X]]
+    # Indirect post-indexed: [[addr],X]   (dereference addr, THEN add X)
+    m = re.match(r'^\[\[(.+)\]\s*,\s*X\s*\]$', s, re.IGNORECASE)
+    if m:
+        return 'indx', resolve_addr(m.group(1)) & 0xFFFF
+
+    # Pre-indexed indirect: [[addr,X]]   (add X to addr, THEN dereference)
     m = re.match(r'^\[\[(.+),\s*X\s*\]\]$', s, re.IGNORECASE)
     if m:
-        return 'iix', resolve_addr(m.group(1)) & 0xFFFF
+        return 'xind', resolve_addr(m.group(1)) & 0xFFFF
 
     # Indirect: [[addr]]
     m = re.match(r'^\[\[(.+)\]\]$', s)

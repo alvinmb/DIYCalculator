@@ -72,52 +72,52 @@ class TestBasicEncoding:
 
     def test_halt_encodes(self):
         code = assemble("        HALT")
-        assert code[0] == 0x3C
+        assert code[0] == 0x01
 
     def test_lda_immediate(self):
         code = assemble("        LDA     $42\n        HALT")
-        assert code[0] == 0x01
+        assert code[0] == 0x90
         assert code[1] == 0x42
 
     def test_lda_direct(self):
         code = assemble("        LDA     [$1234]\n        HALT")
-        assert code[0] == 0x02
+        assert code[0] == 0x91
         assert code[1] == 0x12
         assert code[2] == 0x34
 
     def test_sta_direct(self):
         code = assemble("        STA     [$5000]\n        HALT")
-        assert code[0] == 0x06
+        assert code[0] == 0x99
 
     def test_add_immediate(self):
         code = assemble("        ADD     $05\n        HALT")
-        assert code[0] == 0x0A
+        assert code[0] == 0x10
         assert code[1] == 0x05
 
     def test_sub_immediate(self):
         code = assemble("        SUB     $03\n        HALT")
-        assert code[0] == 0x10
+        assert code[0] == 0x20
         assert code[1] == 0x03
 
     def test_jmp_direct(self):
         code = assemble("        JMP     [$4000]\n        HALT")
-        assert code[0] == 0x45
+        assert code[0] == 0xC1
 
     def test_jsr_direct(self):
         code = assemble("        JSR     [$4010]\n        HALT")
-        assert code[0] == 0x50
+        assert code[0] == 0xC9
 
     def test_rts_encodes(self):
         code = assemble("        RTS\n        HALT")
-        assert code[0] == 0x3E
+        assert code[0] == 0xCF
 
     def test_inca_encodes(self):
         code = assemble("        INCA\n        HALT")
-        assert code[0] == 0x32
+        assert code[0] == 0x80
 
     def test_deca_encodes(self):
         code = assemble("        DECA\n        HALT")
-        assert code[0] == 0x33
+        assert code[0] == 0x81
 
 
 @skip_if_no_compiler
@@ -135,12 +135,12 @@ class TestDirectives:
                "        STA     [PORT]\n"
                "        HALT\n")
         code = assemble(src.replace(ORG, ""))  # ORG already included above
-        # STA opcode = 0x06, followed by $F0, $31
+        # STA opcode = 0x99, followed by $F0, $31
         c = Compiler()
         r = c.compile_source(src)
         assert r.ok, r.messages
         bc = bytes(r.bytecode)
-        idx = list(bc).index(0x06)
+        idx = list(bc).index(0x99)
         assert bc[idx + 1] == 0xF0
         assert bc[idx + 2] == 0x31
 
@@ -153,7 +153,7 @@ class TestDirectives:
         r = c.compile_source(src)
         assert r.ok, r.messages
         bc = bytes(r.bytecode)
-        assert 0x45 in bc   # JMP opcode
+        assert 0xC1 in bc   # JMP opcode
 
 
 @skip_if_no_compiler
@@ -168,11 +168,11 @@ class TestRoundTrip:
         r = c.compile_source(src)
         assert r.ok, r.messages
         code = bytes(r.bytecode)
-        assert code[0] == 0x01   # LDA imm
+        assert code[0] == 0x90   # LDA imm
         assert code[1] == 0x05
-        assert code[2] == 0x0A   # ADD imm
+        assert code[2] == 0x10   # ADD imm
         assert code[3] == 0x03
-        assert code[4] == 0x3C   # HALT
+        assert code[4] == 0x01   # HALT
 
     def test_loop_program(self):
         src = (ORG +

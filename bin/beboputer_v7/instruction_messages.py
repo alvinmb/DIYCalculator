@@ -40,106 +40,121 @@ from .paths import resource_path
 _DEFAULT_INI = resource_path('Config', 'DIYCALC.INI')
 
 # ── Opcode → Message_Field index  ─────────────────────────────────────────────
-# Derived from the [Message Section] in DIYCALC.INI and the das.py opcode table.
+# Derived from the [Message Section] in DIYCALC.INI and the das.py opcode
+# table (opcode numbering matches Appendix A, Tables A-2a/A-2b of The
+# Official DIY Calculator Data Book).
+#
+# Note: message IDs 188/189 in the INI are labelled "[x-ind]"/"[ind-x]"
+# respectively (likewise 64/65, 132/133, 192/193) — this corrects a
+# pre-existing mislabeling where the x-ind (pre-indexed indirect) opcode
+# was wired to the "ind-x" message and vice versa.
 _OPCODE_MSG = {
     0x00: 43,   # NOP
-    # LDA
-    0x01: 42,   # LDA imm
-    0x02: 41,   # LDA abs
-    0x03: 186,  # LDA abs-x
-    0x04: 187,  # LDA ind
-    0x05: 189,  # LDA ind-x
-    # STA
-    0x06: 55,   # STA abs
-    0x07: 62,   # STA abs-x
-    0x08: 63,   # STA ind
-    0x09: 65,   # STA ind-x
-    # ADD / ADDC
-    0x0A: 26,   # ADD imm
-    0x0B: 25,   # ADD abs
-    0x0C: 177,  # ADD abs-x
-    0x0D: 28,   # ADDC imm
-    0x0E: 27,   # ADDC abs
-    0x0F: 127,  # ADDC abs-x
-    # SUB / SUBC
-    0x10: 57,   # SUB imm
-    0x11: 56,   # SUB abs
-    0x12: 128,  # SUB abs-x
-    0x13: 59,   # SUBC imm
-    0x14: 58,   # SUBC abs
-    0x15: 129,  # SUBC abs-x
-    # BCD arithmetic — no specific messages in INI; use "No Message"
-    0x16: 12,   # DADD imm
-    0x17: 12,   # DADD abs
-    0x18: 12,   # DADD abs-x
-    0x19: 12,   # DADDC imm
-    0x1A: 12,   # DADDC abs
-    0x1B: 12,   # DADDC abs-x
-    0x1C: 12,   # DSUB imm
-    0x1D: 12,   # DSUB abs
-    0x1E: 12,   # DSUB abs-x
-    0x1F: 12,   # DSUBC imm
-    0x20: 12,   # DSUBC abs
-    0x21: 12,   # DSUBC abs-x
+    0x01: 33,   # HALT
+    # DADD — provisional placeholder opcodes; no dedicated INI message
+    0x02: 12, 0x03: 12, 0x04: 12,
+    # DADDC — provisional placeholder opcodes; no dedicated INI message
+    0x05: 12, 0x06: 12, 0x07: 12,
+    0x08: 236,  # SETIM
+    0x09: 235,  # CLRIM
+    # DSUBC — provisional placeholder opcodes; no dedicated INI message
+    0x0A: 12, 0x0B: 12, 0x0C: 12,
+    # ADD
+    0x10: 26,   # ADD imm
+    0x11: 25,   # ADD abs
+    0x12: 177,  # ADD abs-x
+    # ADDC
+    0x18: 28,   # ADDC imm
+    0x19: 27,   # ADDC abs
+    0x1A: 127,  # ADDC abs-x
+    # DSUB — unchanged opcodes, no dedicated INI message
+    0x1C: 12, 0x1D: 12, 0x1E: 12,
+    # SUB
+    0x20: 57,   # SUB imm
+    0x21: 56,   # SUB abs
+    0x22: 128,  # SUB abs-x
+    # SUBC
+    0x28: 59,   # SUBC imm
+    0x29: 58,   # SUBC abs
+    0x2A: 129,  # SUBC abs-x
+    # AND
+    0x30: 30,   # AND imm
+    0x31: 29,   # AND abs
+    0x32: 181,  # AND abs-x
+    # OR
+    0x38: 46,   # OR imm
+    0x39: 45,   # OR abs
+    0x3A: 182,  # OR abs-x
+    # XOR
+    0x40: 61,   # XOR imm
+    0x41: 60,   # XOR abs
+    0x42: 183,  # XOR abs-x
+    # BLDSP / BSTSP
+    0x50: 197,  # BLDSP imm
+    0x51: 198,  # BLDSP abs
+    0x59: 203,  # BSTSP abs
     # CMPA
-    0x22: 32,   # CMPA imm
-    0x23: 31,   # CMPA abs
-    0x24: 184,  # CMPA abs-x
-    # AND / OR / XOR
-    0x25: 30,   # AND imm
-    0x26: 29,   # AND abs
-    0x27: 181,  # AND abs-x
-    0x28: 46,   # OR imm
-    0x29: 45,   # OR abs
-    0x2A: 182,  # OR abs-x
-    0x2B: 61,   # XOR imm
-    0x2C: 60,   # XOR abs
-    0x2D: 183,  # XOR abs-x
+    0x60: 32,   # CMPA imm
+    0x61: 31,   # CMPA abs
+    0x62: 184,  # CMPA abs-x
     # Shifts / Rotates
-    0x2E: 53,   # SHL
-    0x2F: 54,   # SHR
-    0x30: 49,   # ROLC
-    0x31: 50,   # RORC
+    0x70: 53,   # SHL
+    0x71: 54,   # SHR
+    0x78: 49,   # ROLC
+    0x79: 50,   # RORC
     # Inc / Dec
-    0x32: 237,  # INCA
-    0x33: 238,  # DECA
-    0x34: 212,  # INCX
-    0x35: 213,  # DECX
-    # Interrupt mask
-    0x36: 235,  # CLRIM
-    0x37: 236,  # SETIM
+    0x80: 237,  # INCA
+    0x81: 238,  # DECA
+    0x82: 212,  # INCX
+    0x83: 213,  # DECX
+    # LDA
+    0x90: 42,   # LDA imm
+    0x91: 41,   # LDA abs
+    0x92: 186,  # LDA abs-x
+    0x93: 187,  # LDA ind
+    0x94: 188,  # LDA x-ind
+    0x95: 189,  # LDA ind-x
+    # STA
+    0x99: 55,   # STA abs
+    0x9A: 62,   # STA abs-x
+    0x9B: 63,   # STA ind
+    0x9C: 64,   # STA x-ind
+    0x9D: 65,   # STA ind-x
+    # BLDX / BSTX
+    0xA0: 199,  # BLDX imm
+    0xA1: 200,  # BLDX abs
+    0xA9: 204,  # BSTX abs
     # Stack
-    0x38: 48,   # PSHA / PUSHA
-    0x39: 47,   # POPA
-    0x3A: 24,   # PUSHSR
-    0x3B: 23,   # POPSR
-    # Control
-    0x3C: 33,   # HALT
-    0x3D: 51,   # RTI
-    0x3E: 52,   # RTS
-    # Index / SP / IV big loads & stores
-    0x3F: 199,  # BLDX imm
-    0x40: 200,  # BLDX abs
-    0x41: 204,  # BSTX abs
-    0x42: 197,  # BLDSP imm
-    0x43: 203,  # BSTSP abs
-    0x44: 202,  # BLDIV abs
-    # Jumps
-    0x45: 36,   # JMP abs
-    0x46: 131,  # JMP ind
-    0x47: 133,  # JMP ind-x
-    0x48: 35,   # JC
-    0x49: 37,   # JNC
-    0x4A: 215,  # JN
-    0x4B: 216,  # JNN
-    0x4C: 40,   # JZ
-    0x4D: 38,   # JNZ
-    0x4E: 221,  # JO
-    0x4F: 222,  # JNO
+    0xB0: 47,   # POPA
+    0xB1: 23,   # POPSR
+    0xB2: 48,   # PSHA / PUSHA
+    0xB3: 24,   # PUSHSR
+    # JMP
+    0xC1: 36,   # JMP abs
+    0xC2: 130,  # JMP abs-x
+    0xC3: 131,  # JMP ind
+    0xC4: 132,  # JMP x-ind
+    0xC5: 133,  # JMP ind-x
+    0xC7: 51,   # RTI
     # JSR
-    0x50: 39,   # JSR abs
-    0x51: 191,  # JSR ind
-    0x52: 193,  # JSR ind-x
+    0xC9: 39,   # JSR abs
+    0xCA: 190,  # JSR abs-x
+    0xCB: 191,  # JSR ind
+    0xCC: 192,  # JSR x-ind
+    0xCD: 193,  # JSR ind-x
+    0xCF: 52,   # RTS
+    # Conditional jumps
+    0xD1: 40,   # JZ
+    0xD6: 38,   # JNZ
+    0xD9: 215,  # JN
+    0xDE: 216,  # JNN
+    0xE1: 35,   # JC
+    0xE6: 37,   # JNC
+    0xE9: 221,  # JO
+    0xEE: 222,  # JNO
+    # BLDIV
+    0xF0: 201,  # BLDIV imm
+    0xF1: 202,  # BLDIV abs
 }
 
 # ── Supplementary state message appended after the instruction name  ──────────
