@@ -50,4 +50,5 @@ REQUIREMENTS (handled automatically)
 SUPPORTED PI MODELS
 ====================
   Package architecture is 'all' (Python source, not compiled) so it
-  runs on every Pi model: Pi 1, 2, 3,
+  runs on every Pi model: Pi 1, 2, 3, 4, 5, Zero, Zero 2W — any OS
+  based on Raspberry Pi OS / Raspbian / Debian.

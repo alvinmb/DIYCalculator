@@ -74,4 +74,30 @@ exe = EXE(
     target_arch=None,        # 'arm64' | 'x86_64' | None (native)
     codesign_identity=None,  # set to your Developer ID to sign
     entitlements_file=None,
-    # icon='MAC_INSTALL/
+    # icon='MAC_INSTALL/beboputer.icns',   # uncomment + supply .icns
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Beboputer',
+)
+
+app = BUNDLE(
+    coll,
+    name='Beboputer.app',
+    # icon='MAC_INSTALL/beboputer.icns',   # uncomment + supply .icns
+    bundle_identifier='com.beboputer.app',
+    info_plist={
+        'CFBundleDisplayName':        'PY-DIYCALCULATOR',
+        'CFBundleShortVersionString': _app_version,
+        'CFBundleVersion':            _app_version,
+        'NSHighResolutionCapable':    True,
+        'NSHumanReadableCopyright':   'Copyright © 2026 Alvin Brown & Clive Maxfield',
+    },
+)

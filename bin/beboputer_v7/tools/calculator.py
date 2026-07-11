@@ -162,6 +162,12 @@ _POWER_BTN_ON_CSS = """
     QPushButton:pressed {
         background-color: #6ab86a;
     }
+    QToolTip {
+        background-color: #ffffcc;
+        color: #000000;
+        border: 1px solid #808080;
+        padding: 2px 4px;
+    }
 """
 
 _POWER_BTN_OFF_CSS = """
@@ -176,6 +182,12 @@ _POWER_BTN_OFF_CSS = """
     }
     QPushButton:pressed {
         background-color: #c0bdb5;
+    }
+    QToolTip {
+        background-color: #ffffcc;
+        color: #000000;
+        border: 1px solid #808080;
+        padding: 2px 4px;
     }
 """
 
@@ -204,7 +216,7 @@ _LED_ON_CSS = """
 """
 
 
-def _calc_make_btn(text, color="#000000", bg="#d4d0c8", min_w=46, min_h=36, bold=False):
+def _calc_make_btn(text, color="#000000", bg="#d4d0c8", min_w=46, min_h=36, bold=False, tooltip=None):
     btn = QPushButton(text)
     font = QFont("Arial", 10, QFont.Bold)
     btn.setFont(font)
@@ -226,7 +238,15 @@ def _calc_make_btn(text, color="#000000", bg="#d4d0c8", min_w=46, min_h=36, bold
             border-right-color: #fff;
             background-color: #c0bdb5;
         }}
+        QToolTip {{
+            background-color: #ffffcc;
+            color: #000000;
+            border: 1px solid #808080;
+            padding: 2px 4px;
+        }}
     """)
+    if tooltip:
+        btn.setToolTip(tooltip)
     return btn
 
 
@@ -557,8 +577,14 @@ class Calculator(QMainWindow):
         bar = QHBoxLayout()
         bar.setSpacing(4)
 
+        _bottom_bar_tooltips = {
+            "On/Off": "Turn the calculator on or off",
+            "Reset":  "Reset the CPU and return to idle",
+            "Step":   "Execute a single CPU instruction",
+            "Run":    "Run the CPU until it HALTs or hits a breakpoint",
+        }
         for lbl in ["On/Off", "Reset", "Step", "Run"]:
-            b = _calc_make_btn(lbl, min_w=77, min_h=40)
+            b = _calc_make_btn(lbl, min_w=77, min_h=40, tooltip=_bottom_bar_tooltips[lbl])
             b.setFixedSize(77, 40)
             b.clicked.connect(lambda _, l=lbl: self.control(l))
             bar.addWidget(b)
@@ -572,6 +598,7 @@ class Calculator(QMainWindow):
         for lbl in ["Clear", "CE", "Back", "Enter"]:
             btn = self._diy(lbl, color="#cc0000", min_w=77, min_h=40, bold=True)
             btn.setFixedSize(77, 40)
+            btn.setToolTip(_BUTTON_DEFAULTS.get(lbl, (0x00, "Unassigned"))[1])
             bar.addWidget(btn)
 
         parent.addLayout(bar)
@@ -612,6 +639,35 @@ class Calculator(QMainWindow):
     def _refresh(self, text=None):
         self.display.setText(text if text is not None else (self.expression or "0"))
 
+    def blank_display(self):
+        """Clear the display to truly empty, not "0".
+
+        Used by CPU Reset: real hardware doesn't know to show "0" until a
+        program actually writes something -- showing "0" would be lying
+        about there being an initialized program driving the display.
+        write_display()'s CLR-code handling ($0D/$10/$1B) also blanks to
+        empty now, for the same reason: a program clearing its own
+        display (e.g. lab2a writing $10) hasn't displayed a "0" value,
+        it's cleared the screen.
+        """
+        self.expression = ""
+        self.display.setText("")
+
+    def show_dash_display(self):
+        """Show the boot-style dash placeholder ('------------------------').
+
+        Used when a program is loaded into RAM (File > Load ROM/RAM):
+        real hardware doesn't know what to show until the freshly-loaded
+        program actually drives the display via port $F031, so it shows
+        the same 24-dash placeholder as power-on rather than going fully
+        blank (which would look broken) or showing "0" (which would
+        misleadingly imply a program had already initialized it).
+        No-op if the calculator is powered off.
+        """
+        self.expression = ""
+        for _ in range(24):
+            self.write_display(ord('-'))   # 0x2D via $F031
+
     # -- memory-mapped display port $F031 -------------------------------------
 
     def write_display(self, ch: int):
@@ -635,8 +691,12 @@ class Calculator(QMainWindow):
             self.expression += chr(ch - 0x0A + ord('A'))  # raw A-F → 'A'-'F'
             self._refresh()
         elif ch in (0x0D, 0x10, 0x1B):
+            # Clear the display to truly empty, not "0" -- a CLR code is
+            # a program actively clearing the screen (e.g. lab2a writing
+            # $10), and showing "0" would misrepresent that as a value
+            # being displayed. Real hardware just goes blank.
             self.expression = ""
-            self._refresh("0")
+            self._refresh("")
 
     def write_leds(self, byte: int):
         """Set the 6 LED indicators from port $F032.
@@ -733,11 +793,14 @@ class Calculator(QMainWindow):
         if cmd in ("Reset", "Step", "Run"):
             self._drive_host(cmd)
             if cmd == "Reset":
-                # Reset clears CPU/port state but doesn't otherwise touch
-                # this widget -- blank the top-row LEDs to match, same as
-                # they'd go dark on real hardware.
+                # The 6 indicator LEDs are always on by default -- same
+                # as the power-on boot state -- and only go dark when a
+                # running program explicitly clears bits via port $F032
+                # (write_leds()). Reset returns the board to idle with
+                # no program driving anything, so the LEDs should come
+                # back on too, not go dark.
                 for led in self.leds:
-                    led.setStyleSheet(_LED_OFF_CSS)
+                    led.setStyleSheet(_LED_ON_CSS)
             return
 
         if cmd in ("Clear", "CE"):

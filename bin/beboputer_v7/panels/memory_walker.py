@@ -34,7 +34,7 @@ Features:
     Emits ``bp_hit`` so the main window can refresh all sub-windows.
 """
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QFont
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -52,13 +52,30 @@ class MemoryWalker(QWidget):
     # Emitted after a single STEP; arg = mnemonic string returned by cpu.step()
     step_executed = pyqtSignal(str)
 
+    # "Walk 64K" auto-paging: page size (rows per page == table row count)
+    # and delay between pages, in milliseconds.
+    WALK_PAGE_SIZE = 256
+    WALK_INTERVAL_MS = 400
+
+    # Breakpoints set by default on every fresh Memory Walker (app start).
+    # $0000 catches the common "JMP [$0000]" NOP-sled idiom used by
+    # lab2a and friends as an old-fashioned HALT substitute, so Run
+    # stops there instead of free-running through it forever.
+    DEFAULT_BREAKPOINTS = {0x0000}
+
     def __init__(self, cpu, parent=None):
         super().__init__(parent)
         self.cpu = cpu
         self.setWindowTitle("Memory Walker")
         self._base = 0
-        self._breakpoints = set()   # absolute addresses with BP set
+        self._breakpoints = set(self.DEFAULT_BREAKPOINTS)   # absolute addresses with BP set
         self._user_nav = False       # True when user has manually navigated with GO
+
+        # Continuous 64K auto-page ("Walk") state
+        self._walking = False
+        self._walk_timer = QTimer(self)
+        self._walk_timer.timeout.connect(self._walk_step)
+
         self._build()
 
     # ---------------------------------------------------------------- build --
@@ -82,27 +99,69 @@ class MemoryWalker(QWidget):
 
         self.go_btn = QPushButton("GO")
         self.go_btn.setFixedWidth(65)
-        self.go_btn.setFont(QFont("Arial", 10, QFont.Bold))
+        # setFont() alone doesn't render bold here: the app-wide QSS in
+        # styles.py sets font-family/font-size on QPushButton, and once a
+        # stylesheet touches any font property Qt stops merging in the
+        # widget's QFont for the rest (font-weight silently resets to
+        # normal). An explicit "font-weight: bold;" rule wins instead.
+        self.go_btn.setStyleSheet("font-weight: bold;")
+        self.go_btn.setToolTip(
+            "Jump the view to the address typed in the box, and lock it "
+            "there until you step or click Go to PC."
+        )
         self.go_btn.clicked.connect(self._go)
         nav.addWidget(self.go_btn)
+
+        self.goto_pc_btn = QPushButton("Go to PC")
+        self.goto_pc_btn.setToolTip(
+            "Jump the view back to wherever the Program Counter "
+            "currently is, and resume following it."
+        )
+        self.goto_pc_btn.setStyleSheet("font-weight: bold;")
+        self.goto_pc_btn.clicked.connect(self._goto_pc)
+        nav.addWidget(self.goto_pc_btn)
 
         nav.addStretch()
 
         self.run_bp_btn = QPushButton("RUN to BP")
         self.run_bp_btn.setToolTip("Run until a breakpoint, HALT, or step limit.")
         self.run_bp_btn.setStyleSheet(
+            # NOTE: properties MUST be wrapped in an explicit "QPushButton
+            # { ... }" selector block here, NOT written as bare/unwrapped
+            # declarations. A bare declaration list mixed with a trailing
+            # "QToolTip { ... }" rule in the same setStyleSheet() string is
+            # ambiguous Qt CSS and silently fails to apply the QToolTip
+            # override -- which is why this exact button kept reverting to
+            # red-on-grey tooltips across multiple fix attempts while the
+            # calculator/DIY buttons (which already used this fully-wrapped
+            # QPushButton{}/QToolTip{} format) held their fix correctly.
+            f"QPushButton {{"
             f"background-color:{C['btn_bg']}; color:{C['red']}; "
             f"border:1px solid {C['btn_bdr']}; "
             f"border-top-color:{C['border_lt']}; border-left-color:{C['border_lt']}; "
             "border-radius:2px; padding:3px 8px; font-weight:bold;"
+            "}"
+            "QToolTip { background-color: #ffffcc; color: #000000; "
+            "border: 1px solid #808080; padding: 2px 4px; }"
         )
         self.run_bp_btn.clicked.connect(self.run_to_breakpoint)
         nav.addWidget(self.run_bp_btn)
 
         self.clear_bp_btn = QPushButton("Clear BPs")
         self.clear_bp_btn.setToolTip("Remove all breakpoints")
+        self.clear_bp_btn.setStyleSheet("font-weight: bold;")
         self.clear_bp_btn.clicked.connect(self._clear_all_breakpoints)
         nav.addWidget(self.clear_bp_btn)
+
+        self.walk_btn = QPushButton("Walk 64K")
+        self.walk_btn.setToolTip(
+            "Continuously page through the full 64K address space, "
+            "one 256-byte page at a time, wrapping back to $0000."
+        )
+        self.walk_btn.setStyleSheet("font-weight: bold;")
+        self.walk_btn.setCheckable(True)
+        self.walk_btn.clicked.connect(self._toggle_walk)
+        nav.addWidget(self.walk_btn)
 
         layout.addLayout(nav)
 
@@ -142,12 +201,59 @@ class MemoryWalker(QWidget):
     def _go(self):
         try:
             addr = int(self.addr_edit.text().strip(), 16) & 0xFFFF
+            self._stop_walk()        # manual nav overrides auto-paging
             self._base = addr
             self._user_nav = True    # lock the view here until user steps
             self._refresh()
             self.table.scrollToTop()
         except ValueError:
             pass
+
+    def _goto_pc(self):
+        """Snap the view back to the current PC and resume PC-following.
+
+        Manual GO navigation (and Walk 64K) deliberately leave the ▶
+        marker off-screen when you've navigated elsewhere -- that's by
+        design, so you can inspect code without the view fighting you.
+        This button is the escape hatch: click it any time to find out
+        where execution actually is right now.
+        """
+        self._stop_walk()
+        self._user_nav = False
+        self.highlight_pc(self.cpu.pc)
+        self._set_status(f"Jumped to PC=${self.cpu.pc:04X}", C['amber'])
+
+    # ------------------------------------------------------- walk 64K ----
+
+    def _toggle_walk(self, checked):
+        if checked:
+            self._start_walk()
+        else:
+            self._stop_walk()
+
+    def _start_walk(self):
+        self._walking = True
+        self._user_nav = True   # auto-paging owns the view; PC-follow is suspended
+        self.walk_btn.setChecked(True)
+        self.walk_btn.setText("Stop Walk")
+        self._set_status("Walking 64K memory space...", C['amber'])
+        self._walk_timer.start(self.WALK_INTERVAL_MS)
+
+    def _stop_walk(self):
+        if self._walking:
+            self._walk_timer.stop()
+            self._walking = False
+            self.walk_btn.setChecked(False)
+            self.walk_btn.setText("Walk 64K")
+            self._set_status(f"Walk stopped at ${self._base:04X}", C['grey'])
+
+    def _walk_step(self):
+        # Advance one full page and wrap around at the top of the 64K
+        # address space, so the view continuously cycles $0000..$FFFF.
+        self._base = (self._base + self.WALK_PAGE_SIZE) % 0x10000
+        self.addr_edit.setText(f"{self._base:04X}")
+        self._refresh()
+        self.table.scrollToTop()
 
     def _refresh(self):
         self.table.blockSignals(True)
@@ -253,6 +359,7 @@ class MemoryWalker(QWidget):
             self._set_status("CPU is HALTed — Reset before stepping.", C['red'])
             return
 
+        self._stop_walk()
         self._user_nav = False       # resume PC-following on explicit step
         mnemonic = self.cpu.step()
         self.highlight_pc(self.cpu.pc)
@@ -292,6 +399,7 @@ class MemoryWalker(QWidget):
             self._set_status("CPU is HALTed — Reset before running.", C['red'])
             return
 
+        self._stop_walk()
         self._set_status("Running...", C['grey'])
         QApplication.processEvents()
 
@@ -371,3 +479,7 @@ class MemoryWalker(QWidget):
         self.status_lbl.setStyleSheet(
             f"color:{colour}; font-size:10px; font-style:italic;"
         )
+
+    def closeEvent(self, event):
+        self._walk_timer.stop()
+        super().closeEvent(event)

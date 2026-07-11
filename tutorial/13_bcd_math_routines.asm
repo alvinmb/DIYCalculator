@@ -130,6 +130,18 @@
 #   negating it - see "Try this next" for what a full negative-
 #   number version would need.)
 #
+#   A note for anyone cross-checking this against the manufacturer's
+#   own documentation: the official "DIY Calculator: BCD Instructions"
+#   appendix (Rev 1.0, 2005) describes DSUB/DSUBC's Carry the other way
+#   round - as a "borrow-not" bit (1 = no borrow needed, 0 = a borrow
+#   happened), matching how the real hardware forms the subtraction
+#   internally via a nines-complement add. This emulator deliberately
+#   keeps the "honest borrow" polarity described above instead (1 = a
+#   borrow was needed), since that's what this tutorial, its worked
+#   examples, and the test suite are all built around. If you're
+#   porting code from the printed appendix, just remember DSUB/DSUBC's
+#   JC/JNC read backwards compared to the official doc.
+#
 # Multiply, and why the loop counter needs DSUB too
 # ----------------------------------------------------
 #   Multiply is still repeated addition, exactly like exercise 10 -
@@ -500,32 +512,4 @@ SR_ONES:
         STA     [DISP]
         JMP     [RESET_STATE]
 
-# ---------------------------------------------------------------
-# Explicit Clear / CE handling
-# ---------------------------------------------------------------
-DO_CLEAR:
-        LDA     $1B
-        STA     [DISP]
-        LDA     $00
-        STA     [STAGE]
-        JMP     [WAIT]
-
-RESET_STATE:
-        LDA     $06              # STAGE 6: next digit clears & restarts
-        STA     [STAGE]
-        JMP     [WAIT]
-
-# ---------------------------------------------------------------
-# Variables (reserved bytes - see exercise 09 for this pattern)
-# ---------------------------------------------------------------
-STAGE:   .BYTE
-OP1:     .BYTE
-OP2:     .BYTE
-OPCODE:  .BYTE
-RESULT:  .BYTE
-TEMP:    .BYTE
-KEYVAL:  .BYTE
-MCNT:    .BYTE
-DREM:    .BYTE
-
-        .END    $4000
+# ------------------

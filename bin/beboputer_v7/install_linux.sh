@@ -103,4 +103,15 @@ fi
 
 echo "    Desktop entry: $DESKTOP_DIR/beboputer.desktop"
 
-# ── 6. Add ~/.loca
+# ── 6. Add ~/.local/bin to PATH if needed ─────────────────────────
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo ""
+    echo "NOTE: Add this line to your ~/.bashrc or ~/.profile:"
+    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo "Then run:  source ~/.bashrc"
+fi
+
+echo ""
+echo "==> Installation complete!"
+echo "    Run with: beboputer"
+echo "    Or find '$APP_NAME' in your application menu."

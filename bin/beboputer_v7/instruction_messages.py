@@ -51,14 +51,8 @@ _DEFAULT_INI = resource_path('Config', 'DIYCALC.INI')
 _OPCODE_MSG = {
     0x00: 43,   # NOP
     0x01: 33,   # HALT
-    # DADD — provisional placeholder opcodes; no dedicated INI message
-    0x02: 12, 0x03: 12, 0x04: 12,
-    # DADDC — provisional placeholder opcodes; no dedicated INI message
-    0x05: 12, 0x06: 12, 0x07: 12,
     0x08: 236,  # SETIM
     0x09: 235,  # CLRIM
-    # DSUBC — provisional placeholder opcodes; no dedicated INI message
-    0x0A: 12, 0x0B: 12, 0x0C: 12,
     # ADD
     0x10: 26,   # ADD imm
     0x11: 25,   # ADD abs
@@ -67,8 +61,6 @@ _OPCODE_MSG = {
     0x18: 28,   # ADDC imm
     0x19: 27,   # ADDC abs
     0x1A: 127,  # ADDC abs-x
-    # DSUB — unchanged opcodes, no dedicated INI message
-    0x1C: 12, 0x1D: 12, 0x1E: 12,
     # SUB
     0x20: 57,   # SUB imm
     0x21: 56,   # SUB abs
@@ -89,6 +81,8 @@ _OPCODE_MSG = {
     0x40: 61,   # XOR imm
     0x41: 60,   # XOR abs
     0x42: 183,  # XOR abs-x
+    # DADD — official databook opcodes; no dedicated INI message
+    0x48: 12, 0x49: 12, 0x4A: 12,
     # BLDSP / BSTSP
     0x50: 197,  # BLDSP imm
     0x51: 198,  # BLDSP abs
@@ -97,6 +91,8 @@ _OPCODE_MSG = {
     0x60: 32,   # CMPA imm
     0x61: 31,   # CMPA abs
     0x62: 184,  # CMPA abs-x
+    # DADDC — official databook opcodes; no dedicated INI message
+    0x68: 12, 0x69: 12, 0x6A: 12,
     # Shifts / Rotates
     0x70: 53,   # SHL
     0x71: 54,   # SHR
@@ -107,6 +103,8 @@ _OPCODE_MSG = {
     0x81: 238,  # DECA
     0x82: 212,  # INCX
     0x83: 213,  # DECX
+    # DSUB — official databook opcodes; no dedicated INI message
+    0x88: 12, 0x89: 12, 0x8A: 12,
     # LDA
     0x90: 42,   # LDA imm
     0x91: 41,   # LDA abs
@@ -129,6 +127,8 @@ _OPCODE_MSG = {
     0xB1: 23,   # POPSR
     0xB2: 48,   # PSHA / PUSHA
     0xB3: 24,   # PUSHSR
+    # DSUBC — official databook opcodes; no dedicated INI message
+    0xB8: 12, 0xB9: 12, 0xBA: 12,
     # JMP
     0xC1: 36,   # JMP abs
     0xC2: 130,  # JMP abs-x
@@ -218,13 +218,27 @@ class InstructionMessages:
     def _fmt(self, text: str, cpu, opcode: int) -> str:
         """Substitute %X format tokens with live CPU values."""
         f = cpu.flags
+        t = getattr(cpu, "flags_touched", 0xFF)
         text = text.replace('%t', f'${opcode:02X}')
         text = text.replace('%d', str(cpu.acc))
         text = text.replace('%a', f'${cpu.pc:04X}')
         text = text.replace('%x', f'${cpu.ix:04X}')
-        text = text.replace('%i', str(1 if f & FLAG_I else 0))
-        text = text.replace('%o', str(1 if f & FLAG_V else 0))
-        text = text.replace('%n', str(1 if f & FLAG_N else 0))
-        text = text.replace('%z', str(1 if f & FLAG_Z else 0))
-        text = text.replace('%c', str(1 if f & FLAG_C else 0))
+        text = text.replace('%i', self._flag_str(f, t, FLAG_I))
+        text = text.replace('%o', self._flag_str(f, t, FLAG_V))
+        text = text.replace('%n', self._flag_str(f, t, FLAG_N))
+        text = text.replace('%z', self._flag_str(f, t, FLAG_Z))
+        text = text.replace('%c', self._flag_str(f, t, FLAG_C))
         return text
+
+    @staticmethod
+    def _flag_str(flags: int, touched: int, mask: int) -> str:
+        """Render one status flag as "0"/"1", or "x" if never written.
+
+        Mirrors CPUPanel.refresh()'s use of flags_touched, so the
+        per-instruction flag line in the Message Display always agrees
+        with the CPU Register Display panel instead of defaulting
+        untouched flags to a misleading "0".
+        """
+        if not (touched & mask):
+            return "x"
+        return "1" if (flags & mask) else "0"

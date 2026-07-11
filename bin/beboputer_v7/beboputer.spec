@@ -97,4 +97,12 @@ coll = COLLECT(
 import sys
 if sys.platform == 'darwin':
     app = BUNDLE(
-      
+        coll,
+        name='Beboputer.app',
+        # icon='assets/beboputer.icns',  # uncomment and supply an .icns file
+        bundle_identifier='com.beboputer.app',
+        info_plist={
+            'NSHighResolutionCapable': True,
+            'CFBundleShortVersionString': '7.0',
+        },
+    )

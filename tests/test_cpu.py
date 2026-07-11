@@ -755,26 +755,26 @@ class TestJSR_RTS:
 
 class TestBCD:
     def test_dadd_basic(self):
-        cpu = make_cpu(0x02, 0x05)         # DADD $05
+        cpu = make_cpu(0x48, 0x05)         # DADD $05
         cpu.acc = 0x09                     # BCD 09 + 05 = 14 -> $14
         cpu.step()
         assert cpu.acc == 0x14
 
     def test_dadd_carry(self):
-        cpu = make_cpu(0x02, 0x05)
+        cpu = make_cpu(0x48, 0x05)
         cpu.acc = 0x99                     # BCD 99 + 05 -> 04 + carry
         cpu.step()
         assert cpu.acc == 0x04
         assert cpu.flags & FLAG_C
 
     def test_dsub_basic(self):
-        cpu = make_cpu(0x1C, 0x03)         # DSUB $03
+        cpu = make_cpu(0x88, 0x03)         # DSUB $03
         cpu.acc = 0x09                     # BCD 09 - 03 = 06
         cpu.step()
         assert cpu.acc == 0x06
 
     def test_dsub_borrow(self):
-        cpu = make_cpu(0x1C, 0x01)
+        cpu = make_cpu(0x88, 0x01)
         cpu.acc = 0x00                     # BCD 00 - 01 -> borrow
         cpu.step()
         assert cpu.flags & FLAG_C

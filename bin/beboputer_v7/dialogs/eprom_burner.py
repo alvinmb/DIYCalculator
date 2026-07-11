@@ -23,7 +23,7 @@
 import os
 from pathlib import Path
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog, QLabel, QPushButton, QLineEdit, QGroupBox,
     QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -52,6 +52,12 @@ except Exception:
 
 
 class EpromBurner(QDialog):
+    # Emitted after a successful Load ROM / Swap ROMs so the main window
+    # can refresh panels (Memory Walker in particular) that hold their
+    # own view of cpu.ram and won't otherwise notice bytes changed out
+    # from under them.
+    ram_changed = pyqtSignal()
+
     def __init__(self, cpu, parent=None):
         super().__init__(parent)
         self.cpu = cpu
@@ -187,7 +193,12 @@ class EpromBurner(QDialog):
                 if start + i >= 0x10000:
                     break
                 self.cpu.ram[start + i] = b
+                # Mark loaded bytes as known — otherwise Memory Walker
+                # keeps showing them as undefined ($XX) even though a
+                # real file's contents now live there.
+                self.cpu.ram_touched[start + i] = 1
             self.status_lbl.setText(f"Loaded {len(data)}B at ${start:04X} from {os.path.basename(path)}")
+            self.ram_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "Load Error", str(e))
 
@@ -200,6 +211,9 @@ class EpromBurner(QDialog):
             for i in range(end - mid + 1):
                 a, b = self.cpu.ram[start+i], self.cpu.ram[mid+i]
                 self.cpu.ram[start+i], self.cpu.ram[mid+i] = b, a
+                ta, tb = self.cpu.ram_touched[start+i], self.cpu.ram_touched[mid+i]
+                self.cpu.ram_touched[start+i], self.cpu.ram_touched[mid+i] = tb, ta
             self.status_lbl.setText(f"Swapped ${start:04X}–${mid-1:04X} ↔ ${mid:04X}–${end:04X}")
+            self.ram_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "Swap Error", str(e))

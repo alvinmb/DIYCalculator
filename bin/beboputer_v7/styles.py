@@ -97,6 +97,14 @@ QStatusBar {{
     border-top: 1px solid {C['border']};
     font-size: 18px;
 }}
+QToolTip {{
+    background-color: #ffffcc;
+    color: #000;
+    border: 1px solid {C['border']};
+    padding: 2px 4px;
+    font-family: 'MS Sans Serif','Tahoma','Arial';
+    font-size: 11px;
+}}
 QPushButton {{
     background-color: {C['btn_bg']};
     color: #000;

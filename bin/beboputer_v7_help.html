@@ -506,8 +506,10 @@ can be loaded straight into the running emulator.</div>
   <tr><td>Origin</td><td><code>.ORG  $4000</code></td><td>Sets the assembly start address.</td></tr>
   <tr><td>Immediate operand</td><td><code>LDA  $41</code></td><td>Loads the value $41 directly into the accumulator.</td></tr>
   <tr><td>Absolute (memory) operand</td><td><code>LDA  [$4000]</code></td><td>Loads from RAM address $4000.</td></tr>
-  <tr><td>Indexed operand</td><td><code>LDA  [$4000+X]</code></td><td>Uses IX register as address offset.</td></tr>
+  <tr><td>Indexed operand</td><td><code>LDA  [$4000,X]</code></td><td>Uses IX register as address offset (abs-x).</td></tr>
   <tr><td>Indirect</td><td><code>LDA  [[$4000]]</code></td><td>Reads address stored in RAM, then loads from that address.</td></tr>
+  <tr><td>Pre-indexed indirect (x-ind)</td><td><code>LDA  [[$4000,X]]</code></td><td>IX is added to the address <strong>before</strong> the pointer is fetched.</td></tr>
+  <tr><td>Post-indexed indirect (ind-x)</td><td><code>LDA  [[$4000],X]</code></td><td>The pointer is fetched from the address <strong>first</strong>, then IX is added to it.</td></tr>
 </table>
 
 <div class="tip"><strong>Tip:</strong> Use <code>.EQU</code> constants for all port addresses to keep programs
@@ -673,8 +675,8 @@ ACC <strong>&gt;</strong> operand (not &lt;). To test if a nibble is a hex lette
 <table>
   <tr><th>Mnemonic</th><th>Modes</th><th>Description</th></tr>
   <tr><td>NOP</td><td>—</td><td>No operation.</td></tr>
-  <tr><td>LDA</td><td>imm, abs, abs+X, ind, ind+X</td><td>Load Accumulator.</td></tr>
-  <tr><td>STA</td><td>abs, abs+X, ind, ind+X</td><td>Store Accumulator.</td></tr>
+  <tr><td>LDA</td><td>imm, abs, abs-x, ind, x-ind, ind-x</td><td>Load Accumulator.</td></tr>
+  <tr><td>STA</td><td>abs, abs-x, ind, x-ind, ind-x</td><td>Store Accumulator.</td></tr>
   <tr><td>ADD</td><td>imm, abs, abs+X</td><td>Add to Accumulator.</td></tr>
   <tr><td>ADDC</td><td>imm, abs, abs+X</td><td>Add with Carry.</td></tr>
   <tr><td>SUB</td><td>imm, abs, abs+X</td><td>Subtract from Accumulator.</td></tr>
@@ -701,23 +703,13 @@ ACC <strong>&gt;</strong> operand (not &lt;). To test if a nibble is a hex lette
   <tr><td>POPSR</td><td>—</td><td>Pop Status Register from stack.</td></tr>
   <tr><td>BLDX</td><td>imm16, abs16</td><td>Load Index Register IX with a 16-bit value.</td></tr>
   <tr><td>BSTX</td><td>abs16</td><td>Store Index Register IX to a 16-bit RAM address.</td></tr>
-  <tr><td>BLDSP</td><td>imm16</td><td>Load Stack Pointer with a 16-bit immediate value.</td></tr>
+  <tr><td>BLDSP</td><td>imm16, abs16</td><td>Load Stack Pointer with a 16-bit value (immediate or from RAM).</td></tr>
   <tr><td>BSTSP</td><td>abs16</td><td>Store Stack Pointer to a 16-bit RAM address.</td></tr>
-  <tr><td>BLDIV</td><td>abs16</td><td>Load Interrupt Vector from a 16-bit RAM address.</td></tr>
-  <tr><td>JMP</td><td>abs, ind, ind+X</td><td>Unconditional jump.</td></tr>
+  <tr><td>BLDIV</td><td>imm16, abs16</td><td>Load Interrupt Vector with a 16-bit value (immediate or from RAM).</td></tr>
+  <tr><td>JMP</td><td>abs, abs-x, ind, x-ind, ind-x</td><td>Unconditional jump.</td></tr>
   <tr><td>JC / JNC</td><td>abs</td><td>Jump if Carry set / clear.</td></tr>
   <tr><td>JN / JNN</td><td>abs</td><td>Jump if Negative / Not Negative.</td></tr>
   <tr><td>JZ / JNZ</td><td>abs</td><td>Jump if Zero / Not Zero.</td></tr>
   <tr><td>JO / JNO</td><td>abs</td><td>Jump if Overflow / No Overflow.</td></tr>
-  <tr><td>JSR</td><td>abs, ind, ind+X</td><td>Jump to Subroutine — pushes return address onto stack.</td></tr>
-  <tr><td>RTS</td><td>—</td><td>Return from Subroutine.</td></tr>
-  <tr><td>RTI</td><td>—</td><td>Return from Interrupt.</td></tr>
-  <tr><td>HALT</td><td>—</td><td>Stop the CPU. A reset is required to continue execution.</td></tr>
-</table>
-
-<p style="margin-top:32px;font-size:12px;color:#888;">Beboputer Virtual Computer — Help Document &nbsp;|&nbsp;
-Based on the DIY Calculator by Clive "Max" Maxfield &amp; Alvin Brown</p>
-</div>
-
-</body>
-</html>
+  <tr><td>JSR</td><td>abs, abs-x, ind, x-ind, ind-x</td><td>Jump to Subroutine — pushes return address onto stack.</td></tr>
+  <tr><t

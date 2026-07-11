@@ -36,7 +36,7 @@ import sys
 from pathlib import Path
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence, QTextCursor
+from PyQt5.QtGui import QKeySequence, QTextCursor, QFont
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog, QPageSetupDialog
 from PyQt5.QtWidgets import (
     QAction, QFontDialog, QInputDialog,
@@ -118,15 +118,26 @@ class AssemblerRunner:
         return self._compiler.generate_listing(source, source_path=source_path)
 
     def build_image(self, bytecode: bytes) -> bytes:
-        """Wrap *bytecode* in a full 64KB RAM image starting at LOAD_ADDR."""
+        """Return the raw assembled *bytecode*, trimmed to fit in RAM.
+
+        Previously this padded the bytecode out to a full 64KB image
+        starting at LOAD_ADDR. That made every compiled .ram file a
+        65536-byte blob, which in turn made _load_file() treat the
+        *entire* file as "known" -- Memory Walker showed $00 for every
+        address the program never touched, instead of the undefined
+        placeholder ($XX). A compact file (just the real bytes) lets
+        _load_file()'s existing chunked-copy path mark only the actual
+        program bytes as touched, which is what we want.
+        """
         max_bytes = self.RAM_SIZE - self.LOAD_ADDR
-        payload   = bytecode[:max_bytes]
-        image     = bytearray(self.RAM_SIZE)
-        image[self.LOAD_ADDR : self.LOAD_ADDR + len(payload)] = payload
-        return bytes(image)
+        return bytes(bytecode[:max_bytes])
 
     def write_ram(self, bytecode: bytes, out_path: Path) -> None:
-        """Write the full RAM image to *out_path* (binary .ram file)."""
+        """Write the compact assembled bytecode to *out_path* (.ram file).
+
+        The file holds only the real program bytes (loaded at LOAD_ADDR
+        on read-back) -- not a padded 64KB image. See build_image().
+        """
         out_path.write_bytes(self.build_image(bytecode))
 
     def load_into_cpu(self, bytecode: bytes, cpu) -> int:
@@ -138,10 +149,17 @@ class AssemblerRunner:
         """
         max_bytes = cpu.RAM_SIZE - self.LOAD_ADDR
         data = bytecode[:max_bytes]
-        # Zero the program area first, then write the new program.
-        for i in range(max_bytes):
-            cpu.ram[self.LOAD_ADDR + i] = 0
         cpu.ram[self.LOAD_ADDR : self.LOAD_ADDR + len(data)] = data
+        # Mark only the actual program bytes as known -- NOT the whole
+        # $4000-$FFFF range. Previously this zeroed and marked the
+        # entire remaining RAM as "touched", so Memory Walker showed
+        # $00 everywhere past the program instead of the undefined
+        # placeholder ($XX). Same bookkeeping as _load_file()/
+        # EpromBurner._load_rom(), which only mark the bytes they
+        # actually supply.
+        if hasattr(cpu, "ram_touched"):
+            cpu.ram_touched[self.LOAD_ADDR : self.LOAD_ADDR + len(data)] = \
+                b"\x01" * len(data)
         return len(data)
 
 
@@ -194,6 +212,15 @@ class CompilerWindow(QMainWindow):
         )
         self.load_into_cpu_button.setEnabled(False)
 
+        # setFont() alone doesn't render bold here: app.py applies the
+        # app-wide QSS from styles.py, which sets font-family/font-size on
+        # QPushButton -- once a stylesheet touches any font property, Qt
+        # stops merging in the widget's QFont for the rest (font-weight
+        # silently resets to normal). An explicit "font-weight: bold;"
+        # rule wins instead.
+        self.compile_button.setStyleSheet("font-weight: bold;")
+        self.load_into_cpu_button.setStyleSheet("font-weight: bold;")
+
         toolbar.addStretch(1)
         toolbar.addWidget(self.compile_button)
         toolbar.addWidget(self.load_into_cpu_button)
@@ -204,7 +231,7 @@ class CompilerWindow(QMainWindow):
 
         mono = self.font()
         mono.setFamily("Courier New")
-        mono.setPointSize(10)
+        mono.setPointSize(12)
 
         ed_box = QWidget()
         ed_lay = QVBoxLayout(ed_box)
@@ -248,7 +275,13 @@ class CompilerWindow(QMainWindow):
         dlg.setOption(QFileDialog.DontUseNativeDialog)
         dlg.setAcceptMode(QFileDialog.AcceptOpen)
         dlg.setFileMode(QFileDialog.ExistingFile)
-        dlg.setNameFilters(["Assembly Files (*.asm)", "All Files (*)"])
+        dlg.setNameFilters([
+            "Assembly Files (*.asm)",
+            "Listing Files (*.lst)",
+            "RAM Image (*.ram)",
+            "ROM Files (*.rom)",
+            "All Files (*)",
+        ])
         dlg.selectNameFilter("Assembly Files (*.asm)")
         dlg.setDefaultSuffix("asm")
         if self.current_path:

@@ -82,7 +82,9 @@ cp -r "$PROJECT_ROOT/tutorial"        "$APP_DIR/"
 
 # Strip stale bytecode caches -- they bloat the package and can shadow
 # the .py sources with a different Python version on the target machine.
-find "$APP_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+# Glob also catches "__pycache___bak_*"-style backup dirs some editing
+# tools leave behind, not just the exact "__pycache__" name.
+find "$APP_DIR" -type d -name "__pycache__*" -exec rm -rf {} + 2>/dev/null || true
 
 # ── Launcher script ───────────────────────────────────────────────
 cat > "$BIN_DIR/beboputer" << 'EOF'
@@ -157,4 +159,14 @@ dpkg-deb --build --root-owner-group "$STAGING" "$DEB_TMP"
 mkdir -p "$PROJECT_ROOT/dist"
 cp "$DEB_TMP" "$DEB_OUT"
 
-# ── Clean up staging and temp .deb ──────────────────────────�
+# ── Clean up staging and temp .deb ───────────────────────────────
+rm -rf "$STAGING" "$DEB_TMP"
+
+echo ""
+echo "============================================================"
+echo " Done!"
+echo " Package : $DEB_OUT"
+echo ""
+echo " To install on Raspberry Pi:"
+echo "   Copy the .deb to the Pi, then run:"
+echo "   sudo dpkg -i beboputer_$

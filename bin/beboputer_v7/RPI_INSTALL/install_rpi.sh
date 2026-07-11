@@ -93,4 +93,4 @@ echo "============================================================"
 echo " Installation complete!"
 echo " Run with:  beboputer"
 echo " Or find '$APP_NAME' in the application menu."
-echo "========
+echo "============================================================"

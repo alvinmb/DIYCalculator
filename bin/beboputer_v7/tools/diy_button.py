@@ -347,6 +347,12 @@ _BTN_CSS = """
         border-right-color: #fff;
         background-color:   #c0bdb5;
     }}
+    QToolTip {{
+        background-color: #ffffcc;
+        color: #000000;
+        border: 1px solid #808080;
+        padding: 2px 4px;
+    }}
 """
 
 

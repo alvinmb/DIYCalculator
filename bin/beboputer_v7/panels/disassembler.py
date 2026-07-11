@@ -46,6 +46,9 @@ class DisassemblerPanel(QWidget):
         self.addr_edit = QLineEdit("0000")
         self.addr_edit.setFixedWidth(55)
         self.dis_btn = QPushButton("Disassemble")
+        self.dis_btn.setToolTip(
+            "Disassemble 32 instructions starting at the address typed in the box."
+        )
         self.dis_btn.clicked.connect(self._disassemble)
         nav.addWidget(self.addr_edit)
         nav.addWidget(self.dis_btn)

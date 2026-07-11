@@ -31,4 +31,20 @@ if errorlevel 1 (
 )
 
 echo.
-echo =======================
+echo ============================================================
+echo  Step 2: Inno Setup -- creating BeboputerSetup.exe
+echo ============================================================
+"C:\Program Files (x86)\Inno Setup 6\iscc.exe" bin\beboputer_v7\beboputer_setup.iss
+if errorlevel 1 (
+    echo.
+    echo ERROR: Inno Setup failed. See output above.
+    pause
+    exit /b 1
+)
+
+echo.
+echo ============================================================
+echo  Done!  Installer is at:
+echo  dist\BeboputerSetup.exe
+echo ============================================================
+pause

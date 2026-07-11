@@ -23,9 +23,9 @@ CPU flag bit positions and opcode mnemonic table.
 
 Opcode numbering matches Appendix A (Tables A-2a/A-2b) of The Official
 DIY Calculator Data Book, and mirrors the OPCODES table in bin/das.py.
-DADD/DADDC/DSUBC use provisional placeholder opcodes ($02-$04/$05-$07/
-$0A-$0C) pending the official BCD appendix — see das.py's OPCODES
-comment for details. DSUB keeps its original opcodes ($1C-$1E).
+DADD/DADDC/DSUB/DSUBC use the official opcodes from the "DIY Calculator:
+BCD Instructions" appendix (Rev 1.0, 2005): $48-$4A / $68-$6A / $88-$8A /
+$B8-$BA — see das.py's OPCODES comment for details.
 """
 
 FLAG_C = 0x01
@@ -38,29 +38,29 @@ FLAG_H = 0x20
 OP = {
     0x00: "NOP",
     0x01: "HALT",
-    0x02: "DADD",  0x03: "DADD",  0x04: "DADD",
-    0x05: "DADDC", 0x06: "DADDC", 0x07: "DADDC",
     0x08: "SETIM", 0x09: "CLRIM",
-    0x0A: "DSUBC", 0x0B: "DSUBC", 0x0C: "DSUBC",
     0x10: "ADD",  0x11: "ADD",  0x12: "ADD",
     0x18: "ADDC", 0x19: "ADDC", 0x1A: "ADDC",
-    0x1C: "DSUB", 0x1D: "DSUB", 0x1E: "DSUB",
     0x20: "SUB",  0x21: "SUB",  0x22: "SUB",
     0x28: "SUBC", 0x29: "SUBC", 0x2A: "SUBC",
     0x30: "AND",  0x31: "AND",  0x32: "AND",
     0x38: "OR",   0x39: "OR",   0x3A: "OR",
     0x40: "XOR",  0x41: "XOR",  0x42: "XOR",
+    0x48: "DADD",  0x49: "DADD",  0x4A: "DADD",
     0x50: "BLDSP", 0x51: "BLDSP",
     0x59: "BSTSP",
     0x60: "CMPA", 0x61: "CMPA", 0x62: "CMPA",
+    0x68: "DADDC", 0x69: "DADDC", 0x6A: "DADDC",
     0x70: "SHL",  0x71: "SHR",
     0x78: "ROLC", 0x79: "RORC",
     0x80: "INCA", 0x81: "DECA", 0x82: "INCX", 0x83: "DECX",
+    0x88: "DSUB",  0x89: "DSUB",  0x8A: "DSUB",
     0x90: "LDA",  0x91: "LDA",  0x92: "LDA",  0x93: "LDA",  0x94: "LDA",  0x95: "LDA",
     0x99: "STA",  0x9A: "STA",  0x9B: "STA",  0x9C: "STA",  0x9D: "STA",
     0xA0: "BLDX", 0xA1: "BLDX",
     0xA9: "BSTX",
     0xB0: "POPA", 0xB1: "POPSR", 0xB2: "PSHA", 0xB3: "PUSHSR",
+    0xB8: "DSUBC", 0xB9: "DSUBC", 0xBA: "DSUBC",
     0xC1: "JMP",  0xC2: "JMP",  0xC3: "JMP",  0xC4: "JMP",  0xC5: "JMP",
     0xC7: "RTI",
     0xC9: "JSR",  0xCA: "JSR",  0xCB: "JSR",  0xCC: "JSR",  0xCD: "JSR",
@@ -84,12 +84,11 @@ _SIZE1 = frozenset({
 
 # Opcodes whose instruction is exactly 2 bytes (opcode + 1-byte operand).
 _SIZE2 = frozenset({
-    0x02, 0x05,
-    0x0A,
     0x10, 0x18,
     0x20, 0x28,
     0x30, 0x38, 0x40,
-    0x60,
+    0x48, 0x60, 0x68,
+    0x88, 0xB8,
     0x90,
 })
 
@@ -99,4 +98,4 @@ def instr_size(opcode):
     if opcode in OP:     return 3
     return 1
 
-RUN_LIMIT = 500_000
+RUN_LIMIT = 500_00

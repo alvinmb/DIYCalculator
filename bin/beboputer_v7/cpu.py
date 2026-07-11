@@ -60,6 +60,7 @@ class CPU:
 
     RESET_VECTOR = 0x4000   # code loaded by the Assembler starts at $4000
     RAM_SIZE     = 0x10000  # 64 KB
+    ROM_END      = 0x4000   # $0000-$3FFF is ROM; $4000-$FFFF is RAM
 
     def __init__(self):
         self.ram         = bytearray(self.RAM_SIZE)
@@ -76,7 +77,18 @@ class CPU:
         self._write_hooks: dict = {}
         self._read_hooks:  dict = {}
         self.reset()
-        self._load_default_program()
+        # reset() marks the I/O sentinel bytes ($F011/$F031/$F032) as
+        # "known" -- correct for every *later* reset() call (Reset button,
+        # power-on), where they really are freshly-defined hardware state.
+        # But this first call happens during cold construction, before the
+        # calculator has ever been powered on: at that point nothing has
+        # legitimately initialized these ports yet, so Memory Walker should
+        # show them as undefined ($XX) too, same as the rest of RAM. The
+        # underlying byte values stay correct (0xFF/0x00/0x00) since no
+        # code path reads them before power-on turns them into "known"
+        # values for real.
+        for _addr in (0xF011, 0xF031, 0xF032):
+            self.ram_touched[_addr] = 0
 
     def reset(self):
         self.acc           = 0
@@ -92,23 +104,21 @@ class CPU:
         self.cycle_count   = 0
         self.ram[0xF011]   = 0xFF  # keypad idle sentinel (no key pressed)
         self.ram[0xF031]   = 0x00  # clear display port
-        self.ram[0xF032]   = 0x00  # clear LED port
+        # LED port default is "all 6 on" ($3F), not "all off" -- the
+        # indicator LEDs are on by default and only go dark when a
+        # running program explicitly clears bits here, so the register
+        # value should match that default rather than implying "off".
+        self.ram[0xF032]   = 0x3F
         for addr in (0xF011, 0xF031, 0xF032):
             self.ram_touched[addr] = 1
-
-    def _load_default_program(self):
-        prog = [
-            0x90, 0x05,        # LDA  $05
-            0x10, 0x03,        # ADD  $03
-            0x99, 0x40, 0x50,  # STA  [$4050]
-            0x90, 0x0A,        # LDA  $0A
-            0x20, 0x05,        # SUB  $05
-            0x80,              # INCA
-            0x01,              # HALT
-        ]
-        for i, b in enumerate(prog):
-            self.ram[self.RESET_VECTOR + i] = b
-            self.ram_touched[self.RESET_VECTOR + i] = 1
+        # $0000-$3FFF is ROM: real ROM contents are burned in at
+        # fabrication and always defined, unlike blank RAM which is
+        # undefined until written. So Memory Walker should never show
+        # $XX there -- mark it "known" unconditionally on every reset
+        # (including the very first, cold-construction call), unlike
+        # the I/O sentinels above which start undefined pre-power-on.
+        for addr in range(self.ROM_END):
+            self.ram_touched[addr] = 1
 
     def _read(self, addr):
         addr &= 0xFFFF
@@ -165,7 +175,7 @@ class CPU:
         self.flags &= ~(FLAG_C | FLAG_Z | FLAG_N | FLAG_V)
         if result > 0xFF:                                           self.flags |= FLAG_C
         if r8 == 0:                                                 self.flags |= FLAG_Z
-        if r8 & 0x80:                                               self.flags |= FLAG_N
+        if r8 & 0x80:                                                self.flags |= FLAG_N
         if (not (a & 0x80) and not (b & 0x80) and (r8 & 0x80)) or \
            ((a & 0x80) and (b & 0x80) and not (r8 & 0x80)):        self.flags |= FLAG_V
         self.flags_touched |= (FLAG_C | FLAG_Z | FLAG_N | FLAG_V)
@@ -195,12 +205,36 @@ class CPU:
         else:       b_out = 0
         return ((hi & 0x0F) << 4) | (lo & 0x0F), b_out
 
-    def _set_bcd_flags(self, result, carry):
-        self.flags &= ~(FLAG_C | FLAG_Z | FLAG_N)
-        if carry:         self.flags |= FLAG_C
-        if result == 0:   self.flags |= FLAG_Z
-        if result & 0x80: self.flags |= FLAG_N
-        self.flags_touched |= (FLAG_C | FLAG_Z | FLAG_N)
+    def _bcd_overflow_add(self, orig_acc, operand, result):
+        """Overflow flag for DADD/DADDC, per the "DIY Calculator: BCD
+        Instructions" appendix: if the operand signs differ, O is
+        cleared; if they match, O is set iff the result's sign flips
+        relative to the original ACC. A BCD value's "sign" (tens-
+        complement) is negative when its decimal value is >= 50, i.e.
+        the raw byte is >= $50."""
+        neg_a = orig_acc >= 0x50
+        neg_b = operand  >= 0x50
+        if neg_a != neg_b:
+            return False
+        return (result >= 0x50) != neg_a
+
+    def _bcd_overflow_sub(self, orig_acc, operand, result):
+        """Overflow flag for DSUB/DSUBC: mirror of _bcd_overflow_add —
+        matching operand signs clear O; differing signs set O iff the
+        result's sign flips relative to the original ACC."""
+        neg_a = orig_acc >= 0x50
+        neg_b = operand  >= 0x50
+        if neg_a == neg_b:
+            return False
+        return (result >= 0x50) != neg_a
+
+    def _set_bcd_flags(self, result, carry, overflow):
+        self.flags &= ~(FLAG_C | FLAG_Z | FLAG_N | FLAG_V)
+        if carry:           self.flags |= FLAG_C
+        if result == 0:     self.flags |= FLAG_Z
+        if result >= 0x50:  self.flags |= FLAG_N   # tens-complement negative range
+        if overflow:        self.flags |= FLAG_V
+        self.flags_touched |= (FLAG_C | FLAG_Z | FLAG_N | FLAG_V)
 
     def step(self):
         """Execute one instruction. Returns mnemonic string or error."""
@@ -214,38 +248,8 @@ class CPU:
             if   op == 0x00: pass                                                          # NOP
             elif op == 0x01: self.halted = True                                            # HALT
 
-            # DADD  (BCD add) — provisional placeholder opcodes
-            elif op == 0x02:
-                n = self._fetch();  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x03:
-                n = self._read(self._fetch16());  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x04:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  res, c = self._bcd_add(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, c)
-
-            # DADDC (BCD add with carry) — provisional placeholder opcodes
-            elif op == 0x05:
-                n = self._fetch();  c_in = 1 if (self.flags & FLAG_C) else 0
-                res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x06:
-                n = self._read(self._fetch16());  c_in = 1 if (self.flags & FLAG_C) else 0
-                res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
-            elif op == 0x07:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c_in = 1 if (self.flags & FLAG_C) else 0
-                res, c = self._bcd_add(self.acc, n, c_in);  self.acc = res;  self._set_bcd_flags(res, c)
-
             elif op == 0x08: self.flags |=  FLAG_I;  self.flags_touched |= FLAG_I           # SETIM
             elif op == 0x09: self.flags &= ~FLAG_I;  self.flags_touched |= FLAG_I           # CLRIM
-
-            # DSUBC (BCD subtract with borrow) — provisional placeholder opcodes
-            elif op == 0x0A:
-                n = self._fetch();  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
-            elif op == 0x0B:
-                n = self._read(self._fetch16());  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
-            elif op == 0x0C:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw_in = 1 if (self.flags & FLAG_C) else 0
-                res, bw = self._bcd_sub(self.acc, n, bw_in);  self.acc = res;  self._set_bcd_flags(res, bw)
 
             # ADD
             elif op == 0x10:
@@ -265,14 +269,6 @@ class CPU:
             elif op == 0x1A:
                 n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c = 1 if (self.flags & FLAG_C) else 0
                 r = self.acc + n + c;  self._set_add_flags(self.acc, n, r);  self.acc = r & 0xFF
-
-            # DSUB (BCD subtract) — unchanged opcodes, provisional semantics
-            elif op == 0x1C:
-                n = self._fetch();  res, bw = self._bcd_sub(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, bw)
-            elif op == 0x1D:
-                n = self._read(self._fetch16());  res, bw = self._bcd_sub(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, bw)
-            elif op == 0x1E:
-                n = self._read((self._fetch16() + self.ix) & 0xFFFF);  res, bw = self._bcd_sub(self.acc, n);  self.acc = res;  self._set_bcd_flags(res, bw)
 
             # SUB
             elif op == 0x20:
@@ -308,6 +304,20 @@ class CPU:
             elif op == 0x41: self.acc ^= self._read(self._fetch16());                     self._set_nz(self.acc)
             elif op == 0x42: self.acc ^= self._read((self._fetch16() + self.ix) & 0xFFFF); self._set_nz(self.acc)
 
+            # DADD  (BCD add, no carry-in) — official databook opcodes
+            elif op == 0x48:
+                orig = self.acc;  n = self._fetch()
+                res, c = self._bcd_add(orig, n);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
+            elif op == 0x49:
+                orig = self.acc;  n = self._read(self._fetch16())
+                res, c = self._bcd_add(orig, n);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
+            elif op == 0x4A:
+                orig = self.acc;  n = self._read((self._fetch16() + self.ix) & 0xFFFF)
+                res, c = self._bcd_add(orig, n);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
+
             # BLDSP  (big load stack pointer)
             elif op == 0x50: self.sp = self._fetch16()
             elif op == 0x51: self.sp = self._read16(self._fetch16())
@@ -318,6 +328,20 @@ class CPU:
             elif op == 0x60: n = self._fetch();                                           self._set_sub_flags(self.acc, n, self.acc - n)
             elif op == 0x61: n = self._read(self._fetch16());                             self._set_sub_flags(self.acc, n, self.acc - n)
             elif op == 0x62: n = self._read((self._fetch16() + self.ix) & 0xFFFF);        self._set_sub_flags(self.acc, n, self.acc - n)
+
+            # DADDC (BCD add with carry-in) — official databook opcodes
+            elif op == 0x68:
+                orig = self.acc;  n = self._fetch();  c_in = 1 if (self.flags & FLAG_C) else 0
+                res, c = self._bcd_add(orig, n, c_in);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
+            elif op == 0x69:
+                orig = self.acc;  n = self._read(self._fetch16());  c_in = 1 if (self.flags & FLAG_C) else 0
+                res, c = self._bcd_add(orig, n, c_in);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
+            elif op == 0x6A:
+                orig = self.acc;  n = self._read((self._fetch16() + self.ix) & 0xFFFF);  c_in = 1 if (self.flags & FLAG_C) else 0
+                res, c = self._bcd_add(orig, n, c_in);  self.acc = res
+                self._set_bcd_flags(res, c, self._bcd_overflow_add(orig, n, res))
 
             elif op == 0x70:
                 c = (self.acc >> 7) & 1;  self.acc = (self.acc << 1) & 0xFF               # SHL
@@ -338,6 +362,23 @@ class CPU:
             elif op == 0x81: self.acc = (self.acc - 1) & 0xFF;  self._set_nz(self.acc)     # DECA
             elif op == 0x82: self.ix  = (self.ix + 1) & 0xFFFF; self._set_nz(self.ix)      # INCX
             elif op == 0x83: self.ix  = (self.ix - 1) & 0xFFFF; self._set_nz(self.ix)      # DECX
+
+            # DSUB (BCD subtract, no borrow-in) — official databook opcodes.
+            # Carry polarity is intentionally kept as this emulator's existing
+            # "honest borrow" convention (C=1 means a borrow was needed), NOT
+            # the databook's literal "borrow-not" wording — see tutorial 13.
+            elif op == 0x88:
+                orig = self.acc;  n = self._fetch()
+                res, bw = self._bcd_sub(orig, n);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
+            elif op == 0x89:
+                orig = self.acc;  n = self._read(self._fetch16())
+                res, bw = self._bcd_sub(orig, n);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
+            elif op == 0x8A:
+                orig = self.acc;  n = self._read((self._fetch16() + self.ix) & 0xFFFF)
+                res, bw = self._bcd_sub(orig, n);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
 
             # LDA — imm / dir / idx / ind / xind (x-ind) / indx (ind-x)
             elif op == 0x90: self.acc = self._fetch();               self._set_nz(self.acc)
@@ -363,6 +404,21 @@ class CPU:
             elif op == 0xB1: self.flags = self._pop();  self.flags_touched = 0xFF          # POPSR
             elif op == 0xB2: self._push(self.acc)                                          # PSHA / PUSHA
             elif op == 0xB3: self._push(self.flags)                                        # PUSHSR
+
+            # DSUBC (BCD subtract with borrow-in) — official databook opcodes.
+            # Same intentional Carry-polarity note as DSUB above.
+            elif op == 0xB8:
+                orig = self.acc;  n = self._fetch();  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(orig, n, bw_in);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
+            elif op == 0xB9:
+                orig = self.acc;  n = self._read(self._fetch16());  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(orig, n, bw_in);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
+            elif op == 0xBA:
+                orig = self.acc;  n = self._read((self._fetch16() + self.ix) & 0xFFFF);  bw_in = 1 if (self.flags & FLAG_C) else 0
+                res, bw = self._bcd_sub(orig, n, bw_in);  self.acc = res
+                self._set_bcd_flags(res, bw, self._bcd_overflow_sub(orig, n, res))
 
             # JMP — dir / idx / ind / xind (x-ind) / indx (ind-x)
             elif op == 0xC1: self.pc = self._fetch16()

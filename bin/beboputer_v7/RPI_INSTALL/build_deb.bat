@@ -15,4 +15,5 @@ if errorlevel 1 (
     exit /b 1
 )
 echo.
-echo Done! Copy the .deb from dist\ (beboputer_^<version^>_all.deb) to yo
+echo Done! Copy the .deb from dist\ (beboputer_^<version^>_all.deb) to your Raspberry Pi.
+pause

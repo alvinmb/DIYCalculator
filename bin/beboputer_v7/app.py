@@ -23,8 +23,8 @@
 import sys
 import os
 
-from PyQt5.QtWidgets import QApplication, QSplashScreen
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QApplication, QSplashScreen, QToolTip
+from PyQt5.QtGui import QPixmap, QPalette, QColor
 from PyQt5.QtCore import Qt, QTimer
 
 from pathlib import Path
@@ -37,6 +37,27 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Windows")
     app.setStyleSheet(STYLESHEET)
+
+    # Tooltip colors: neither the QSS "QToolTip {}" rule in styles.py nor
+    # QApplication.setPalette() reliably wins here -- a button that sets
+    # its own QSS background-color/color (e.g. the plain command buttons'
+    # default grey #d4d0c8, or Memory Walker's red "RUN to BP" text) can
+    # still leak that into its OWN tooltip, because Qt's "Windows" style
+    # resolves each widget's tooltip from that widget's own polished
+    # palette rather than always falling back to the app-wide one.
+    # QToolTip.setPalette() is the dedicated, most-specific API Qt
+    # provides for tooltip colors and takes priority over that per-widget
+    # leak, so it's the one that actually sticks everywhere.
+    _pal = app.palette()
+    _pal.setColor(QPalette.ToolTipBase, QColor("#ffffcc"))
+    _pal.setColor(QPalette.ToolTipText, QColor("#000000"))
+    app.setPalette(_pal)
+    QToolTip.setPalette(_pal)
+    app.setStyleSheet(
+        app.styleSheet()
+        + "\nQToolTip { background-color: #ffffcc; color: #000000; "
+          "border: 1px solid #808080; padding: 2px 4px; }"
+    )
 
     # --- Splash screen -------------------------------------------------------
     # splash.png lives in the same directory as run_beboputer_v7.py (bin/ on

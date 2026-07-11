@@ -130,13 +130,12 @@ class BebopMain(QMainWindow):
         self._refresh_all()
 
         # Boot messages go straight to the always-on diagnostic log.
-        self.msg_display.message("PY-DIYCALCULATOR ready.")
+        self.msg_display.message("PY-DIYCALCULATOR")
         self.msg_display.message(
             f"RAM: {self.cpu.RAM_SIZE // 1024}KB  |  Clock: {self._clock_hz}Hz (simulated)"
         )
-        self.msg_display.message(
-            "Load a .ROM file or use Memory Walker to edit RAM, then press RUN or STEP."
-        )
+        self.msg_display.message("Switch calculator on (click on/off) button")
+        self.msg_display.message("Load a .RAM file")
 
         # Show the Calculator on app start and wire its On/Off → terminal.
         self._show_calculator()
@@ -255,14 +254,18 @@ class BebopMain(QMainWindow):
         clear_calc_display=False is used on power-on (see
         _on_power_changed): _apply_power_state() has just written the
         boot dash sequence to the calculator, and clearing the display
-        here would immediately wipe it back to "0" before the user ever
+        here would immediately wipe it back to blank before the user ever
         sees the dashes. The explicit Reset button always wants the
         clear, so it keeps the default of True.
         """
         self._run_timer.stop()
         self.cpu.reset()
         if clear_calc_display and getattr(self, "_calc_win", None) is not None:
-            self._calc_win.write_display(0x10)  # clear the calculator display
+            # blank_display(), not write_display(0x10): a Reset means no
+            # program is driving the display yet, so it should go truly
+            # blank -- showing "0" would misleadingly imply a program had
+            # already initialized it.
+            self._calc_win.blank_display()
         self.port_mon.reset()   # clear I/O port display
         if getattr(self, "_workbench_win", None) is not None:
             self._workbench_win.reset()   # switches back to OFF, outputs blanked
@@ -278,6 +281,7 @@ class BebopMain(QMainWindow):
             self.statusBar().showMessage(f"HALT at PC=${self.cpu.pc:04X}")
             self._refresh_all()
             return
+        bp_hit = None
         for _ in range(10):    # execute 10 instructions per tick
             self.cpu.step()
             self._check_port_output()
@@ -285,13 +289,39 @@ class BebopMain(QMainWindow):
             self.port_mon.refresh()
             if self.cpu.halted:
                 break
+            # Stop on a Memory Walker breakpoint, same as its own
+            # "RUN to BP" button -- previously the main toolbar's Run
+            # ignored breakpoints entirely, so e.g. a BP set at $0000
+            # to catch lab2a's `JMP [$0000]` had no effect here and
+            # Run would just free-run through the NOP sled forever.
+            if self.cpu.pc in self.mem_walker._breakpoints:
+                bp_hit = self.cpu.pc
+                break
+        # Keep the Message Display and Memory Walker's ▶ pointer live
+        # while Run is ticking -- previously only the CPU panel/port
+        # monitor refreshed here, so the Message Display showed nothing
+        # and the pointer stayed frozen at wherever it was when Run was
+        # clicked, even though the CPU kept executing underneath (bug
+        # #0003: looked like Run wasn't doing anything).
+        self.mem_walker.highlight_pc(self.cpu.pc)
+        self.msg_display.message(self._instr_msgs.describe(self.cpu))
+        if self.cpu.halted:
+            self._run_timer.stop()
+            self.cpu.running = False
+            self.statusBar().showMessage("HALT instruction executed.")
+            self.msg_display.message("--- HALT ---")
+        elif bp_hit is not None:
+            self._run_timer.stop()
+            self.cpu.running = False
+            reason = f"BP hit at ${bp_hit:04X}"
+            self.statusBar().showMessage(reason)
+            self.msg_display.message(reason)
 
     def _on_mem_walker_step(self, mnemonic):
         """Called after the MemoryWalker single-steps the CPU."""
         self.msg_display.message(self._instr_msgs.describe(self.cpu))
         self._check_port_output()
-        self.cpu_panel.refresh()
-        self.port_mon.refresh()
+        self._refresh_all()   # keeps Disassembler (and mem walker) on the live PC
         if self.cpu.halted:
             self.statusBar().showMessage("HALT instruction executed.")
             self.msg_display.message("--- HALT ---")
@@ -301,8 +331,7 @@ class BebopMain(QMainWindow):
         self.msg_display.message(reason)
         self.statusBar().showMessage(reason)
         self._check_port_output()
-        self.cpu_panel.refresh()
-        self.port_mon.refresh()
+        self._refresh_all()   # keeps Disassembler (and mem walker) on the live PC
 
     def _check_port_output(self):
         """If CPU wrote to port 1, forward to the terminal as ASCII."""
@@ -386,18 +415,33 @@ class BebopMain(QMainWindow):
             with open(path, "rb") as f:
                 data = f.read()
             self.cpu.ram = bytearray(self.cpu.RAM_SIZE)
+            # Fresh ram_touched too: a newly loaded file replaces RAM
+            # wholesale, so only the bytes the file actually supplies
+            # are "known" — everything else should read back as
+            # undefined ($XX) in Memory Walker, not stale touched state
+            # left over from whatever ran before.
+            self.cpu.ram_touched = bytearray(self.cpu.RAM_SIZE)
             if len(data) == self.cpu.RAM_SIZE:
                 self.cpu.ram[:] = data
+                self.cpu.ram_touched[:] = b"\x01" * self.cpu.RAM_SIZE
                 msg    = f"Loaded: {os.path.basename(path)}  (full 64KB image)"
                 status = f"Loaded {path} (full 64KB image)"
             else:
                 max_bytes = self.cpu.RAM_SIZE - LOAD_ADDR
                 chunk = data[:max_bytes]
                 self.cpu.ram[LOAD_ADDR:LOAD_ADDR + len(chunk)] = chunk
+                self.cpu.ram_touched[LOAD_ADDR:LOAD_ADDR + len(chunk)] = b"\x01" * len(chunk)
                 msg    = (f"Loaded: {os.path.basename(path)}  "
                           f"({len(chunk)} bytes @ ${LOAD_ADDR:04X})")
                 status = f"Loaded {path} @ ${LOAD_ADDR:04X}"
-            self._do_reset()
+            # Don't blank the calculator display on load: real hardware
+            # shows the boot-style dash placeholder until the freshly
+            # loaded program actually drives the display, so reset
+            # without clearing (clear_calc_display=False) and then show
+            # the dashes explicitly -- same placeholder used at power-on.
+            self._do_reset(clear_calc_display=False)
+            if getattr(self, "_calc_win", None) is not None:
+                self._calc_win.show_dash_display()
             self.msg_display.message(msg)
             self.statusBar().showMessage(status)
         except Exception as e:
@@ -466,17 +510,44 @@ class BebopMain(QMainWindow):
         would keep showing their stale "known" status in Memory Walker,
         displaying the new random garbage as if it were a real value
         instead of the undefined-garbage placeholder ($XX).
+
+        $0000-$3FFF is ROM, not RAM: real ROM contents are burned in
+        and never "power up as garbage", so that range is left alone
+        here (zeroed, not randomized) and stays marked "known" --
+        only $4000-$FFFF gets the random-garbage treatment.
         """
-        for i in range(self.cpu.RAM_SIZE):
+        rom_end = self.cpu.ROM_END
+        for i in range(rom_end):
+            self.cpu.ram[i] = 0
+            self.cpu.ram_touched[i] = 1
+        for i in range(rom_end, self.cpu.RAM_SIZE):
             self.cpu.ram[i] = random.randint(0, 255)
             self.cpu.ram_touched[i] = 0
         self.cpu.ram[0xF011] = 0xFF  # restore keypad idle sentinel
         self.cpu.ram[0xF031] = 0x00  # clear display port
-        self.cpu.ram[0xF032] = 0x00  # clear LED port
+        self.cpu.ram[0xF032] = 0x3F  # LEDs on by default (see cpu.reset())
         for addr in (0xF011, 0xF031, 0xF032):
             self.cpu.ram_touched[addr] = 1  # sentinels are known, not garbage
         self._refresh_all()
         self.msg_display.message("Power on: RAM randomized (real hardware powers up with garbage, not zeros).")
+
+    def _do_power_off_ram(self):
+        """Mark RAM undefined on power-off, instead of zeroing it.
+
+        $0000-$3FFF is ROM and stays defined (untouched here). The RAM
+        region ($4000-$FFFF) is marked "known=0" -- undefined ($XX) in
+        Memory Walker -- because there's no real hardware state to show
+        once the board is off, same reasoning as the random-garbage
+        power-on fill. This intentionally does NOT touch the underlying
+        byte values (unlike Purge RAM, which really does zero them):
+        power-off isn't "erase," it's just "we don't know/care what's
+        there right now."
+        """
+        rom_end = self.cpu.ROM_END
+        for i in range(rom_end, self.cpu.RAM_SIZE):
+            self.cpu.ram_touched[i] = 0
+        self._refresh_all()
+        self.msg_display.message("Power off.")
 
     def _on_power_changed(self, on: bool):
         """Slot for Calculator power_changed — the On/Off button resets RAM
@@ -488,15 +559,19 @@ class BebopMain(QMainWindow):
         opcodes with nothing meaningful executing. Load or assemble a
         program first, then press Run/Step.
 
-        Power-off deterministically zeroes RAM instead, since there's no
-        "real hardware" state to emulate once the board is off.
+        Power-off marks RAM undefined again (see _do_power_off_ram) --
+        it used to call _do_purge_ram() (deterministic all-zero, all
+        "known"), but that's the explicit Purge RAM menu action's job,
+        not power-off's. Showing $00 everywhere after power-off was
+        misleading: once the board is off there's no defined state to
+        show, same reasoning as the random-garbage power-on behaviour.
         """
         self.terminal.set_power(on)
         if on:
             self._do_random_fill_ram()
             self._do_reset(clear_calc_display=False)
         else:
-            self._do_purge_ram()
+            self._do_power_off_ram()
 
     def _power_on_clear(self):
         """On calculator power-on: zero data/stack area ($0000–$3FFF) and
@@ -533,6 +608,7 @@ class BebopMain(QMainWindow):
 
     def _show_eprom(self):
         dlg = EpromBurner(self.cpu, self)
+        dlg.ram_changed.connect(self._refresh_all)
         dlg.show()
 
     def _show_calculator(self):

@@ -86,12 +86,17 @@ import datetime
 #             FIRST, then X is added to the resulting address.
 #   'none'  = no operand:              NOP
 #
-# DADD/DADDC/DSUBC opcodes below are PROVISIONAL placeholders — the
-# official databook opcodes for these BCD instructions reassign bytes
-# also used by ADDC/SUB in the new table, so they've been relocated to
-# unused slots ($02-$04 / $05-$07 / $0A-$0C) pending the official BCD
-# appendix. DSUB keeps its original opcodes ($1C-$1E); those don't
-# collide with anything in the new table.
+# DADD/DADDC/DSUB/DSUBC opcodes below match the official "DIY Calculator:
+# BCD Instructions" appendix (Rev 1.0, 2005, Maxfield & Brown), Figure 6:
+#   DADD   $48 imm / $49 abs / $4A abs-x
+#   DADDC  $68 imm / $69 abs / $6A abs-x
+#   DSUB   $88 imm / $89 abs / $8A abs-x
+#   DSUBC  $B8 imm / $B9 abs / $BA abs-x
+# These replace the earlier provisional placeholders ($02-$04/$05-$07/
+# $0A-$0C/$1C-$1E) used before the appendix was available. Note: this
+# emulator deliberately keeps its existing Carry-flag polarity for
+# DSUB/DSUBC (Carry = "a borrow was needed") rather than the appendix's
+# literal "borrow-not" wording — see cpu.py and tutorial 13 for details.
 # ---------------------------------------------------------------------------
 
 # fmt: off
@@ -99,26 +104,26 @@ OPCODES = {
     # Mnemonic : { mode: (opcode_byte, total_instruction_bytes) }
     'NOP'   : { 'none': (0x00, 1) },
     'HALT'  : { 'none': (0x01, 1) },
-    'DADD'  : { 'imm':  (0x02, 2),   # provisional — pending official BCD appendix
-                'dir':  (0x03, 3),
-                'idx':  (0x04, 3) },
-    'DADDC' : { 'imm':  (0x05, 2),   # provisional
-                'dir':  (0x06, 3),
-                'idx':  (0x07, 3) },
     'SETIM' : { 'none': (0x08, 1) },
     'CLRIM' : { 'none': (0x09, 1) },
-    'DSUBC' : { 'imm':  (0x0A, 2),   # provisional
-                'dir':  (0x0B, 3),
-                'idx':  (0x0C, 3) },
+    'DADD'  : { 'imm':  (0x48, 2),
+                'dir':  (0x49, 3),
+                'idx':  (0x4A, 3) },
+    'DADDC' : { 'imm':  (0x68, 2),
+                'dir':  (0x69, 3),
+                'idx':  (0x6A, 3) },
+    'DSUB'  : { 'imm':  (0x88, 2),
+                'dir':  (0x89, 3),
+                'idx':  (0x8A, 3) },
+    'DSUBC' : { 'imm':  (0xB8, 2),
+                'dir':  (0xB9, 3),
+                'idx':  (0xBA, 3) },
     'ADD'   : { 'imm':  (0x10, 2),
                 'dir':  (0x11, 3),
                 'idx':  (0x12, 3) },
     'ADDC'  : { 'imm':  (0x18, 2),
                 'dir':  (0x19, 3),
                 'idx':  (0x1A, 3) },
-    'DSUB'  : { 'imm':  (0x1C, 2),   # provisional — unchanged, no collision
-                'dir':  (0x1D, 3),
-                'idx':  (0x1E, 3) },
     'SUB'   : { 'imm':  (0x20, 2),
                 'dir':  (0x21, 3),
                 'idx':  (0x22, 3) },

@@ -1,6 +1,6 @@
 # Beboputer_python port
 
-**Current version: 8.0.0** — see [RELEASE_NOTES.md](RELEASE_NOTES.md) for what's changed, and [VERSIONING.md](VERSIONING.md) for how version numbers are managed and released.
+**Current version: 9.0.1** — see [RELEASE_NOTES.md](RELEASE_NOTES.md) for what's changed, and [VERSIONING.md](VERSIONING.md) for how version numbers are managed and released.
 
 Festooned with nuggets of information and tidbits of trivia, our book How Computers Do Math (ISBN: 0471732788) provides an incredibly fun and interesting introduction to the way in which computers perform their magic in general and how they do math in particular (check out the contents).
 
@@ -10,6 +10,6 @@ the origional software was only made available on the windows platform. The soft
 ## Installing
 
 - **Windows**: run `BeboputerSetup.exe` from the latest release.
-- **Raspberry Pi / Debian**: `sudo dpkg -i beboputer_8.0.0_all.deb && sudo apt-get install -f` (see `bin/beboputer_v7/RPI_INSTALL/README.txt` for details and an alternate one-shot install script).
+- **Raspberry Pi / Debian**: `sudo dpkg -i beboputer_9.0.1_all.deb && sudo apt-get install -f` (see `bin/beboputer_v7/RPI_INSTALL/README.txt` for details and an alternate one-shot install script).
 - **macOS**: build via `bin/beboputer_v7/MAC_INSTALL/build_mac.sh`.
 - **From source**: `python -m beboputer_v7` (requires Python 3.8+ and PyQt5) from the `bin/` folder.
