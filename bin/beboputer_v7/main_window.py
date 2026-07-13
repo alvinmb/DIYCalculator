@@ -56,7 +56,10 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget,
     QStatusBar, QDialog, QVBoxLayout,
     QFileDialog, QMessageBox, QInputDialog,
+    QToolBar, QPushButton,
 )
+
+from .constants import FLAG_I
 
 
 class _PanelDialog(QDialog):
@@ -219,7 +222,18 @@ class BebopMain(QMainWindow):
         build_menus(self)
 
     def _build_toolbar(self):
-        pass  # toolbar removed
+        tb = QToolBar("Main", self)
+        tb.setMovable(False)
+        self.addToolBar(tb)
+
+        self.interrupt_btn = QPushButton("⚡ Interrupt")
+        self.interrupt_btn.setStyleSheet("font-weight: bold;")
+        self.interrupt_btn.setToolTip(
+            "Assert the interrupt mask bit (flag I) — the same effect as "
+            "the CPU executing SETIM."
+        )
+        self.interrupt_btn.clicked.connect(self._do_interrupt)
+        tb.addWidget(self.interrupt_btn)
 
     # --------------------------------------------------------------- CPU ops --
 
@@ -247,6 +261,44 @@ class BebopMain(QMainWindow):
         if self.cpu.halted:
             self.statusBar().showMessage("HALT instruction executed.")
             self.msg_display.message("--- HALT ---")
+
+    def _do_interrupt(self):
+        """Manually assert the interrupt mask bit (flag I).
+
+        Same effect as the CPU executing a SETIM instruction, but
+        triggered from the UI rather than from a running program —
+        lets you test interrupt-mask-dependent code paths without
+        having to assemble a SETIM into the program itself.
+
+        Only takes effect while the calculator is switched on — with
+        the calculator off there's no powered board to interrupt, same
+        reasoning as _open_project()'s "must be ON to load a file" gate.
+        """
+        calc = getattr(self, "_calc_win", None)
+        if calc is None or not calc.powered:
+            self.msg_display.message("Interrupt ignored — calculator is off.")
+            self.statusBar().showMessage("Interrupt ignored — calculator is off.")
+            return
+        self.cpu.flags |= FLAG_I
+        self.cpu.flags_touched |= FLAG_I
+        self._refresh_all()
+        self.msg_display.message("⚡ Interrupt: mask bit (I) set.")
+        self.statusBar().showMessage("Interrupt mask bit (I) set.")
+
+    def _workbench_open_and_calc_on(self) -> bool:
+        """True when the Workbench window is visible and the calculator is
+        powered on.
+
+        Gates whether loading a program should leave the calculator's
+        display alone. With the Workbench open and the calc on, the user
+        is watching a live board -- a program load shouldn't visibly
+        disturb the calc screen (blanking it or swapping in the boot-dash
+        placeholder) the way a full Reset intentionally does.
+        """
+        wb   = getattr(self, "_workbench_win", None)
+        calc = getattr(self, "_calc_win", None)
+        return (wb is not None and wb.isVisible()
+                and calc is not None and calc.powered)
 
     def _do_reset(self, clear_calc_display=True):
         """Reset the CPU (and Workbench/Terminal/port monitor) to idle.
@@ -439,8 +491,14 @@ class BebopMain(QMainWindow):
             # loaded program actually drives the display, so reset
             # without clearing (clear_calc_display=False) and then show
             # the dashes explicitly -- same placeholder used at power-on.
+            #
+            # Exception: with the Workbench open and the calc on, leave
+            # the display exactly as it is -- don't even swap in the
+            # dash placeholder. The user is watching a live board and a
+            # load shouldn't visibly disturb the calc screen.
             self._do_reset(clear_calc_display=False)
-            if getattr(self, "_calc_win", None) is not None:
+            if (getattr(self, "_calc_win", None) is not None
+                    and not self._workbench_open_and_calc_on()):
                 self._calc_win.show_dash_display()
             self.msg_display.message(msg)
             self.statusBar().showMessage(status)
@@ -692,6 +750,10 @@ class BebopMain(QMainWindow):
                 os.path.join(os.path.dirname(__file__), '..', 'beboputer_v7_help.html')
             )
         webbrowser.open(f"file:///{help_path.replace(os.sep, '/')}")
+
+    def _show_web(self):
+        """Open the DIY Calculator homepage in the system default browser."""
+        webbrowser.open("https://www.clivemaxfield.com/diycalculator/index.shtml")
 
     def _show_about(self):
         AboutDialog(self).exec_()
