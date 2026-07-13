@@ -101,6 +101,7 @@ def build_menus(win) -> None:
     hm = mb.addMenu("&Help")
     hm.setFont(menu_font)
     hm.addAction(act("&Help…",      win._show_help))
+    hm.addAction(act("DIY Calculator on the web", win._show_web))
     hm.addSeparator()
     hm.addAction(act("&About...",   win._show_about))
     hm.addAction(act("&Credits...", win._show_credits))

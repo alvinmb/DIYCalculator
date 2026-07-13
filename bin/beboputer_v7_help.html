@@ -156,6 +156,8 @@
   <a href="#menu-memory">Memory Menu</a>
   <a href="#menu-display">Display Menu</a>
   <a href="#menu-tools">Tools Menu</a>
+  <a href="#menu-help">Help Menu</a>
+  <a href="#toolbar">Toolbar</a>
   <div class="section-head">Panels</div>
   <a href="#memory-walker">Memory Walker</a>
   <a href="#cpu-panel">CPU Register Display</a>
@@ -251,6 +253,27 @@ hardware peripherals accessible through memory-mapped I/O.</p>
   <tr><td>Keyboard…</td><td>Opens or focuses the on-screen Keyboard.</td></tr>
   <tr><td>Workbench 1…</td><td>Opens or focuses Workbench 1. Requires the calculator to be switched ON.</td></tr>
   <tr><td>Assembler / Editor…</td><td>Opens the integrated assembler and code editor.</td></tr>
+</table>
+
+<h2 id="menu-help">Help Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>Help…</td><td>Opens this help document in your default web browser.</td></tr>
+  <tr><td>DIY Calculator on the web</td><td>Opens the
+    <a href="https://www.clivemaxfield.com/diycalculator/index.shtml" target="_blank">DIY Calculator homepage</a>
+    in your default web browser.</td></tr>
+  <tr><td>About…</td><td>Shows the application version and about box.</td></tr>
+  <tr><td>Credits…</td><td>Shows the credits for the people behind the DIY Calculator and this emulator.</td></tr>
+</table>
+
+<h2 id="toolbar">Toolbar</h2>
+<div class="panel-intro">A single always-visible toolbar sits below the menu bar.</div>
+<table>
+  <tr><th>Button</th><th>Action</th></tr>
+  <tr><td>⚡ Interrupt</td><td>Manually asserts the interrupt mask bit (flag I) — the same effect as the
+    CPU executing a <code>SETIM</code> instruction, but triggered from the UI instead of from a running
+    program. Only takes effect while the calculator is switched ON; if it's off, the button logs
+    "Interrupt ignored — calculator is off." and does nothing.</td></tr>
 </table>
 
 <hr>
@@ -712,4 +735,14 @@ ACC <strong>&gt;</strong> operand (not &lt;). To test if a nibble is a hex lette
   <tr><td>JZ / JNZ</td><td>abs</td><td>Jump if Zero / Not Zero.</td></tr>
   <tr><td>JO / JNO</td><td>abs</td><td>Jump if Overflow / No Overflow.</td></tr>
   <tr><td>JSR</td><td>abs, abs-x, ind, x-ind, ind-x</td><td>Jump to Subroutine — pushes return address onto stack.</td></tr>
-  <tr><t
+  <tr><td>RTS</td><td>—</td><td>Return from Subroutine.</td></tr>
+  <tr><td>RTI</td><td>—</td><td>Return from Interrupt.</td></tr>
+  <tr><td>HALT</td><td>—</td><td>Stop the CPU. A reset is required to continue execution.</td></tr>
+</table>
+
+<p style="margin-top:32px;font-size:12px;color:#888;">Beboputer Virtual Computer — Help Document &nbsp;|&nbsp;
+Based on the DIY Calculator by Clive "Max" Maxfield &amp; Alvin Brown</p>
+</div>
+
+</body>
+</html>

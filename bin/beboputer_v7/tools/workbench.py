@@ -314,7 +314,9 @@ class SevenSegDec(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._value = -1
+        self._value = None    # distinct from both a real digit and _BLANK,
+                               # so the first blank() call below doesn't
+                               # no-op and skip loading the DSEGG pixmap.
         self.setFixedSize(self._W, self._H)
         self.setStyleSheet("background: #080808;")
 
@@ -323,7 +325,7 @@ class SevenSegDec(QWidget):
         self._lbl.setFixedSize(self._W, self._H)
         self._lbl.setStyleSheet("background: #080808;")
 
-        self.set_value(0)
+        self.blank()
 
     def set_value(self, val: int):
         val &= 0x0F
@@ -340,10 +342,36 @@ class SevenSegDec(QWidget):
         else:
             self._lbl.clear()
 
+    def blank(self):
+        """Show the true off/blank glyph (DSEGG.BMP) instead of a lit digit.
+
+        set_value(0) would light up the "0" digit -- not the same thing
+        as the display being off. Used when the calculator powers off
+        (and before any program has written to this port) so the
+        segment display matches real hardware: dark until something
+        actually drives it.
+        """
+        if self._value == self._BLANK:
+            return
+        self._value = self._BLANK
+        px = self._get_pixmap(self._BLANK)
+        if px:
+            self._lbl.setPixmap(
+                px.scaled(self._W, self._H,
+                          Qt.KeepAspectRatio,
+                          Qt.SmoothTransformation)
+            )
+        else:
+            self._lbl.clear()
+
+    # Sentinel value (outside the 0-F digit range) used to key the blank
+    # glyph in _get_pixmap()/_cache without colliding with a real digit.
+    _BLANK = -1
+
     @classmethod
     def _get_pixmap(cls, val: int):
         if val not in cls._cache:
-            suffix = _DSEG_SUFFIX[val]
+            suffix = 'G' if val == cls._BLANK else _DSEG_SUFFIX[val]
             path = os.path.join(_BITMAPS_DIR, f'DSEG{suffix}.BMP')
             px = QPixmap(path)
             cls._cache[val] = px if not px.isNull() else None
@@ -433,7 +461,12 @@ class DualSevenSeg(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._value = 0
+        # None, not 0: both sub-digits start blank (see SevenSegDec.blank()),
+        # so this must be distinguishable from a genuine value-0x00 write --
+        # otherwise the first real "STA [$F024], 0" from a program would
+        # match this initial value and silently no-op instead of actually
+        # updating the sub-digits from blank to lit "00".
+        self._value = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(10)
@@ -449,6 +482,12 @@ class DualSevenSeg(QWidget):
             self._value = val
             self._left.set_value((val >> 4) & 0x0F)
             self._right.set_value(val & 0x0F)
+
+    def blank(self):
+        """Show the true off/blank glyph on both digits (see SevenSegDec.blank)."""
+        self._value = -1
+        self._left.blank()
+        self._right.blank()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -484,10 +523,14 @@ class WorkbenchPanel(QDialog):
         self.setEnabled(on)
         if not on:
             # Blank all outputs so they don't show stale values.
+            # _seg2/_seg3 are DECODED displays -- set_value(0) would light
+            # up the "0" digit, which is not the same as being off. Use
+            # blank() so power-off (and cold start, until a program
+            # actually writes to the port) shows the true dark/off glyph.
             self._leds.set_value(0)
             self._seg1.set_value(0)
-            self._seg2.set_value(0)
-            self._seg3.set_value(0)
+            self._seg2.blank()
+            self._seg3.blank()
 
     # ── reset ──────────────────────────────────────────────────────────────────
 
@@ -499,8 +542,8 @@ class WorkbenchPanel(QDialog):
         self._sw2.reset()
         self._leds.set_value(0)
         self._seg1.set_value(0)
-        self._seg2.set_value(0)
-        self._seg3.set_value(0)
+        self._seg2.blank()
+        self._seg3.blank()
 
     # ── lifecycle ──────────────────────────────────────────────────────────────
 
@@ -512,13 +555,28 @@ class WorkbenchPanel(QDialog):
             self.hide()
 
     def showEvent(self, ev):
-        """Sync displays with RAM when window becomes visible."""
+        """Sync displays with RAM when window becomes visible.
+
+        Only pulls a port's value from RAM if a program has actually
+        written to it (ram_touched) -- otherwise fresh/untouched RAM
+        happens to read back as byte 0, which for the DECODED displays
+        (_seg2/_seg3) would light up a "0" digit instead of staying
+        blank. A port a program has never driven should look identical
+        to real hardware that's never been touched: dark.
+        """
         super().showEvent(ev)
         if self._powered:
-            self._leds.set_value(self.cpu.ram[ADDR_LED])
-            self._seg1.set_value(self.cpu.ram[ADDR_SEG1])
-            self._seg2.set_value(self.cpu.ram[ADDR_SEG2])
-            self._seg3.set_value(self.cpu.ram[ADDR_SEG3])
+            touched = self.cpu.ram_touched
+            self._leds.set_value(self.cpu.ram[ADDR_LED] if touched[ADDR_LED] else 0)
+            self._seg1.set_value(self.cpu.ram[ADDR_SEG1] if touched[ADDR_SEG1] else 0)
+            if touched[ADDR_SEG2]:
+                self._seg2.set_value(self.cpu.ram[ADDR_SEG2])
+            else:
+                self._seg2.blank()
+            if touched[ADDR_SEG3]:
+                self._seg3.set_value(self.cpu.ram[ADDR_SEG3])
+            else:
+                self._seg3.blank()
 
     # ── construction ───────────────────────────────────────────────────────────
 
