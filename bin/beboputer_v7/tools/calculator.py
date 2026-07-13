@@ -284,7 +284,6 @@ class Calculator(QMainWindow):
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
 
-        self._build_menu_bar()
         self._build_display(root)
         self._build_keyboard(root)
         self._build_bottom_bar(root)
@@ -295,22 +294,15 @@ class Calculator(QMainWindow):
         # Start in the OFF state
         self._apply_power_state()
 
-    # -- menu bar --
-
-    def _build_menu_bar(self):
-        """Add the File menu with Load Button File and Restore Defaults."""
-        file_menu = self.menuBar().addMenu("File")
-
-        load_act = file_menu.addAction("Load Button File...")
-        load_act.triggered.connect(self._load_button_file)
-
-        save_act = file_menu.addAction("Save Button File...")
-        save_act.triggered.connect(self._save_button_file)
-
-        restore_act = file_menu.addAction("Restore Defaults")
-        restore_act.triggered.connect(self._restore_defaults)
-
     # -- helpers --
+    #
+    # NOTE: Load Button File / Save Button File / Restore Defaults used to
+    # live in a "File" menu on this window's own menu bar. That menu has
+    # been removed -- the three commands now live in BebopMain's File menu
+    # (see menus.py), which delegates to _load_button_file() /
+    # _save_button_file() / _restore_defaults() below via
+    # BebopMain._load_button_file() etc. The methods themselves are
+    # unchanged, just no longer wired to a local menu.
 
     def _get_cpu(self):
         """Return the Beboputer CPU, or None if running standalone."""

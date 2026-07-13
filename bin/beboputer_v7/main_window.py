@@ -532,6 +532,22 @@ class BebopMain(QMainWindow):
     def _save_ram(self):
         self._save_project()
 
+    # -- Calculator button-file commands (moved here from the Calculator's
+    # own File menu, which has been removed -- these just delegate to the
+    # Calculator instance's existing handlers) ------------------------------
+
+    def _load_button_file(self):
+        if getattr(self, "_calc_win", None) is not None:
+            self._calc_win._load_button_file()
+
+    def _save_button_file(self):
+        if getattr(self, "_calc_win", None) is not None:
+            self._calc_win._save_button_file()
+
+    def _restore_defaults(self):
+        if getattr(self, "_calc_win", None) is not None:
+            self._calc_win._restore_defaults()
+
     def _purge_ram(self):
         if QMessageBox.question(self, "Purge RAM", "Zero all 64KB of RAM?",
                                 QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:

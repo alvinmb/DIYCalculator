@@ -69,6 +69,10 @@ def build_menus(win) -> None:
     fm.addAction(act("&Save RAM...",        win._save_ram))
     fm.addAction(act("&Purge RAM...",       win._purge_ram))
     fm.addSeparator()
+    fm.addAction(act("Load &Button File...", win._load_button_file))
+    fm.addAction(act("Save B&utton File...", win._save_button_file))
+    fm.addAction(act("Restore &Defaults",    win._restore_defaults))
+    fm.addSeparator()
     fm.addAction(act("&Exit",               win.close))
 
     # ── Memory ───────────────────────────────────────────────────────────────
