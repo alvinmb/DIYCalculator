@@ -71,12 +71,12 @@ class EpromBurner(QDialog):
         root.setContentsMargins(12, 12, 12, 12)
 
         _lbl_style = (
-            f"color: {C['blue']}; font-weight: bold; font-size: 10px;"
+            "color: #000; font-weight: bold; font-size: 12px;"
         )
         _field_style = (
             f"background: {C['lcd_bg']}; color: #000; "
             f"border: 2px inset {C['btn_bdr']}; "
-            "font-family: 'Courier New'; font-weight: bold; font-size: 11pt; "
+            "font-family: 'Courier New'; font-weight: bold; font-size: 13pt; "
             "padding: 1px 5px; min-height: 22px;"
         )
 
@@ -118,7 +118,7 @@ class EpromBurner(QDialog):
         root.addLayout(btn_row)
 
         self.status_lbl = QLabel("")
-        self.status_lbl.setStyleSheet(f"color:{C['green_mid']}; font-size:10px;")
+        self.status_lbl.setStyleSheet(f"color:{C['green_mid']}; font-size:12px;")
         root.addWidget(self.status_lbl)
 
     def _browse(self):
