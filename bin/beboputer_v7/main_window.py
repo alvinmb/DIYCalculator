@@ -644,7 +644,20 @@ class BebopMain(QMainWindow):
         self.msg_display.message("Power on: data RAM cleared ($0000–$3FFF).")
 
     def _find_address(self):
-        txt, ok = QInputDialog.getText(self, "Find Address", "Enter hex address:")
+        # Build the dialog explicitly (rather than the QInputDialog.getText()
+        # convenience call) so the label/input font can be bumped +2pt over
+        # the app-wide default -- set via an inline stylesheet, since once a
+        # stylesheet has touched font-size anywhere (styles.py's global
+        # QWidget rule does), a plain setFont() on the dialog gets silently
+        # overridden rather than merged (same issue noted in compiler.py's
+        # button styling).
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("Find Address")
+        dlg.setLabelText("Enter hex address:")
+        dlg.setInputMode(QInputDialog.TextInput)
+        dlg.setStyleSheet("font-size: 10pt;")   # app default is ~8pt; +2pt
+        ok = dlg.exec_() == QInputDialog.Accepted
+        txt = dlg.textValue()
         if ok:
             try:
                 addr = int(txt, 16)
