@@ -30,7 +30,7 @@ from ..styles import C
 
 
 _LBL_STYLE = (
-    f"color: {C['blue']}; font-weight: bold; font-size: 10px;"
+    "color: #000; font-weight: bold; font-size: 10px;"
 )
 
 _FIELD_STYLE = (
