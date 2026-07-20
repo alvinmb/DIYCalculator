@@ -46,8 +46,7 @@ To follow this guide you will need:
 - A Raspberry Pi 3B+, Pi 4 (any RAM variant), or Pi 5
 - Raspberry Pi OS (Bookworm or Bullseye, 32-bit or 64-bit)
 - A keyboard, mouse, and monitor (or VNC access)
-- An internet connection for the initial package installation
-- The PY-DIYCALCULATOR project archive (a zip file of the `Bebop_python` folder)
+- An internet connection, to download either the prebuilt `.deb` package or the project source from GitHub
 
 Older Pi models such as the Pi 2 or Pi Zero are not recommended — they lack the processing power to keep the GUI responsive, and PyQt5 can be slow to initialise on lower-specification hardware. On a Pi 4 or Pi 5, however, the application launches in under five seconds and runs perfectly throughout a long session.
 
@@ -55,20 +54,54 @@ Older Pi models such as the Pi 2 or Pi Zero are not recommended — they lack th
 
 ## Installing PY-DIYCALCULATOR on Raspberry Pi OS
 
-The easiest installation route uses the provided shell script, which handles everything automatically — dependency checking, file copying, desktop menu registration, and launcher creation. The whole process takes about two minutes on a Pi 4 with a decent internet connection.
+There are two ways to get PY-DIYCALCULATOR onto a Pi: install the prebuilt `.deb` package straight from the project's GitHub releases (one `dpkg` command and you're done), or clone the source and run the bundled installer script. Both take well under two minutes on a Pi 4 with a decent internet connection, and both leave you with the same `beboputer` launcher command and application-menu entry.
 
-### Step 1: Transfer the Project Archive
+### Method 1: Install the Prebuilt .deb Package (Recommended)
 
-Copy the `Bebop_python` zip archive to your Pi. The simplest methods are a USB drive, `scp` from another machine on the same network, or downloading directly from a GitHub repository if the project is hosted there. Once transferred, open a terminal and unzip it:
+The project publishes a Debian package, `beboputer_<version>_all.deb`, built with the `build_deb.sh` script that ships in the repo. Because PY-DIYCALCULATOR is pure Python, the package is architecture-independent (`all`) — the same file installs on a Pi 3, 4, or 5, 32-bit or 64-bit.
+
+Open a terminal and fetch the latest release's `.deb` asset directly from GitHub with `curl` and `wget`:
+
+```bash
+DEB_URL=$(curl -s https://api.github.com/repos/alvinmb/DIYCalculator/releases/latest \
+  | grep "browser_download_url.*\.deb" \
+  | cut -d '"' -f 4)
+wget "$DEB_URL"
+```
+
+Then install it with `dpkg`, and let `apt-get install -f` pull in the one dependency the package declares (`python3-pyqt5`) if it isn't already on your system:
+
+```bash
+sudo dpkg -i beboputer_*.deb
+sudo apt-get install -f
+```
+
+That's the whole installation. `dpkg` unpacks the application to `/usr/share/beboputer`, installs a `beboputer` launcher to `/usr/bin`, and registers a `.desktop` entry so PY-DIYCALCULATOR appears in the Education category of your Raspberry Pi OS application menu, icon included.
+
+Prefer a browser? Visit the project's [Releases page](https://github.com/alvinmb/DIYCalculator/releases), download the `.deb` asset for the latest version, then either double-click it in the Raspberry Pi OS file manager to open the graphical package installer, or run the same `dpkg -i` / `apt-get install -f` pair from a terminal against the file you downloaded.
+
+To remove it again later:
+
+```bash
+sudo dpkg -r beboputer
+```
+
+### Method 2: Install from Source with the Installer Script
+
+If you want the full project tree on your Pi — to read or tweak the Python source, add your own tutorial exercises, or track development between releases — clone the repository instead and run the bundled installer script.
 
 ```bash
 cd ~
-unzip Bebop_python.zip
+git clone https://github.com/alvinmb/DIYCalculator.git Bebop_python
 ```
 
-This creates a `Bebop_python` folder in your home directory containing the full project.
+No `git` installed? `sudo apt install git`, or download the zip archive from the green **Code** button on the GitHub repository page and unzip it:
 
-### Step 2: Run the Installer
+```bash
+cd ~
+unzip DIYCalculator-main.zip
+mv DIYCalculator-main Bebop_python
+```
 
 The installer script lives inside the project:
 
@@ -89,9 +122,9 @@ The script performs the following actions automatically:
 
 **Registers a `.desktop` entry** so PY-DIYCALCULATOR appears in the Raspberry Pi OS application menu under the Education or Emulators category, complete with an icon. After installation you can launch it just as you would any other desktop application.
 
-### Step 3: Launch the Application
+### Launching the Application
 
-Either click the newly created menu entry, or from a terminal:
+Whichever method you used, either click the newly created menu entry, or launch it from a terminal:
 
 ```bash
 beboputer
@@ -227,6 +260,13 @@ The Assembler and Editor is the integrated development environment where you wri
 ```
 
 This listing is invaluable for understanding the relationship between assembly language and machine code. You can see exactly how many bytes each instruction occupies and what its opcode looks like in hexadecimal. If an error occurs — a typo in a mnemonic, an undefined label, or a missing `.ORG` directive — the output panel highlights the offending line and describes the problem clearly.
+
+**The Insert menu** saves you from typing out boilerplate syntax or looking up addressing-mode bracket forms from memory — every command drops ready-made text in at the current cursor position:
+
+- **Insert → Directive** offers a template line for each assembler directive — `.ORG`, `.BYTE`, `.2BYTE`, `.4BYTE`, `.EQU`, and `.END` — complete with a placeholder label and value that you then edit in place.
+- **Insert → Instruction** does the same for addressing modes: choosing Implied, Immediate, Big Immediate, Absolute, Indexed, Indirect, or PreIndexed inserts a correctly-bracketed example instruction in that mode (PreIndexed, for instance, drops in `LDA [[$4000,X]]`), which is a fast way to get the punctuation right for the trickier indirect forms without hunting back through the syntax table.
+- **Insert → Insert String...** prompts for a line of text and inserts it as a null-terminated `.BYTE` data table, automatically wrapped at eight bytes per line — the same layout used for the message strings in this tutorial's Terminal exercises. Typing "HELLO" and pressing OK, for example, produces a ready-to-use `.BYTE` block with the ASCII codes for each letter followed by a `$00` terminator, instead of you having to hand-convert each character to hex.
+- **Insert → Insert File...** splices the contents of another text file in at the cursor, which is handy for pulling a previously-written subroutine into the current program without retyping it.
 
 **Assembler syntax at a glance:**
 

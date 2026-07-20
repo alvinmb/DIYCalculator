@@ -98,4 +98,4 @@ def instr_size(opcode):
     if opcode in OP:     return 3
     return 1
 
-RUN_LIMIT = 500_00
+RUN_LIMIT = 500_000

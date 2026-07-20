@@ -1,5 +1,39 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.6 — 2026-07-20
+
+### Added
+
+- **Two new hands-on tutorial exercises**, merged into the combined
+  article/tutorial document right before the Circumference Button
+  exercise: building a 4-function (+ - * /) calculator from scratch,
+  and a second version of the same calculator that stores every number
+  as packed BCD instead of plain binary.
+- **Every exercise's complete `.asm` source listing now lives in
+  `article/`** alongside the write-up (`01_workbench_switches_to_leds.asm`
+  through `13_bcd_math_routines.asm`), so the article folder is
+  self-contained and matches exactly what's printed in the document.
+
+### Changed
+
+- **Removed all manually-typed section numbers** (`1.`, `8.3.1`,
+  `A.2.1`, `Exercise N`) from the tutorial's headings, so new exercises
+  can be inserted without renumbering everything that follows.
+- **Added numbered captions and in-text references for every figure and
+  table** in the document (`Figure 1`… `Figure 10`, `Table 1`…
+  `Table 24`).
+
+### Fixed
+
+- **Power-off now immediately halts CPU execution.** Previously the run
+  timer kept ticking after the On/Off button was clicked off, so the
+  CPU kept silently executing until something else happened to stop it
+  (e.g. the next power-on).
+- **`RUN_LIMIT` corrected from 50,000 to 500,000.** A missing zero was
+  silently capping how many instructions a program could run.
+- `build_deb.sh`'s post-build install instructions now print in full
+  (previously truncated mid-line).
+
 ## v9.0.3 — 2026-07-10
 
 ### Fixed
@@ -113,4 +147,111 @@
 - **DADD/DADDC/DSUB/DSUBC now compute correct N and V flags.** Per the
   BCD appendix, N reflects the tens-complement sign of the result (set
   when the result is >= $50, not merely bit 7), and V (overflow) is now
- 
+  actually computed from the two operands' tens-complement signs instead
+  of never being touched. Previously N used a plain bit-7 test and V was
+  always left at whatever it happened to be from a prior instruction.
+- **DSUB/DSUBC's Carry flag intentionally keeps its existing polarity.**
+  The BCD appendix describes Carry as "borrow-not" (1 = no borrow, 0 = a
+  borrow occurred). This emulator instead keeps the "honest borrow"
+  convention already established by tutorial 13 and the test suite
+  (1 = a borrow was needed) — a deliberate deviation, documented in
+  `cpu.py`, `das.py`, and `tutorial/13_bcd_math_routines.asm`.
+
+### Verification
+
+- The full test suite (145 tests) passes, including updated BCD opcode
+  and flag coverage in `tests/test_cpu.py`.
+- `test_harness.py`'s BCD sample programs pass with corrected N/V flag
+  expectations (47/47 tests passing).
+
+### Upgrading
+
+- **Re-assemble any of your own `.asm` programs that use DADD, DADDC,
+  DSUB, or DSUBC** before loading them under 9.0.0.
+
+## v8.0.0 — 2026-07-09
+
+### Breaking changes
+
+- **Opcode numbering now matches the official Data Book.** Every instruction's
+  opcode byte has been renumbered to match Appendix A (Tables A-2a/A-2b,
+  pages A-11/A-12) of *The Official DIY Calculator Data Book*, instead of
+  the emulator's own ad-hoc numbering. This is a breaking change to the
+  `.ram` binary format: **any `.ram`/`.lst` file assembled with a version
+  older than 8.0.0 will not run correctly on 8.0.0 and must be
+  re-assembled from its `.asm` source.** All sample programs shipped in
+  `Data/` have been re-assembled and are up to date.
+- **New addressing mode: indirect post-indexed (`ind-x`).** The Data Book
+  documents a sixth addressing mode — `LDA [[addr],X]` — where the pointer
+  is fetched first and X is added to the *result* (as opposed to the
+  existing pre-indexed-indirect `x-ind` mode, `LDA [[addr,X]]`, where X is
+  added to the address *before* the pointer is fetched). This mode is now
+  fully implemented in the assembler (`das.py`) and CPU emulator (`cpu.py`)
+  for LDA, STA, JMP, and JSR. The pre-existing `x-ind` mode was previously
+  written internally as `iix`; it's been renamed to `xind` for clarity
+  alongside the new `indx` mode.
+- **JMP and JSR gained an absolute-indexed (`abs-x`) mode** (`JMP
+  [addr,X]` / `JSR [addr,X]`), matching the Data Book's instruction table.
+- **BLDSP gained an absolute (`abs`) mode** (`BLDSP [addr]`) alongside its
+  existing 16-bit immediate mode, and **BLDIV gained a 16-bit immediate
+  mode** (`BLDIV $nnnn`) alongside its existing absolute mode — both per
+  the Data Book.
+- Fixed a pre-existing mislabeling in the CPU-panel message text where the
+  `x-ind` and `ind-x` addressing-mode descriptions were swapped for LDA,
+  STA, JMP, and JSR.
+- **DADD/DADDC/DSUBC opcodes are provisional placeholders.** The Data Book
+  pages consulted for this release (55-56) don't cover the BCD
+  instructions' opcodes, and the official byte values would have collided
+  with the newly-assigned ADDC/SUB opcodes. These three instructions have
+  been moved to unused opcode slots ($02-$04 / $05-$07 / $0A-$0C) pending
+  the official BCD appendix. DSUB is unaffected and keeps its original
+  opcodes ($1C-$1E).
+
+### Verification
+
+- The full test suite (145 tests) was updated for the new opcode numbers
+  and passes.
+- The new assembler's output was cross-checked byte-for-byte against
+  `Data/2funcal.lst`/`.ram` — the original vendor-supplied reference
+  listing from the 2005 "DIY Calculator Assembler V2.0" tool — and matches
+  exactly, confirming the new numbering is correct.
+
+### Upgrading
+
+- Debian/Raspberry Pi: `sudo dpkg -i beboputer_8.0.0_all.deb && sudo apt-get install -f`
+- Windows: run the new `BeboputerSetup.exe` installer.
+- **Re-assemble any of your own `.asm` programs** with the new assembler
+  before loading them — `.ram`/`.lst` files built with 7.x or earlier will
+  not execute correctly under 8.0.0.
+
+## v7.0.2 — 2026-07-09
+
+### Fixes
+
+- **Memory Walker: view no longer goes blank partway down the table.**
+  The table widget was created with 500 rows, but only the first 256 were
+  ever populated on each refresh — rows past that point had no address
+  and no data, which looked like the display "stopped" partway through
+  memory. The table now has exactly 256 rows, matching the visible
+  address window the view actually fills.
+- **Memory Walker: power-on / Purge RAM now correctly reset the "undefined
+  memory" ($XX) markers.** Filling RAM with random bytes on power-on (added
+  in 7.0.1) wrote new byte values but never cleared the "touched" flag, so
+  addresses touched in an *earlier* power cycle (e.g. the default program
+  at $4000-$400C, or the I/O sentinel bytes around $F000) kept showing
+  their stale "known" status — displaying the fresh random garbage as if
+  it were a real value instead of `$XX`. Power-on now clears every
+  address's touched flag before re-marking only the I/O sentinels as
+  known; Purge RAM now marks all of RAM as known (`$00`), since a purge
+  is a deliberate, deterministic clear.
+
+### Upgrading
+
+- Debian/Raspberry Pi: `sudo dpkg -i beboputer_7.0.2_all.deb && sudo apt-get install -f`
+- Windows: run the new `BeboputerSetup.exe` installer.
+
+## v7.0.1 — 2026-07-09
+
+### New features
+
+- **Assembler listing files (.lst)** — assemb

@@ -169,4 +169,6 @@ echo " Package : $DEB_OUT"
 echo ""
 echo " To install on Raspberry Pi:"
 echo "   Copy the .deb to the Pi, then run:"
-echo "   sudo dpkg -i beboputer_$
+echo "   sudo dpkg -i beboputer_${PKG_VERSION}_${PKG_ARCH}.deb"
+echo "   sudo apt-get install -f"
+echo "============================================================"

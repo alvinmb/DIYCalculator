@@ -645,6 +645,14 @@ class BebopMain(QMainWindow):
             self._do_random_fill_ram()
             self._do_reset(clear_calc_display=False)
         else:
+            # Powering off must halt execution immediately -- otherwise the
+            # run timer keeps ticking underneath the (now visibly "off")
+            # calculator and the CPU keeps executing until the next thing
+            # that happens to call _run_timer.stop() (e.g. power-on's
+            # _do_reset()), making it look like a second click was needed
+            # just to stop the program.
+            self._run_timer.stop()
+            self.cpu.running = False
             self._do_power_off_ram()
 
     def _power_on_clear(self):

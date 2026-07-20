@@ -356,4 +356,19 @@ def run_all():
 
     # Summary
     lines.append(SEP)
-    lines.append("  TESTS:    {} PASSED 
+    lines.append("  TESTS:    {} PASSED  |  {} FAILED  |  {} ERRORS".format(
+        passed, failed, asm_err))
+    lines.append("  LIBS:     {} OK  |  {} ERRORS".format(lib_ok, lib_err))
+    lines.append(SEP)
+
+    report = "\n".join(lines)
+    print(report)
+
+    out_path = os.path.join(HERE, "test_harness_results.txt")
+    with open(out_path, "w", encoding="utf-8") as fh:
+        fh.write(report + "\n")
+    print("\nResults saved to: test_harness_results.txt")
+
+
+if __name__ == "__main__":
+    run_all()
