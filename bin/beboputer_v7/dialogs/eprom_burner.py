@@ -170,7 +170,22 @@ class EpromBurner(QDialog):
             QMessageBox.critical(self, "Burn Error", str(e))
 
     def _load_rom(self):
-        """Load a file into RAM at the start address."""
+        """Load a file into RAM at the start address.
+
+        Gated the same way as File -> Open ROM/RAM (BebopMain._open_project):
+        the calculator must be switched ON before a program can be loaded --
+        with it off there's no powered board to load onto, and the load
+        would just be silently overwritten by the next power-on anyway.
+        """
+        calc = getattr(self.parent(), "_calc_win", None)
+        if calc is None or not calc.powered:
+            QMessageBox.warning(
+                self, "Calculator Off",
+                "The calculator must be switched ON before you can load a "
+                "ROM file.\n\n"
+                "Press the On\\Off button on the calculator, then try again."
+            )
+            return
         path = self.file_edit.text()
         if not path:
             dlg = QFileDialog(self, "Load ROM")

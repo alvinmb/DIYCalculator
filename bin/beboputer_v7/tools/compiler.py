@@ -423,6 +423,19 @@ class CompilerWindow(QMainWindow):
     def on_load_into_cpu(self):
         if self._last_bytecode is None or self._host is None:
             return
+        # Must be ON to load a file — same gate as BebopMain._open_project()
+        # (File -> Open ROM/RAM). With the calculator off there's no powered
+        # board to load a program onto, and doing so anyway would silently
+        # write into RAM that power-on is about to overwrite/reset regardless.
+        calc = getattr(self._host, "_calc_win", None)
+        if calc is None or not calc.powered:
+            QMessageBox.warning(
+                self, "Calculator Off",
+                "The calculator must be switched ON before you can load a "
+                "program into it.\n\n"
+                "Press the On\\Off button on the calculator, then try again."
+            )
+            return
         n = self._runner.load_into_cpu(self._last_bytecode, self._host.cpu)
         # Normally a load-and-reset blanks the calculator display (same as
         # an explicit Reset). But with the Workbench open and the calc on,

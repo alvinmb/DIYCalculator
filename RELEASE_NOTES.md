@@ -1,5 +1,18 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.8 — 2026-07-21
+
+### Fixed
+
+- **The Assembler / Editor's "Load -> CPU" button now refuses to load
+  while the calculator is off**, showing the same "Calculator Off"
+  warning used by File -> Open ROM/RAM instead of silently loading —
+  previously it had no power check at all.
+- **The EPROM Burner's "Load ROM" button now has the identical gate.**
+  Load RAM (File -> Open ROM/RAM), the Assembler's Load -> CPU, and the
+  EPROM Burner's Load ROM all now behave the same way: calculator off
+  means an explicit warning, not a silent load.
+
 ## v9.0.7 — 2026-07-21
 
 ### Fixed
