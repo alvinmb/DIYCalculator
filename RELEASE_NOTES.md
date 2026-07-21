@@ -1,5 +1,19 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.7 — 2026-07-21
+
+### Fixed
+
+- **The Workbench 1 window can no longer be resized.** Every switch,
+  LED, and 7-segment widget inside it is already fixed-size, so
+  dragging the window's edges previously just left dead space or
+  clipped content instead of doing anything useful. It now locks to
+  its natural content size on open.
+- **Removed the OS minimise button from the Calculator window.** The
+  Calculator is a fixed-size tool window with no menu path back to it
+  once minimised; it now matches the main window, which already hides
+  this button for the same reason.
+
 ## v9.0.6 — 2026-07-20
 
 ### Added

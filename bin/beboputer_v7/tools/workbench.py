@@ -512,6 +512,11 @@ class WorkbenchPanel(QDialog):
         )
         self._build()
         self._install_hooks()
+        # Lock the window to its natural size — the switch/LED/7-segment
+        # widgets are all fixed-size already, so there's nothing useful for
+        # the user to resize into; dragging the window edges previously just
+        # left dead space (or clipped content) instead of doing anything.
+        self.setFixedSize(self.sizeHint())
         # Start disabled — mirrors calculator power-off state.
         self.setEnabled(False)
 

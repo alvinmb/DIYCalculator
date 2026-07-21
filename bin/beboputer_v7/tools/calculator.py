@@ -262,6 +262,11 @@ class Calculator(QMainWindow):
         self.setWindowTitle("Calculator Interface")
         self.setFixedSize(796, 508)
         self.setStyleSheet("background-color: #c0c0c0;")
+        # Remove the OS minimise button — the Calculator is a fixed-size
+        # tool window with no menu path back to it once minimised, matching
+        # the main window (main_window.py), which hides this button for the
+        # same reason.
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
 
         # The BebopMain window that owns us — used so the Reset/Step/Run
         # bottom-bar buttons can drive the CPU directly.
