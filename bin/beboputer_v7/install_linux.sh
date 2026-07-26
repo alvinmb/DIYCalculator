@@ -57,7 +57,6 @@ cp -r "$SCRIPT_DIR/bin"             "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/BITMAPS"         "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/Config"          "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/Data"            "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/databook"        "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/WorkInProgress"  "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/tutorial"        "$INSTALL_DIR/"
 

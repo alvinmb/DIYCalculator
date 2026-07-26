@@ -76,7 +76,6 @@ cp -r "$PROJECT_ROOT/bin"             "$APP_DIR/"
 cp -r "$PROJECT_ROOT/BITMAPS"         "$APP_DIR/"
 cp -r "$PROJECT_ROOT/Config"          "$APP_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$APP_DIR/"
-cp -r "$PROJECT_ROOT/databook"        "$APP_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$APP_DIR/"
 cp -r "$PROJECT_ROOT/tutorial"        "$APP_DIR/"
 

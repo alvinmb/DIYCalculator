@@ -52,12 +52,13 @@ _GROUP_STYLE = (
 _VALUE_STYLE = (
     "background: " + C["lcd_bg"] + "; color: #000; "
     "border: 2px inset " + C["btn_bdr"] + "; "
-    "font-family: 'Courier New'; font-weight: bold; font-size: 11pt; "
-    "padding: 1px 5px; min-height: 22px;"
+    "font-family: 'Courier New'; font-weight: bold; font-size: 14pt; "
+    "padding: 1px 5px; min-height: 30px;"
 )
 
-# Maximum width for the value display fields.
-_FIELD_MAX_WIDTH = 150
+# Maximum width for the value display fields (widened to match the
+# larger 14pt font used by the register display's LEDDisplay boxes).
+_FIELD_MAX_WIDTH = 170
 
 
 def _value_box(title):

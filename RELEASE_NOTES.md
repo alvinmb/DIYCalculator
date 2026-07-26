@@ -1,5 +1,261 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.22 — 2026-07-25
+
+### Changed
+
+- **Removed the temporary subwindow-state diagnostic added in 9.0.19**
+  (`_debug_dump_subwindows()` and its `aboutToShow`/`aboutToHide` hooks
+  on every menu). It served its purpose: the printed state confirmed
+  every subwindow's `isVisible`/`isHidden`/`isMinimized` flags stayed
+  correct across menu use, which is what pointed at a repaint/backing-
+  store gap rather than a Qt state bug. No behavior change.
+- Also fixed the main window sometimes opening small instead of
+  maximized (manual maximize always worked -- a startup timing issue,
+  not the WM refusing maximize outright). `showEvent()` now re-asserts
+  the maximize once more when the window is actually about to be shown,
+  on top of the two existing safety nets in `__init__()`.
+- CPU Register Display and I/O Ports Display no longer clip/overlap
+  their own labels and fields -- `_sub()`'s fixed-size panels now use
+  whichever is bigger, the caller's requested size or the panel's own
+  minimum layout size, instead of locking to the requested size
+  verbatim.
+- Memory Walker and the Assembler/Editor are resizable again (with a
+  working maximize button); every other panel/tool stays fixed-size
+  with no minimize/maximize, and the Calculator remains the one
+  panel/tool that can't be closed.
+
+### Upgrading
+
+- Debian/Raspberry Pi: `sudo dpkg -i beboputer_9.0.22_all.deb && sudo apt-get install -f`
+- Windows: run the new `BeboputerSetup.exe` installer.
+
+## v9.0.21 — 2026-07-25
+
+### Fixed
+
+- **Memory Walker and the Assembler/Editor were wrongly locked to a
+  fixed size by v9.0.20.** Both have genuinely variable-length content
+  (Memory Walker's table, the code editor) that benefits from more
+  room, unlike the mostly fixed-layout panels/tools. They're now
+  resizable with a working maximize button (`_sub(..., resizable=True)`
+  for Memory Walker; `_show_compiler()` updated directly). Minimize
+  stays off everywhere, including these two -- with everything embedded
+  in one MDI area, minimizing just leaves a useless icon strip. Every
+  other panel/tool, and the Calculator's non-closability, are unchanged
+  from v9.0.20.
+
+### Upgrading
+
+- Debian/Raspberry Pi: `sudo dpkg -i beboputer_9.0.21_all.deb && sudo apt-get install -f`
+- Windows: run the new `BeboputerSetup.exe` installer.
+
+## v9.0.20 — 2026-07-25
+
+### Fixed
+
+- **Every panel/tool subwindow had minimize, maximize, and close buttons
+  by default**, since embedding them all as `QMdiSubWindow`s (see
+  `_PanelSubWindow`) never set title-bar hints, leaving Qt's defaults in
+  place. Minimize/maximize/resize made no sense for any of them (most
+  are fixed-size widgets, and the MDI area already keeps everything
+  laid out and visible), and the Calculator -- the app's always-on
+  centerpiece -- shouldn't be closable at all. Every panel/tool is now
+  fixed-size with no minimize/maximize/resize; the Calculator additionally
+  has no close button, while every other panel/tool keeps one (`_sub()`
+  and the individual `_show_*` methods now call the new
+  `_set_subwindow_buttons()` helper and `setFixedSize()`).
+
+### Upgrading
+
+- Debian/Raspberry Pi: `sudo dpkg -i beboputer_9.0.20_all.deb && sudo apt-get install -f`
+- Windows: run the new `BeboputerSetup.exe` installer.
+
+## v9.0.19 — 2026-07-25 (diagnostic build)
+
+### Diagnostic
+
+- **Temporary, purely observational debug logging added to
+  `_build_menu()`.** The panels-go-blank-after-menu report on
+  Raspberry Pi persisted after switching from Wayfire/Wayland to X11,
+  which rules out the wlroots compositor theory from v9.0.17/v9.0.18 --
+  this is happening regardless of display server. Rather than guess at
+  another fix blind, every top-level menu now prints each panel's
+  actual Qt state (`isVisible`, `isMinimized`, `isMaximized`,
+  `isHidden`, geometry) to the terminal on open and close, so the next
+  fix can be based on what's actually happening to the widgets instead
+  of another theory. No behavior changes -- safe to install regardless
+  of outcome. Remove this logging once the root cause is found.
+
+## v9.0.18 — 2026-07-25
+
+### Fixed
+
+- **Reverted the v9.0.17 menu-repaint hook.** It made things markedly
+  worse on Raspberry Pi OS: opening *any* top-level menu (including
+  File, which only that hook touched -- confirming it was the cause)
+  detached every panel/tool subwindow, showing them as minimized
+  icon+title strips at the top of the screen instead of embedded in
+  the MDI area. Back to plain `build_menus(self)` with no repaint
+  hook. The original report this was trying to fix (panels reading as
+  blank/grey after using a menu) is still open and needs a different,
+  better-tested approach.
+
+## v9.0.17 — 2026-07-25
+
+### Fixed
+
+- **Opening a top menu on Raspberry Pi OS could leave Calculator,
+  Memory Walker, Message Display, etc. reading as blank/grey**, with
+  only the panel/tool selected from the menu (e.g. Tools -> Workbench)
+  showing correctly. This looks like a repaint/backing-store gap under
+  the closed menu on X11 without a compositor -- the widgets underneath
+  hadn't actually disappeared, they just weren't being repainted, while
+  a freshly-opened panel paints correctly regardless since that's a
+  genuinely new paint rather than a repaint of already-drawn content.
+  Every top-level menu (File/Memory/Display/Tools/Help) now forces the
+  MDI area and all its subwindows to repaint the instant it closes,
+  which papers over the gap; harmless on platforms where it wasn't
+  happening.
+
+## v9.0.16 — 2026-07-25
+
+### Fixed
+
+- **Main window could not be resized or un-maximized on Windows.**
+  `changeEvent()` forcibly snapped the window straight back to
+  maximized on every resize/restore/minimize -- necessary back when
+  every panel/tool was a separate floating top-level window positioned
+  in absolute screen coordinates, since shrinking, moving, or
+  minimizing the main window would otherwise scatter or strand them.
+  Now that they're all MDI subwindows embedded inside this one
+  (v9.0.14), that risk is gone, so the override has been removed
+  entirely. The window still starts maximized, but the user can now
+  freely resize, restore, or minimize it like any ordinary window on
+  any platform.
+
+## v9.0.15 — 2026-07-25
+
+### Fixed
+
+- **Main window opened at ~1/4 of the screen on Linux, with no
+  minimize/maximize/close buttons to fix it manually.** `__init__`
+  stripped the maximize/minimize/close title-bar button hints on the
+  theory that `changeEvent()` would keep the window maximized
+  regardless. Several Linux/X11 window managers instead read "no
+  maximize button hint" as "this window doesn't support being
+  maximized" (it clears the corresponding Motif/EWMH capability
+  hints) and refuse maximize requests outright, falling back to
+  whatever small default size that WM uses for non-maximizable
+  windows -- with the button also gone, there was no manual way to
+  fix it either. The title-bar buttons are back to normal now, so the
+  WM treats this as an ordinary maximizable window and `showMaximized()`
+  actually works, with a manual fallback available either way;
+  `changeEvent()` still keeps it maximized and auto-recovers from
+  minimizing exactly as before. Also re-asserts maximized once after
+  the initial show completes, since some window managers ignore a
+  maximize request made before the window is first mapped.
+
+## v9.0.14 — 2026-07-25
+
+### Changed
+
+- **Replaced the free-floating-window layout with a real Qt MDI area.**
+  v9.0.12/v9.0.13 tried to patch around Linux window managers burying
+  floating panels/tool windows behind the main window (raise/lower
+  tricks), but that kept failing because every panel and tool
+  (Calculator, Memory Walker, Message Display, CPU Registers, Terminal,
+  Disassembler, Port Monitor, Keyboard, Workbench, Assembler/Editor,
+  EPROM Burner) was still its own independent top-level OS window, and
+  different window managers handle owned-window stacking differently
+  (or not at all) -- there was no patch that could reliably win against
+  all of them. They're now embedded as subwindows inside a single
+  `QMdiArea` in the main window, so there's only one real top-level
+  window in the whole app; Qt itself owns all panel/tool stacking
+  deterministically and no window manager is involved any more, which
+  removes this entire bug class rather than working around one more
+  symptom of it. Verified with an automated repro (open on launch,
+  Display -> CPU Registers, then re-raise other tools) confirming
+  nothing gets buried or vanishes.
+
+## v9.0.13 — 2026-07-25
+
+### Fixed
+
+- **Fixed floating panels and tool windows vanishing behind the main
+  window on Linux** (e.g. clicking Display -> CPU Registers made the
+  Calculator, Memory Walker, Message Display, etc. disappear). The
+  main window is a full-screen grey backdrop with every panel/tool
+  window floating above it as a separate top-level window; on Windows
+  an owned window is guaranteed to stay above its owner, but several
+  Linux/X11 window managers instead raise the *owner* right along with
+  any one floating dialog that gets raised or activated, burying every
+  OTHER floating window that wasn't part of that particular raise —
+  they were still open, just hidden behind the now-topmost backdrop.
+  Every place that raises/activates a panel or tool window (Display
+  menu items, Calculator, Keyboard, Workbench, Assembler/Editor, EPROM
+  Burner, and the v9.0.12 minimize-recovery path) now explicitly sinks
+  the main window back below the floaters afterward, which — unlike
+  re-raising every other floater one at a time — isn't itself subject
+  to the same WM quirk and reliably keeps all of them visible.
+
+## v9.0.12 — 2026-07-25
+
+### Fixed
+
+- **Fixed main window and Calculator getting "lost" on Linux, leaving
+  orphaned tool windows on screen.** Both windows hide their
+  minimize button, but that only removes the title-bar control — a
+  Linux window manager can still minimize them via a keyboard
+  shortcut, system menu, or "show desktop." The main window's
+  recovery check only looked for "not maximized," but on Linux/X11
+  minimizing a maximized window keeps *both* the Minimized and
+  Maximized state bits set (Windows clears Maximized on minimize), so
+  the check never fired and the window was left stuck hidden with no
+  way back — while its floating panels and standalone tool windows
+  (Calculator, Keyboard, Workbench, Compiler) stayed on screen with no
+  visible owner, since Linux doesn't minimize/restore transient
+  windows together with their parent the way Windows does. Both
+  windows now explicitly detect the Minimized bit and immediately
+  restore themselves.
+
+## v9.0.11 — 2026-07-24
+
+Packaging refresh — no functional changes since v9.0.10.
+
+## v9.0.10 — 2026-07-24
+
+### Added
+
+- **New `tests/test_asm_regression.py` regression suite** — every
+  `.asm` file under `Data/`, `tutorial/`, `article/`, `Compiler/`, and
+  `bin/` is now discovered automatically, assembled, and (for full
+  programs) run for a bounded number of CPU steps as part of `pytest`,
+  catching assembler/CPU regressions across the whole sample library
+  instead of just the curated subset `test_harness.py` exercises.
+
+### Changed
+
+- **Removed the empty `databook/` folder** and the now-redundant
+  references to it in `Beboputer.spec`, `beboputer.spec`,
+  `beboputer_mac.spec`, `install_linux.sh`, `install_rpi.sh`,
+  `build_deb.sh`, and `check_deb.bat`. *The Official DIY Calculator
+  Data Book.pdf* now lives in `bin/`, next to the help file that links
+  to it, and is picked up automatically wherever `bin/` is already
+  bundled.
+
+## v9.0.9 — 2026-07-24
+
+### Fixed
+
+- **Corrected the source book title** shown in the About dialog and the
+  Help file — both wrongly credited *Bebop Bytes Back* instead of
+  *How Computers Do Math* by Clive "Max" Maxfield & Alvin Brown.
+- **I/O Ports Display value fields enlarged to match the register
+  display.** The hex/binary/annotation readouts were noticeably smaller
+  (11pt) than the CPU register panel's LCD boxes (14pt); they now share
+  the same 14pt bold Courier New styling and box sizing.
+
 ## v9.0.8 — 2026-07-21
 
 ### Fixed

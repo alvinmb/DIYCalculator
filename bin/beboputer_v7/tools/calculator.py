@@ -27,7 +27,7 @@ Beboputer window.
 
 import math
 
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, QEvent, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
@@ -812,6 +812,27 @@ class Calculator(QMainWindow):
     def closeEvent(self, event):
         """Prevent the calculator window from being closed."""
         event.ignore()
+
+    def changeEvent(self, event):
+        """Undo minimizing immediately.
+
+        The WindowMinimizeButtonHint stripped in __init__ only hides the
+        title-bar button — it doesn't stop a Linux window manager from
+        minimizing this window some other way (a keyboard shortcut, the
+        window's system menu, "show desktop", a taskbar entry, etc.). On
+        Windows this is largely moot, but several Linux WMs honour those
+        paths regardless of the hint. Since this is a standalone tool
+        window with no menu item to reopen it once minimized, that would
+        leave it an orphaned, inaccessible window with no way back — so
+        any minimize is reversed the moment it happens.
+        """
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            if self.windowState() & Qt.WindowMinimized:
+                self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+                self.show()
+                self.raise_()
+                self.activateWindow()
 
     def _drive_host(self, cmd):
         """Forward Reset / Step / Run to the parent BebopMain window."""

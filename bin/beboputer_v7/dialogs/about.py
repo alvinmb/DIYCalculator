@@ -48,7 +48,7 @@ class AboutDialog(QDialog):
 
         info = QLabel(
             "Based on the Beboputer virtual 8-bit CPU from\n"
-            '"Bebop Bytes Back"\nby Clive "Max" Maxfield & Alvin Brown\n\n'
+            '"How Computers Do Math"\nby Clive "Max" Maxfield & Alvin Brown\n\n'
             "Rewritten\nin Python 3 + PyQt5."
         )
         info.setStyleSheet(f"color:{C['green_mid']}; font-size:17px;")

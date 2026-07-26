@@ -41,9 +41,9 @@ a = Analysis(
         (os.path.join(_root, 'Config'),                     'Config'),
         (os.path.join(_root, 'Data'),                       'Data'),
         (os.path.join(_root, 'WorkInProgress'),              'WorkInProgress'),
-        (os.path.join(_root, 'databook'),                   'databook'),
         (os.path.join(_root, 'tutorial'),                   'tutorial'),
         (os.path.join(_root, 'bin', 'beboputer_v7_help.html'), '.'),
+        (os.path.join(_root, 'bin', 'The Official DIY Calculator Data Book.pdf'), '.'),
     ],
 
     hiddenimports=[

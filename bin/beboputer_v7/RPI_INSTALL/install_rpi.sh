@@ -56,7 +56,6 @@ cp -r "$PROJECT_ROOT/bin"             "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/BITMAPS"         "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/Config"          "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$INSTALL_DIR/"
-cp -r "$PROJECT_ROOT/databook"        "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$INSTALL_DIR/"
 cp -r "$PROJECT_ROOT/tutorial"        "$INSTALL_DIR/"
 

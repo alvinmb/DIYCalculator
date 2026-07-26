@@ -49,12 +49,12 @@ from .paths import resource_path, default_open_dir as _default_open_dir, default
 # in packaged builds, since the app's install folder is not reliably
 # writable by a non-admin user there.
 
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget,
-    QStatusBar, QDialog, QVBoxLayout,
+    QStatusBar, QMdiArea, QMdiSubWindow,
     QFileDialog, QMessageBox, QInputDialog,
     QToolBar, QPushButton,
 )
@@ -62,30 +62,36 @@ from PyQt5.QtWidgets import (
 from .constants import FLAG_I
 
 
-class _PanelDialog(QDialog):
-    """Thin QDialog wrapper that gives a panel widget a native OS title bar.
+class _PanelSubWindow(QMdiSubWindow):
+    """MDI subwindow that gives a panel or tool window a titled frame.
 
-    Works identically to EpromBurner — the OS draws the title bar, so
-    there are no Qt stylesheet / ControllerWidget conflicts.
-    Closing the dialog hides it rather than destroying it so the panel
-    can be re-raised from the menu/toolbar.
+    Every panel (Memory Walker, Terminal, ...) and every standalone tool
+    (Calculator, Keyboard, Workbench, Assembler/Editor, EPROM Burner)
+    used to be its own free-floating top-level QDialog/QMainWindow,
+    merely *parented* to BebopMain. On Windows that's stable, because an
+    owned top-level window is guaranteed to stay above its owner. On
+    Linux/X11, different window managers implement (or don't implement)
+    that guarantee differently -- some don't raise floating panels above
+    the main window at all, and some do the opposite: raising one
+    floating panel makes the WM raise the main window right along with
+    it, burying every OTHER floating panel that wasn't part of that
+    particular raise (they're still open, just hidden behind the newly
+    front-most main window). Both are real bugs users hit.
+
+    Embedding every panel/tool inside a QMdiArea instead removes the
+    window manager from the picture entirely: there is now exactly one
+    OS-level top-level window (BebopMain itself), and every panel is
+    just a child widget inside it. Qt owns all of their stacking order
+    completely and deterministically, so none of those WM-specific
+    quirks can happen any more.
+
+    Closing hides rather than destroys (unless the app itself is
+    shutting down) so the panel/tool can be re-shown later from the
+    menu/toolbar -- same behaviour _PanelDialog used to give each panel
+    as a top-level dialog.
     """
 
-    def __init__(self, widget, title, x, y, w, h, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.resize(w, h)
-        self.move(x, y)
-        # Remove the "?" help button Qt adds to QDialogs by default.
-        self.setWindowFlags(
-            self.windowFlags() & ~Qt.WindowContextHelpButtonHint
-        )
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(widget)
-
     def closeEvent(self, event):
-        """Hide on user close; accept when the app is shutting down."""
         if getattr(self, '_app_closing', False):
             event.accept()
         else:
@@ -121,14 +127,34 @@ class BebopMain(QMainWindow):
         self._run_timer.timeout.connect(self._run_tick)
         self._clock_hz = 100   # simulated Hz (ticks/sec)
         self.setWindowTitle(f"PY-DIYCALCULATOR  v{__version__}")
-        # Remove the OS close, minimise and maximise buttons.
-        self.setWindowFlags(
-            self.windowFlags()
-            & ~Qt.WindowCloseButtonHint
-            & ~Qt.WindowMinimizeButtonHint
-            & ~Qt.WindowMaximizeButtonHint
-        )
+        # NOTE: this used to also strip the close/minimise/maximise
+        # title-bar button hints here, on the theory that changeEvent()
+        # below would keep the window maximized regardless. On several
+        # Linux/X11 window managers, removing the maximise-button hint
+        # is read as "this window doesn't support being maximized at
+        # all" (it clears the corresponding Motif/EWMH capability
+        # hints), so the WM refused maximize requests outright and
+        # opened the window at whatever small default size it uses for
+        # non-maximizable windows (reported: ~1/4 of the screen) --
+        # with no title-bar button left to fix it manually either, since
+        # that was stripped too. Leaving the normal title-bar buttons in
+        # place lets the WM treat this as an ordinary maximizable
+        # window (so showMaximized() below actually works) and gives
+        # the user a manual fallback if it doesn't; changeEvent() still
+        # keeps it maximized and un-minimizes it automatically either
+        # way, and closing still goes through the normal closeEvent()
+        # shutdown path below regardless of which control triggers it.
         self.showMaximized()
+        # Some window managers don't honour a maximize request made
+        # before the window has actually been mapped on screen (the
+        # caller's own show()/showMaximized() happens after __init__
+        # returns) -- re-assert it once the event loop has processed
+        # the initial show, as a safety net on top of the call above.
+        # See also showEvent() below: a zero-delay timer scheduled here,
+        # during construction, can still fire before the WM has actually
+        # mapped the window on some setups -- showEvent() is a second,
+        # more reliably-timed safety net on top of this one.
+        QTimer.singleShot(0, self.showMaximized)
         self._build_ui()
         self._refresh_all()
 
@@ -168,12 +194,15 @@ class BebopMain(QMainWindow):
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage("Ready")
 
-        # Grey background fills the main window behind the floating panels.
-        bg = QWidget()
-        bg.setStyleSheet("background: #808080;")
-        self.setCentralWidget(bg)
+        # MDI area fills the main window behind the panels/tools -- every
+        # panel and tool window is a subwindow inside it (see
+        # _PanelSubWindow above for why). Grey background matches the
+        # backdrop the old free-floating-dialog layout used.
+        self.mdi = QMdiArea()
+        self.mdi.setBackground(QColor("#808080"))
+        self.setCentralWidget(self.mdi)
 
-        # ── floating panel dialogs ────────────────────────────────────────────
+        # ── floating panels ───────────────────────────────────────────────────
         #
         #  On startup only three panels are shown:
         #    Calculator      — top-left (positioned in _show_calculator)
@@ -184,13 +213,16 @@ class BebopMain(QMainWindow):
         #  to open them.
         #
         # ── startup layout ───────────────────────────────────────────────────────
-        # y=65 clears the main window title bar (~30 px) + menu bar (~25 px).
+        # y=65 clears the main window title bar (~30 px) + menu bar (~25 px)
+        # from the old top-level-dialog layout; kept as-is here too so the
+        # on-screen arrangement looks the same (just a little top margin
+        # inside the MDI area now instead of clearing OS chrome).
         # x positions: calculator(10) + calc_width(720) + gap(10) = 740 for walker;
         #              walker(740) + walker_width(260) + gap(10)  = 1010 for message.
         _Y   = 65
         _MWX = 740    # Memory Walker left edge
         _MDX = 1010   # Message Display left edge
-        self.mem_walker    = self._sub(MemoryWalker(self.cpu),       "Memory Walker",         _MWX,  _Y, 260, 680, visible=True)
+        self.mem_walker    = self._sub(MemoryWalker(self.cpu),       "Memory Walker",         _MWX,  _Y, 260, 680, visible=True, resizable=True)
         self.port_mon      = self._sub(PortMonitor(self.cpu),      "I/O Ports Display",        0, 450, 405, 270, visible=False)
         self.msg_display   = self._sub(MessageDisplay(),           "Message Display",        _MDX,  _Y, 516, 340, visible=True)
         self.cpu_panel     = self._sub(CPUPanel(self.cpu),         "CPU Register Display",   650,   10, 300, 270, visible=False)
@@ -204,12 +236,79 @@ class BebopMain(QMainWindow):
 
         self._connect_ctrl()
 
-    def _sub(self, widget, title, x, y, w, h, visible=True):
-        """Wrap widget in a floating _PanelDialog; show it only if visible=True."""
-        dlg = _PanelDialog(widget, title, x, y, w, h, parent=self)
+    def _sub(self, widget, title, x, y, w, h, visible=True, resizable=False):
+        """Wrap widget in an MDI subwindow; show it only if visible=True.
+
+        Every panel defaults to fixed-size/no-maximize (see
+        _set_subwindow_buttons). resizable=True is the carved-out
+        exception for panels with genuinely variable-length content
+        (Memory Walker's table, the Assembler/Editor) -- those get a
+        real resize border plus the maximize button instead of a fixed
+        size.
+        """
+        sub = _PanelSubWindow()
+        sub.setWidget(widget)
+        sub.setWindowTitle(title)
+        self.mdi.addSubWindow(sub)
+        self._set_subwindow_buttons(sub, maximizable=resizable, closable=True)
+        if resizable:
+            sub.resize(w, h)
+        else:
+            # Locking to the caller's hardcoded (w, h) verbatim clipped
+            # CPU Register Display and I/O Ports Display -- those
+            # dimensions were only ever a resize() starting point;
+            # before setFixedSize() existed here, Qt was free to grow
+            # the subwindow past them to fit the child widget's actual
+            # layout, so the mismatch was never visible. Take whichever
+            # is bigger, the requested size or what the content actually
+            # needs, so fixed-size panels never end up smaller than
+            # their own layout requires (which is what caused labels and
+            # fields to overlap).
+            sub.resize(w, h)
+            min_hint = sub.minimumSizeHint()
+            sub.setFixedSize(max(w, min_hint.width()), max(h, min_hint.height()))
+        sub.move(x, y)
+        # MDI subwindows are ordinary child widgets, not independent
+        # top-level windows -- unlike the old floating QDialogs (hidden
+        # until .show() was called explicitly), a child widget that's
+        # never been explicitly hidden becomes visible as soon as its
+        # parent chain (QMdiArea -> BebopMain) is shown. visible=False
+        # panels must be hidden explicitly here, or they'd appear on
+        # launch regardless of this flag.
         if visible:
-            dlg.show()
+            sub.show()
+        else:
+            sub.hide()
         return widget
+
+    def _set_subwindow_buttons(self, sub, *, maximizable, closable):
+        """Show/hide a subwindow's title-bar maximize/close buttons.
+
+        Minimize is never shown, on any panel/tool -- with everything
+        embedded in one MDI area, minimizing one just leaves a useless
+        icon strip. Maximize is off by default too, since most
+        panels/tools are fixed-size (setFixedSize() right after this
+        call is what actually disables drag-resize; these flags only
+        control the title-bar buttons); Memory Walker and the
+        Assembler/Editor are the carved-out exceptions that pass
+        maximizable=True, since their content genuinely benefits from
+        more room. The Calculator is the one exception on closability:
+        it's the always-on centerpiece of the app, so it can't be
+        killed, but every other panel/tool can. Must be called before
+        the subwindow's first show()/hide() -- setWindowFlags() on an
+        already-visible widget hides it again.
+        """
+        flags = sub.windowFlags() | Qt.WindowTitleHint | Qt.WindowSystemMenuHint
+        flags &= ~Qt.WindowMinimizeButtonHint
+        if maximizable:
+            flags |= Qt.WindowMaximizeButtonHint
+        else:
+            flags &= ~Qt.WindowMaximizeButtonHint
+        if closable:
+            flags |= Qt.WindowCloseButtonHint
+        else:
+            flags &= ~Qt.WindowCloseButtonHint
+        sub.setWindowFlags(flags)
 
     def _connect_ctrl(self):
         # The Memory Walker can also drive the CPU (STEP column / RUN-to-BP).
@@ -220,6 +319,18 @@ class BebopMain(QMainWindow):
 
     def _build_menu(self):
         build_menus(self)
+        # NOTE: v9.0.17 briefly added an aboutToHide hook here on every
+        # menu to force a repaint, as a guess at fixing a Raspberry Pi
+        # report of panels going blank after using a menu. That made
+        # things markedly worse (every subwindow ended up detached,
+        # showing as a minimized icon+title strip at the top of the
+        # screen -- reported for every menu including File, which only
+        # that hook touched) so it's been removed again. The original
+        # blank-panels report on Pi is still unresolved and needs a
+        # different fix. (A temporary diagnostic hook lived here in
+        # 9.0.19 to capture each subwindow's real Qt state on every
+        # menu use -- removed now that it's served its purpose; see
+        # RELEASE_NOTES.md v9.0.19/9.0.22 for what it found.)
 
     def _build_toolbar(self):
         tb = QToolBar("Main", self)
@@ -422,12 +533,12 @@ class BebopMain(QMainWindow):
         self._raise_sub(self.disassembler)
 
     def _raise_sub(self, widget):
-        """Bring a panel's dialog window to front."""
-        dlg = widget.parent()
-        if isinstance(dlg, _PanelDialog):
-            dlg.show()
-            dlg.raise_()
-            dlg.activateWindow()
+        """Bring a panel's MDI subwindow to front and give it focus."""
+        sub = widget.parent()
+        if isinstance(sub, _PanelSubWindow):
+            sub.show()
+            self.mdi.setActiveSubWindow(sub)
+            sub.raise_()
 
     def _new_project(self):
         if QMessageBox.question(self, "New Project", "Clear all RAM and reset CPU?",
@@ -702,15 +813,36 @@ class BebopMain(QMainWindow):
             self.msg_display.message(f"Clock set to {val}Hz")
 
     def _show_eprom(self):
+        # Unlike the other tools, a fresh EpromBurner is created every
+        # time (not cached) -- matches the pre-MDI behaviour, just as an
+        # MDI subwindow instead of a new top-level dialog.
         dlg = EpromBurner(self.cpu, self)
         dlg.ram_changed.connect(self._refresh_all)
-        dlg.show()
+        sub = _PanelSubWindow()
+        sub.setWidget(dlg)
+        sub.setWindowTitle("EPROM Burner")
+        self.mdi.addSubWindow(sub)
+        self._set_subwindow_buttons(sub, maximizable=False, closable=True)
+        sub.adjustSize()
+        sub.setFixedSize(sub.size())
+        sub.show()
+        self.mdi.setActiveSubWindow(sub)
 
     def _show_calculator(self):
-        """Open (or focus) the standalone Calculator window."""
+        """Open (or focus) the standalone Calculator subwindow."""
         if getattr(self, "_calc_win", None) is None:
             self._calc_win = Calculator(self)
-            self._calc_win.move(10, 65)   # top-left, below main window menu bar
+            self._calc_sub = _PanelSubWindow()
+            self._calc_sub.setWidget(self._calc_win)
+            self._calc_sub.setWindowTitle("Calculator Interface")
+            self.mdi.addSubWindow(self._calc_sub)
+            # Calculator is the one exception: not closable at all (every
+            # other panel/tool can be killed). Like everything else it has
+            # no minimize/maximize and can't be resized.
+            self._set_subwindow_buttons(self._calc_sub, maximizable=False, closable=False)
+            self._calc_sub.move(10, 65)   # top-left, below main window menu bar
+            self._calc_sub.adjustSize()   # Calculator is a fixed-size widget
+            self._calc_sub.setFixedSize(self._calc_sub.size())
             # Wire the On/Off button → terminal power + RAM purge (both directions).
             self._calc_win.power_changed.connect(self._on_power_changed)
             # Hook memory-mapped port $F031 → calculator display.
@@ -718,56 +850,103 @@ class BebopMain(QMainWindow):
             # to the calculator's display (only when the calculator is on).
             self.cpu._write_hooks[0xF031] = self._calc_win.write_display
             self.cpu._write_hooks[0xF032] = self._calc_win.write_leds
-        self._calc_win.show()
-        self._calc_win.raise_()
-        self._calc_win.activateWindow()
+        self._calc_sub.show()
+        self.mdi.setActiveSubWindow(self._calc_sub)
+        self._calc_sub.raise_()
 
     def _show_keyboard(self):
         """Open (or focus) the on-screen Keyboard."""
         if getattr(self, "_keyboard_win", None) is None:
             self._keyboard_win = KeyboardPanel(self.cpu, terminal_cb=self.terminal.write_char, parent=self)
-        self._keyboard_win.show()
-        self._keyboard_win.raise_()
-        self._keyboard_win.activateWindow()
+            self._keyboard_sub = _PanelSubWindow()
+            self._keyboard_sub.setWidget(self._keyboard_win)
+            self._keyboard_sub.setWindowTitle("Keyboard")
+            self.mdi.addSubWindow(self._keyboard_sub)
+            self._set_subwindow_buttons(self._keyboard_sub, maximizable=False, closable=True)
+            self._keyboard_sub.adjustSize()
+            self._keyboard_sub.setFixedSize(self._keyboard_sub.size())
+        self._keyboard_sub.show()
+        self.mdi.setActiveSubWindow(self._keyboard_sub)
+        self._keyboard_sub.raise_()
 
     def _show_workbench(self):
         """Open (or focus) Workbench 1."""
         if getattr(self, "_workbench_win", None) is None:
             self._workbench_win = WorkbenchPanel(self.cpu, parent=self)
+            self._workbench_sub = _PanelSubWindow()
+            self._workbench_sub.setWidget(self._workbench_win)
+            self._workbench_sub.setWindowTitle("Workbench 1")
+            self.mdi.addSubWindow(self._workbench_sub)
+            self._set_subwindow_buttons(self._workbench_sub, maximizable=False, closable=True)
+            self._workbench_sub.adjustSize()
+            self._workbench_sub.setFixedSize(self._workbench_sub.size())
             # Mirror the calculator's On/Off state into the workbench.
             self._calc_win.power_changed.connect(self._workbench_win.set_power)
             # Sync immediately in case the calculator is already on.
             self._workbench_win.set_power(self._calc_win.powered)
-        self._workbench_win.show()
-        self._workbench_win.raise_()
-        self._workbench_win.activateWindow()
+        self._workbench_sub.show()
+        self.mdi.setActiveSubWindow(self._workbench_sub)
+        self._workbench_sub.raise_()
 
     def _show_compiler(self):
         """Open (or focus) the merged DIY Calculator Assembler window."""
         if getattr(self, "_compiler_win", None) is None:
             self._compiler_win = CompilerWindow(self, host_main=self)
-        self._compiler_win.show()
-        self._compiler_win.raise_()
-        self._compiler_win.activateWindow()
+            self._compiler_sub = _PanelSubWindow()
+            self._compiler_sub.setWidget(self._compiler_win)
+            self._compiler_sub.setWindowTitle("Assembler / Editor")
+            self.mdi.addSubWindow(self._compiler_sub)
+            # Assembler/Editor is resizable (like Memory Walker) -- an
+            # editor benefits from being able to grow, unlike the mostly
+            # fixed-layout panels/tools.
+            self._set_subwindow_buttons(self._compiler_sub, maximizable=True, closable=True)
+            self._compiler_sub.resize(900, 600)
+        self._compiler_sub.show()
+        self.mdi.setActiveSubWindow(self._compiler_sub)
+        self._compiler_sub.raise_()
 
-    def changeEvent(self, event):
-        """Keep the window maximized — prevent title-bar double-click restore."""
-        from PyQt5.QtCore import QEvent
-        super().changeEvent(event)
-        if event.type() == QEvent.WindowStateChange:
-            if not (self.windowState() & Qt.WindowMaximized):
-                self.showMaximized()
+    # NOTE: this used to override changeEvent() to forcibly snap the
+    # window back to maximized on every resize/restore/minimize, so the
+    # user could never shrink or un-maximize it (and so it could
+    # self-recover if minimized). That made sense back when every panel
+    # and tool window was a separate floating top-level window
+    # positioned in absolute screen coordinates: if this window shrank,
+    # moved, or got minimized, those floating windows would end up
+    # scattered outside its bounds or stranded with no visible owner.
+    # Now that they're all MDI subwindows embedded inside this one (see
+    # _PanelSubWindow), none of that risk exists any more -- resizing,
+    # restoring, or minimizing this window is exactly as safe as it is
+    # for any ordinary application, so it's no longer force-locked into
+    # staying maximized. It still *starts* maximized (see
+    # showMaximized() above), the user is just now free to change that,
+    # which is normal, expected window behaviour on every platform.
+
+    def showEvent(self, event):
+        """One-time extra safety net for the startup maximize request.
+
+        __init__ already calls showMaximized() twice (immediately, and
+        again via a zero-delay QTimer once the event loop starts) to
+        cover window managers that ignore a maximize request made
+        before the window is mapped. Reported: even that can be too
+        early on some setups -- the window opens small (manual maximize
+        still works fine, so it's a timing issue, not the WM refusing
+        maximize outright, which is the different failure mode the NOTE
+        above describes). showEvent() fires when this window is
+        actually about to be shown, a more reliable hook than an
+        arbitrary 0ms delay, so re-assert once more from here. Guarded
+        to fire only on the very first show -- afterwards the user is
+        free to un-maximize/minimize/restore normally.
+        """
+        super().showEvent(event)
+        if not getattr(self, '_did_startup_maximize_reassert', False):
+            self._did_startup_maximize_reassert = True
+            QTimer.singleShot(0, self.showMaximized)
 
     def closeEvent(self, event):
-        """Close all associated windows and quit the application."""
-        # Mark every _PanelDialog so its closeEvent accepts instead of hiding.
-        for dlg in self.findChildren(_PanelDialog):
-            dlg._app_closing = True
-        # Close standalone tool windows (Calculator, Keyboard, Compiler).
-        for attr in ('_calc_win', '_keyboard_win', '_workbench_win', '_compiler_win'):
-            win = getattr(self, attr, None)
-            if win is not None:
-                win.close()
+        """Close all MDI subwindows (panels and tools) and quit the application."""
+        for sub in self.mdi.subWindowList():
+            sub._app_closing = True
+            sub.close()
         event.accept()
         QApplication.instance().quit()
 
