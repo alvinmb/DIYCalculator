@@ -1,5 +1,33 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.25 — 2026-07-30
+
+### Fixed
+
+- **"Restore Defaults" turned every calculator button black.**
+  `Calculator._restore_defaults()` hardcoded `color_index = 0` (Black)
+  for every button regardless of its real default color, instead of
+  restoring each button's actual built-in color. Reported as "all
+  calculator buttons come in black" on a Raspberry Pi install — the
+  app reads button colors from a per-user file
+  (`~/PY-DIYCALCULATOR/Config/defbuttons.ini` on Linux/Pi,
+  `%APPDATA%\PY-DIYCALCULATOR\Config\defbuttons.ini` on Windows, not
+  the file shipped in the install folder), and once that per-user file
+  gets written with all-black colors — by this bug, via Restore
+  Defaults — every future launch loads the corrupted data. `_diy()`
+  now snapshots each button's real construction-time color
+  (`self._original_colors`), and `_restore_defaults()` uses that
+  instead of a hardcoded value.
+- **`Config/defbuttons.ini` in the repo/installers restored** to its
+  correct default colors — it had been accidentally flattened to
+  all-black (likely by the same bug during a dev/test session) and
+  swept into the v9.0.24 commit alongside unrelated changes. Note:
+  this file isn't actually read at runtime (the app uses the per-user
+  path above), so this is a correctness/hygiene fix, not a functional
+  one — if your buttons are still black after updating, delete your
+  per-user `defbuttons.ini` (see above) so it reseeds from the
+  now-fixed defaults.
+
 ## v9.0.24 — 2026-07-30
 
 ### Fixed

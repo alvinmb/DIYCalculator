@@ -283,6 +283,7 @@ class Calculator(QMainWindow):
         self._diy_buttons = []       # all DIYButtons in creation order (1-based index)
         self._diy_index = 0          # incremented by _diy() for each button
         self._original_labels = {}   # {button_index: label at creation time}
+        self._original_colors = {}   # {button_index: color_index at creation time}
 
         # Whichever button-def file is "active" -- Apply (from the Configure
         # Button Attributes dialog) and Restore Defaults write to this file.
@@ -346,6 +347,11 @@ class Calculator(QMainWindow):
         btn._defn.value = code
         btn._defn.description = desc
         self._diy_buttons.append(btn)
+        # Snapshot the color this button was actually built with (DIYButton's
+        # __init__ already converted the `color` hex param above into
+        # btn._defn.color_index) so _restore_defaults() can put buttons back
+        # to their real default color instead of guessing/hardcoding one.
+        self._original_colors[idx] = btn._defn.color_index
         return btn
 
     # -- defbuttons.ini -------------------------------------------------------
@@ -438,10 +444,15 @@ class Calculator(QMainWindow):
         save_defbuttons_file(all_buttons, self._active_button_file)
 
     def _restore_defaults(self):
-        """Reset every button to its built-in default Code and Description.
+        """Reset every button to its built-in default Code, Description, and Color.
 
         Labels, colors, and codes are all restored to the values defined
-        in ``_BUTTON_DEFAULTS`` (keyed by the original label at creation).
+        at button-creation time: Code/Description from ``_BUTTON_DEFAULTS``
+        (keyed by the original label), Color from ``self._original_colors``
+        (the color_index each button was actually constructed with -- see
+        ``_diy()``). Previously this hardcoded every button's color to
+        Black regardless of its real default, which is why "Restore
+        Defaults" used to turn every button black instead of restoring it.
         The restored state is saved to defbuttons.ini.
         """
         for btn in self._diy_buttons:
@@ -452,7 +463,7 @@ class Calculator(QMainWindow):
             d.label       = label
             d.value       = code
             d.description = desc
-            d.color_index = 0             # Black
+            d.color_index = self._original_colors.get(idx, 0)
             d.bg_color    = btn._defn.bg_color   # preserve visual background
             d.bold        = btn._defn.bold
             btn.apply_button_def(d)
