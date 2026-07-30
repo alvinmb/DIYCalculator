@@ -40,6 +40,7 @@ from .diy_button import (
     load_defbuttons_file, save_defbuttons_file,
     _DEFBUTTONS_PATH, _BUTTONS_DIR,
 )
+from ..paths import resource_path
 
 
 # -- Default button Code + Description ----------------------------------------
@@ -284,6 +285,7 @@ class Calculator(QMainWindow):
         self._diy_index = 0          # incremented by _diy() for each button
         self._original_labels = {}   # {button_index: label at creation time}
         self._original_colors = {}   # {button_index: color_index at creation time}
+        self._bundled_cache   = None # lazy-loaded packaged Config/defbuttons.ini, see _bundled_defbuttons()
 
         # Whichever button-def file is "active" -- Apply (from the Configure
         # Button Attributes dialog) and Restore Defaults write to this file.
@@ -356,15 +358,68 @@ class Calculator(QMainWindow):
 
     # -- defbuttons.ini -------------------------------------------------------
 
+    def _bundled_defbuttons(self):
+        """Load (and cache) the packaged Config/defbuttons.ini via resource_path().
+
+        This is the REAL, complete button configuration -- several
+        example .asm programs rely on specific Code= values here for
+        buttons that have no Annotation and so aren't covered by
+        _BUTTON_DEFAULTS' per-label fallback (e.g. Button 1 has no
+        label but Code= $40). Returns {index: ButtonDef}, or {} if the
+        packaged file is missing/unparseable (packaging problem) --
+        callers must tolerate that and fall back to _BUTTON_DEFAULTS-
+        based construction-time values so the app still starts.
+        """
+        if self._bundled_cache is None:
+            try:
+                bundled_path = Path(resource_path('Config', 'defbuttons.ini'))
+                self._bundled_cache = (
+                    load_defbuttons_file(bundled_path) if bundled_path.exists() else {}
+                )
+            except Exception:
+                self._bundled_cache = {}
+        return self._bundled_cache
+
+    @staticmethod
+    def _clone_button_def(d):
+        """Return an independent copy of a ButtonDef.
+
+        _bundled_defbuttons() caches its ButtonDef objects and hands the
+        SAME instance out to every caller in a session -- apply_button_def()
+        mutates the object it's given (sets bg_color/bold in place) and
+        makes it the button's live self._defn, so applying the cached
+        instance directly would alias every button that used the same
+        cached entry together. Always apply a clone, never the cached
+        original.
+        """
+        c = ButtonDef()
+        c.label       = d.label
+        c.color_index = d.color_index
+        c.bg_color    = d.bg_color
+        c.bold        = d.bold
+        c.port        = d.port
+        c.value       = d.value
+        c.description = d.description
+        return c
+
     def _load_defbuttons(self):
         """Apply saved button definitions from the active button file.
 
-        On first run (no file present), seeds defbuttons.ini from the
-        built-in ``_BUTTON_DEFAULTS`` table so the user starts with a
-        fully populated default configuration.
+        On first run (no per-user file present yet), seeds every button
+        from the packaged Config/defbuttons.ini (see _bundled_defbuttons())
+        so a fresh install starts with the real shipped configuration --
+        not just the partial subset _BUTTON_DEFAULTS covers -- then saves
+        that as the new active file so future runs load it normally, the
+        same as any other saved button file. Falls back to whatever's
+        already on the buttons from construction (_BUTTON_DEFAULTS) only
+        if the packaged file itself is unavailable.
         """
         if not self._active_button_file.exists():
-            # First run — write defaults to disk so future sessions load them.
+            bundled = self._bundled_defbuttons()
+            for btn in self._diy_buttons:
+                defn = bundled.get(btn._button_index)
+                if defn is not None:
+                    btn.apply_button_def(self._clone_button_def(defn))
             self._save_all_defbuttons()
             return
         saved = load_defbuttons_file(self._active_button_file)
@@ -444,19 +499,30 @@ class Calculator(QMainWindow):
         save_defbuttons_file(all_buttons, self._active_button_file)
 
     def _restore_defaults(self):
-        """Reset every button to its built-in default Code, Description, and Color.
+        """Reset every button to its real built-in default Code, Description, and Color.
 
-        Labels, colors, and codes are all restored to the values defined
-        at button-creation time: Code/Description from ``_BUTTON_DEFAULTS``
-        (keyed by the original label), Color from ``self._original_colors``
-        (the color_index each button was actually constructed with -- see
-        ``_diy()``). Previously this hardcoded every button's color to
-        Black regardless of its real default, which is why "Restore
-        Defaults" used to turn every button black instead of restoring it.
+        Restores each button from the packaged Config/defbuttons.ini (see
+        _bundled_defbuttons()) by button index -- the same complete,
+        authoritative source _load_defbuttons() seeds a fresh install
+        from. This matters beyond cosmetics: several example .asm
+        programs depend on exact Code= values for buttons that have no
+        Annotation (so _BUTTON_DEFAULTS' per-label lookup can't supply
+        them) -- restoring from that incomplete table used to silently
+        reset those buttons' codes to $00/"Unassigned", breaking any
+        program that relied on them, on top of resetting every color to
+        Black. Falls back to _BUTTON_DEFAULTS + each button's real
+        construction-time color (self._original_colors) only for a
+        button index the packaged file doesn't cover, so this still
+        degrades gracefully if packaging is ever broken.
         The restored state is saved to defbuttons.ini.
         """
+        bundled = self._bundled_defbuttons()
         for btn in self._diy_buttons:
-            idx   = btn._button_index
+            idx = btn._button_index
+            bundled_defn = bundled.get(idx)
+            if bundled_defn is not None:
+                btn.apply_button_def(self._clone_button_def(bundled_defn))
+                continue
             label = self._original_labels.get(idx, "")
             code, desc = _BUTTON_DEFAULTS.get(label, (0x00, "Unassigned"))
             d             = ButtonDef()

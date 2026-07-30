@@ -1,5 +1,32 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.26 — 2026-07-30
+
+### Fixed
+
+- **The packaged `Config/defbuttons.ini` is now actually loaded.**
+  Previously, on first run (no per-user button file yet), the app
+  seeded buttons purely from `_BUTTON_DEFAULTS` -- an in-code table
+  keyed by button label, which only covers labeled buttons. Many
+  buttons have no label but a real, meaningful `Code=` value in the
+  shipped `defbuttons.ini` (e.g. Button 1: no Annotation, `Code= $40`)
+  -- those silently came up as `Code= $00`/"Unassigned" on a fresh
+  install, which is enough to make some example `.asm` programs fail.
+  `Calculator` now loads the packaged `Config/defbuttons.ini` (via
+  `resource_path()`, so this works correctly in a source run, the
+  Windows PyInstaller build, and the `.deb`'s `/usr/share/beboputer/`
+  layout) as the real seed on first run, then saves that as the active
+  per-user file exactly as before -- Load Button File / Configure
+  Button Attributes / Save As all still work unchanged, so a user's
+  own customizations still fully override this.
+- **"Restore Defaults" now restores the real per-button Code, not just
+  Color.** Same root cause as the color bug fixed in v9.0.25: the
+  `_BUTTON_DEFAULTS` fallback it used doesn't cover unlabeled buttons,
+  so restoring used to reset their codes to $00 too. It now restores
+  every button from the same packaged `defbuttons.ini`, falling back
+  to the old label-keyed behavior only for a button index that file
+  doesn't cover.
+
 ## v9.0.25 — 2026-07-30
 
 ### Fixed
