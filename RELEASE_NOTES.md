@@ -1,5 +1,73 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.24 — 2026-07-30
+
+### Fixed
+
+- **Maximize-on-launch no longer under-fills the screen.** On Windows,
+  a display running above 100% scaling made Qt compute the maximized
+  window geometry against the wrong DPI reference, so the window
+  reported itself as maximized but visibly left a border. Fixed by
+  enabling `Qt.AA_EnableHighDpiScaling` / `AA_UseHighDpiPixmaps`
+  before `QApplication` is constructed (`app.py`), plus a new
+  `_reassert_maximized()` helper (`main_window.py`) that explicitly
+  sizes the window to `QApplication.primaryScreen().availableGeometry()`
+  before calling `showMaximized()` — covers the same failure mode on
+  Debian/Linux window managers that report "maximized" without
+  actually resizing to the real screen.
+- **Startup panel overlap (Calculator / Memory Walker / Message
+  Display).** These were positioned using stale hand-guessed widths
+  (calculator assumed 720px, actually ~800px; Memory Walker assumed
+  260px, actually table-width-dependent), so Memory Walker silently
+  overlapped the Calculator. Positions are now computed from each
+  panel's real on-screen size, and the whole arrangement is
+  screen-size aware: side-by-side on a normal monitor, a two-row
+  layout (Calculator + Memory Walker on top, Message Display below)
+  on mid-size screens, or a fully stacked column as a last resort on
+  very small displays (e.g. the project's 7"/10" Pi touchscreen
+  targets) — see `_layout_startup_panels()` in `main_window.py`.
+
+### Changed
+
+- **Memory Walker**: `RUN to BP`, `Clear BPs`, and `Walk 64K` moved to
+  their own second button row, separate from the Address/GO/Go to PC
+  row. Added `ideal_width()`, which sizes the panel to exactly fit its
+  four columns (BP/STEP/ADDRESS/DATA) plus scrollbar, with no dead
+  space to the right of DATA.
+
+## v9.0.23 — 2026-07-29
+
+### Changed
+
+- **New "Setup" menu**, between File and Display: System Clock (moved
+  from Tools) plus Load Button File / Save Button File / Restore
+  Defaults (moved from File, where they were the last group before
+  Exit). Menu bar order is now File, Setup, Display, Memory, Tools,
+  Help.
+
+### Fixed
+
+- **Loading a `.ram`/`.rom` program no longer touches the calculator
+  display.** Previously `_load_file()` (File > Open ROM/RAM) and the
+  Compiler's "Load -> CPU" swapped in the boot-style dash placeholder
+  (or, in the Compiler's case, fully blanked the screen) as soon as the
+  file loaded — before Run was ever pressed. Both paths now reset
+  without touching the display at all, so nothing changes on screen
+  until the program actually runs.
+- **Button-file edits now write back to whichever file is active.**
+  Configure Button Attributes' Apply, and Restore Defaults, used to
+  always save to the default `Config/defbuttons.ini` even after
+  loading a different button file via Load Button File. The Calculator
+  now tracks an "active" button file (default `defbuttons.ini` unless
+  the user loads or saves-as a different one) and every edit is
+  persisted there instead.
+- **Button `Color=` now accepts color names, not just numeric index or
+  hex.** A hand-edited file using a name from the file's own header
+  convention (`#COLOR 5 = MAGENTA`), e.g. `Color= Magenta`, used to
+  silently fall back to Black because the parser only recognized a
+  digit index or a `#rrggbb` hex string. Names are now matched
+  case-insensitively alongside both of those.
+
 ## v9.0.22 — 2026-07-25
 
 ### Changed

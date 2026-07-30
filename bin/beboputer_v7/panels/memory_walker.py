@@ -39,7 +39,7 @@ from PyQt5.QtGui import QBrush, QColor, QFont
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QLineEdit, QTableWidget, QTableWidgetItem,
-    QAbstractItemView, QApplication,
+    QAbstractItemView, QApplication, QStyle,
 )
 
 from ..constants import RUN_LIMIT
@@ -56,6 +56,14 @@ class MemoryWalker(QWidget):
     # and delay between pages, in milliseconds.
     WALK_PAGE_SIZE = 256
     WALK_INTERVAL_MS = 400
+
+    # Column widths (px) for the BP | STEP | ADDRESS | DATA table.
+    # Named here (rather than left as bare setColumnWidth() literals) so
+    # ideal_width() can sum them without duplicating the numbers.
+    COL_BP_W   = 100
+    COL_STEP_W = 100
+    COL_ADDR_W = 100
+    COL_DATA_W = 180
 
     # Breakpoints set by default on every fresh Memory Walker (app start).
     # $0000 catches the common "JMP [$0000]" NOP-sled idiom used by
@@ -123,6 +131,13 @@ class MemoryWalker(QWidget):
 
         nav.addStretch()
 
+        layout.addLayout(nav)
+
+        # Second row: run/breakpoint controls, kept separate from the
+        # address-navigation row above so neither row forces the window
+        # wider than the memory table itself.
+        nav2 = QHBoxLayout()
+
         self.run_bp_btn = QPushButton("RUN to BP")
         self.run_bp_btn.setToolTip("Run until a breakpoint, HALT, or step limit.")
         self.run_bp_btn.setStyleSheet(
@@ -145,13 +160,13 @@ class MemoryWalker(QWidget):
             "border: 1px solid #808080; padding: 2px 4px; }"
         )
         self.run_bp_btn.clicked.connect(self.run_to_breakpoint)
-        nav.addWidget(self.run_bp_btn)
+        nav2.addWidget(self.run_bp_btn)
 
         self.clear_bp_btn = QPushButton("Clear BPs")
         self.clear_bp_btn.setToolTip("Remove all breakpoints")
         self.clear_bp_btn.setStyleSheet("font-weight: bold;")
         self.clear_bp_btn.clicked.connect(self._clear_all_breakpoints)
-        nav.addWidget(self.clear_bp_btn)
+        nav2.addWidget(self.clear_bp_btn)
 
         self.walk_btn = QPushButton("Walk 64K")
         self.walk_btn.setToolTip(
@@ -161,9 +176,11 @@ class MemoryWalker(QWidget):
         self.walk_btn.setStyleSheet("font-weight: bold;")
         self.walk_btn.setCheckable(True)
         self.walk_btn.clicked.connect(self._toggle_walk)
-        nav.addWidget(self.walk_btn)
+        nav2.addWidget(self.walk_btn)
 
-        layout.addLayout(nav)
+        nav2.addStretch()
+
+        layout.addLayout(nav2)
 
         # Status bar
         self.status_lbl = QLabel(
@@ -183,10 +200,10 @@ class MemoryWalker(QWidget):
         self.table = QTableWidget(256, 4)
         self.table.setHorizontalHeaderLabels(["BP", "STEP", "ADDRESS", "DATA"])
         self.table.verticalHeader().setVisible(False)
-        self.table.setColumnWidth(0, 100)
-        self.table.setColumnWidth(1, 100)
-        self.table.setColumnWidth(2, 100)
-        self.table.setColumnWidth(3, 180)
+        self.table.setColumnWidth(0, self.COL_BP_W)
+        self.table.setColumnWidth(1, self.COL_STEP_W)
+        self.table.setColumnWidth(2, self.COL_ADDR_W)
+        self.table.setColumnWidth(3, self.COL_DATA_W)
         self.table.verticalHeader().setDefaultSectionSize(20)
         self.table.setEditTriggers(QAbstractItemView.DoubleClicked)
         self.table.setFont(QFont("Courier New", 14, QFont.Bold))
@@ -195,6 +212,25 @@ class MemoryWalker(QWidget):
 
         layout.addWidget(self.table)
         self._refresh()
+
+    def ideal_width(self):
+        """Width (px) that shows all four table columns with no dead
+        space to the right of DATA -- i.e. the width the containing
+        subwindow should be created at.
+
+        Always accounts for the vertical scrollbar: the table holds 256
+        rows at 20px each (5120px of content) against a window nowhere
+        near that tall, so the scrollbar is guaranteed to be visible.
+        Computed from the live table/layout rather than re-deriving the
+        numbers by hand, so this stays correct if the column widths,
+        table frame, or layout margins ever change.
+        """
+        cols = self.COL_BP_W + self.COL_STEP_W + self.COL_ADDR_W + self.COL_DATA_W
+        scrollbar_w = QApplication.style().pixelMetric(QStyle.PM_ScrollBarExtent)
+        frame_w = self.table.frameWidth() * 2
+        margins = self.layout().contentsMargins()
+        # +2 covers the table's own grid-line/border rounding.
+        return cols + scrollbar_w + frame_w + margins.left() + margins.right() + 2
 
     # --------------------------------------------------------- navigation --
 

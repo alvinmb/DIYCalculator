@@ -26,6 +26,7 @@ Beboputer window.
 """
 
 import math
+from pathlib import Path
 
 from PyQt5.QtCore import Qt, QSize, QEvent, pyqtSignal
 from PyQt5.QtGui import QFont
@@ -283,6 +284,14 @@ class Calculator(QMainWindow):
         self._diy_index = 0          # incremented by _diy() for each button
         self._original_labels = {}   # {button_index: label at creation time}
 
+        # Whichever button-def file is "active" -- Apply (from the Configure
+        # Button Attributes dialog) and Restore Defaults write to this file.
+        # Starts out as the standard Config/defbuttons.ini, but switches to
+        # whatever the user picks via Load Button File / Save Button File,
+        # so a user's own custom button file keeps receiving their edits
+        # instead of everything silently going back to the default file.
+        self._active_button_file = _DEFBUTTONS_PATH
+
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
@@ -342,41 +351,48 @@ class Calculator(QMainWindow):
     # -- defbuttons.ini -------------------------------------------------------
 
     def _load_defbuttons(self):
-        """Apply saved button definitions from Config/defbuttons.ini.
+        """Apply saved button definitions from the active button file.
 
         On first run (no file present), seeds defbuttons.ini from the
         built-in ``_BUTTON_DEFAULTS`` table so the user starts with a
         fully populated default configuration.
         """
-        if not _DEFBUTTONS_PATH.exists():
+        if not self._active_button_file.exists():
             # First run — write defaults to disk so future sessions load them.
             self._save_all_defbuttons()
             return
-        saved = load_defbuttons_file()
+        saved = load_defbuttons_file(self._active_button_file)
         for idx, defn in saved.items():
             if 1 <= idx <= len(self._diy_buttons):
                 self._diy_buttons[idx - 1].apply_button_def(defn)
 
     def _save_all_defbuttons(self):
-        """Write every button's current definition to defbuttons.ini."""
+        """Write every button's current definition to the active button file."""
         all_buttons = {btn._button_index: btn._defn for btn in self._diy_buttons}
-        save_defbuttons_file(all_buttons)
+        save_defbuttons_file(all_buttons, self._active_button_file)
 
     def _save_defbutton(self, index: int, defn):
-        """Persist one button change back to Config/defbuttons.ini.
+        """Persist one button change back to the active button file.
 
-        Loads the current file, updates the changed entry, then saves
-        the whole file so all other buttons are preserved.
+        Loads the current active file, updates the changed entry, then
+        saves the whole file so all other buttons are preserved. Writes
+        to whichever file is currently active (see
+        ``self._active_button_file``) — the default defbuttons.ini unless
+        the user has loaded or saved-as a different button file, in which
+        case edits keep going to that file instead.
         """
-        all_buttons = load_defbuttons_file()
+        all_buttons = load_defbuttons_file(self._active_button_file)
         all_buttons[index] = defn
-        save_defbuttons_file(all_buttons)
+        save_defbuttons_file(all_buttons, self._active_button_file)
 
     def _load_button_file(self):
         """Let the user pick a .ini file and apply it to all buttons.
 
-        The loaded file replaces the active button configuration and is
-        saved as the new defbuttons.ini so it persists across sessions.
+        The loaded file becomes the *active* button file: it's applied to
+        the on-screen buttons now, and it's what future edits (Apply in
+        Configure Button Attributes, Restore Defaults) get written back
+        to — not the default defbuttons.ini — until a different file is
+        loaded or saved-as.
         """
         dlg = QFileDialog(self, "Load Button File")
         dlg.setOption(QFileDialog.DontUseNativeDialog)
@@ -393,11 +409,17 @@ class Calculator(QMainWindow):
         for idx, defn in saved.items():
             if 1 <= idx <= len(self._diy_buttons):
                 self._diy_buttons[idx - 1].apply_button_def(defn)
-        # Persist as the new defbuttons.ini
-        save_defbuttons_file(saved)
+        # This file is now the active target for future edits/saves —
+        # write it back to itself (not the default defbuttons.ini).
+        self._active_button_file = Path(path)
+        save_defbuttons_file(saved, self._active_button_file)
 
     def _save_button_file(self):
-        """Save the current button configuration to a user-chosen .ini file."""
+        """Save the current button configuration to a user-chosen .ini file.
+
+        Like "Save As" — the chosen file becomes the active button file,
+        so subsequent edits keep being written here.
+        """
         dlg = QFileDialog(self, "Save Button File")
         dlg.setOption(QFileDialog.DontUseNativeDialog)
         dlg.setAcceptMode(QFileDialog.AcceptSave)
@@ -411,8 +433,9 @@ class Calculator(QMainWindow):
             return
         if not path.lower().endswith(".ini"):
             path += ".ini"
+        self._active_button_file = Path(path)
         all_buttons = {btn._button_index: btn._defn for btn in self._diy_buttons}
-        save_defbuttons_file(all_buttons, path)
+        save_defbuttons_file(all_buttons, self._active_button_file)
 
     def _restore_defaults(self):
         """Reset every button to its built-in default Code and Description.

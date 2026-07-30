@@ -49,7 +49,7 @@ from .paths import resource_path, default_open_dir as _default_open_dir, default
 # in packaged builds, since the app's install folder is not reliably
 # writable by a non-admin user there.
 
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QRect
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
@@ -144,7 +144,7 @@ class BebopMain(QMainWindow):
         # keeps it maximized and un-minimizes it automatically either
         # way, and closing still goes through the normal closeEvent()
         # shutdown path below regardless of which control triggers it.
-        self.showMaximized()
+        self._reassert_maximized()
         # Some window managers don't honour a maximize request made
         # before the window has actually been mapped on screen (the
         # caller's own show()/showMaximized() happens after __init__
@@ -154,7 +154,7 @@ class BebopMain(QMainWindow):
         # during construction, can still fire before the WM has actually
         # mapped the window on some setups -- showEvent() is a second,
         # more reliably-timed safety net on top of this one.
-        QTimer.singleShot(0, self.showMaximized)
+        QTimer.singleShot(0, self._reassert_maximized)
         self._build_ui()
         self._refresh_all()
 
@@ -213,21 +213,93 @@ class BebopMain(QMainWindow):
         #  to open them.
         #
         # ── startup layout ───────────────────────────────────────────────────────
-        # y=65 clears the main window title bar (~30 px) + menu bar (~25 px)
-        # from the old top-level-dialog layout; kept as-is here too so the
-        # on-screen arrangement looks the same (just a little top margin
-        # inside the MDI area now instead of clearing OS chrome).
-        # x positions: calculator(10) + calc_width(720) + gap(10) = 740 for walker;
-        #              walker(740) + walker_width(260) + gap(10)  = 1010 for message.
-        _Y   = 65
-        _MWX = 740    # Memory Walker left edge
-        _MDX = 1010   # Message Display left edge
-        self.mem_walker    = self._sub(MemoryWalker(self.cpu),       "Memory Walker",         _MWX,  _Y, 260, 680, visible=True, resizable=True)
+        # Positions used to be hand-guessed constants (calc width "720",
+        # walker width "260") that had drifted out of sync with the actual
+        # widget sizes -- Calculator is really ~800px wide and Memory
+        # Walker's real width depends on its table's column widths -- so
+        # Memory Walker silently overlapped the Calculator. Positions are
+        # now computed from each panel's REAL on-screen width/height (see
+        # _layout_startup_panels below), so the three startup panels can
+        # never overlap even if a panel's fixed size or Memory Walker's
+        # columns change later, AND the arrangement adapts to the actual
+        # screen size -- important since this app also targets small Pi
+        # touchscreens (7"/10", as small as 800x480) where the old
+        # side-by-side layout wouldn't fit at all.
+
+        # Calculator is built (sized/positioned provisionally) here, ahead
+        # of its original call site later in __init__, purely so its real
+        # size is known for laying out the panels around it.
+        # _show_calculator() guards its own one-time construction, so the
+        # later call there is still needed (and harmless/idempotent) --
+        # it's what restores the original behaviour of Calculator ending
+        # up the focused/raised subwindow once every other panel has been
+        # created.
+        self._show_calculator()
+        calc_w, calc_h = self._calc_sub.width(), self._calc_sub.height()
+
+        mem_walker_widget = MemoryWalker(self.cpu)
+        walker_w, walker_h = mem_walker_widget.ideal_width(), 680
+        msg_w, msg_h = 516, 340
+
+        calc_pos, walker_pos, msg_pos = self._layout_startup_panels(
+            calc_w, calc_h, walker_w, walker_h, msg_w, msg_h
+        )
+        self._calc_sub.move(*calc_pos)
+
+        self.mem_walker    = self._sub(mem_walker_widget,          "Memory Walker",     *walker_pos, walker_w, walker_h, visible=True, resizable=True)
         self.port_mon      = self._sub(PortMonitor(self.cpu),      "I/O Ports Display",        0, 450, 405, 270, visible=False)
-        self.msg_display   = self._sub(MessageDisplay(),           "Message Display",        _MDX,  _Y, 516, 340, visible=True)
+        self.msg_display   = self._sub(MessageDisplay(),           "Message Display",   *msg_pos,    msg_w, msg_h, visible=True)
         self.cpu_panel     = self._sub(CPUPanel(self.cpu),         "CPU Register Display",   650,   10, 300, 270, visible=False)
         self.terminal      = self._sub(Terminal(),                 "Terminal",               650,  410, 595, 420, visible=False)
         self.disassembler  = self._sub(DisassemblerPanel(self.cpu),"Disassembler",          1010,  400, 420, 420, visible=False)
+
+    def _layout_startup_panels(self, calc_w, calc_h, walker_w, walker_h, msg_w, msg_h):
+        """Position Calculator / Memory Walker / Message Display so none
+        overlap, adapting to how much screen is actually available.
+
+        Tries three arrangements, in order of preference, and uses the
+        first one that fits the primary screen's available area:
+
+          1. Side-by-side  -- Calculator | Memory Walker | Message Display,
+             all in one row (the normal desktop-monitor case).
+          2. Two rows      -- Calculator + Memory Walker on top, Message
+             Display spans the full width underneath (mid-size screens,
+             e.g. a 10" Pi touchscreen).
+          3. Stacked column -- all three, one above the other (last resort
+             for very small screens, e.g. an 800x480 7" Pi touchscreen).
+             If even this overflows, the MDI area simply scrolls -- panels
+             are still guaranteed not to overlap each other.
+
+        Returns ((calc_x, calc_y), (walker_x, walker_y), (msg_x, msg_y)).
+        """
+        LEFT = 10
+        TOP  = 65   # clears the main window's title bar (~30px) + menu/toolbar (~25px)
+        GAP  = 10
+
+        screen = QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen is not None else QRect(0, 0, 1920, 1080)
+        avail_w, avail_h = avail.width(), avail.height()
+
+        # 1. Side-by-side
+        row_w = LEFT + calc_w + GAP + walker_w + GAP + msg_w
+        row_h = TOP + max(calc_h, walker_h, msg_h)
+        if row_w <= avail_w and row_h <= avail_h:
+            walker_x = LEFT + calc_w + GAP
+            msg_x = walker_x + walker_w + GAP
+            return (LEFT, TOP), (walker_x, TOP), (msg_x, TOP)
+
+        # 2. Two rows: Calculator + Memory Walker on top, Message Display below
+        two_row_w = LEFT + calc_w + GAP + walker_w
+        two_row_h = TOP + max(calc_h, walker_h) + GAP + msg_h
+        if two_row_w <= avail_w and two_row_h <= avail_h:
+            walker_x = LEFT + calc_w + GAP
+            msg_y = TOP + max(calc_h, walker_h) + GAP
+            return (LEFT, TOP), (walker_x, TOP), (LEFT, msg_y)
+
+        # 3. Fully stacked column -- last-resort fallback for very small screens
+        walker_y = TOP + calc_h + GAP
+        msg_y = walker_y + walker_h + GAP
+        return (LEFT, TOP), (LEFT, walker_y), (LEFT, msg_y)
 
         # Hook memory-mapped port $F028 → terminal.write_char.
         # Any  STORE ($F028), A  instruction sends ACC as one ASCII byte
@@ -597,20 +669,13 @@ class BebopMain(QMainWindow):
                 msg    = (f"Loaded: {os.path.basename(path)}  "
                           f"({len(chunk)} bytes @ ${LOAD_ADDR:04X})")
                 status = f"Loaded {path} @ ${LOAD_ADDR:04X}"
-            # Don't blank the calculator display on load: real hardware
-            # shows the boot-style dash placeholder until the freshly
-            # loaded program actually drives the display, so reset
-            # without clearing (clear_calc_display=False) and then show
-            # the dashes explicitly -- same placeholder used at power-on.
-            #
-            # Exception: with the Workbench open and the calc on, leave
-            # the display exactly as it is -- don't even swap in the
-            # dash placeholder. The user is watching a live board and a
-            # load shouldn't visibly disturb the calc screen.
+            # Loading a program shouldn't visibly change anything on the
+            # calculator -- nothing should happen until the user actually
+            # presses Run. Reset without clearing (clear_calc_display=False)
+            # and leave the display exactly as it was; don't swap in the
+            # boot-style dash placeholder here, since that itself was a
+            # visible change triggered by load rather than by Run.
             self._do_reset(clear_calc_display=False)
-            if (getattr(self, "_calc_win", None) is not None
-                    and not self._workbench_open_and_calc_on()):
-                self._calc_win.show_dash_display()
             self.msg_display.message(msg)
             self.statusBar().showMessage(status)
         except Exception as e:
@@ -921,6 +986,34 @@ class BebopMain(QMainWindow):
     # showMaximized() above), the user is just now free to change that,
     # which is normal, expected window behaviour on every platform.
 
+    def _reassert_maximized(self):
+        """Force this window to fill the primary screen's available area.
+
+        showMaximized() alone can under-fill the screen: the window
+        reports itself as maximized (restore button shows, taskbar
+        treats it as maximized) but visibly leaves a border and doesn't
+        cover the real screen. Two different root causes, both reported
+        in the field:
+          * Windows -- with per-monitor display scaling above 100%,
+            Qt can compute the maximized geometry against a stale DPI
+            reference if that geometry is requested before the window's
+            screen/DPI info has fully settled.
+          * Debian/Linux -- some X11 window managers and Wayland
+            compositors honour the maximize *request* but size the
+            window to a cached/incorrect screen geometry, especially
+            right after the window is first mapped.
+        Explicitly sizing to the current screen's availableGeometry()
+        first guarantees the correct pixel size regardless of what
+        showMaximized() alone would have produced; showMaximized() is
+        still called after so the OS/WM's actual "maximized" window
+        state (restore button, taskbar behaviour, etc.) is set
+        correctly too.
+        """
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            self.setGeometry(screen.availableGeometry())
+        self.showMaximized()
+
     def showEvent(self, event):
         """One-time extra safety net for the startup maximize request.
 
@@ -940,7 +1033,7 @@ class BebopMain(QMainWindow):
         super().showEvent(event)
         if not getattr(self, '_did_startup_maximize_reassert', False):
             self._did_startup_maximize_reassert = True
-            QTimer.singleShot(0, self.showMaximized)
+            QTimer.singleShot(0, self._reassert_maximized)
 
     def closeEvent(self, event):
         """Close all MDI subwindows (panels and tools) and quit the application."""

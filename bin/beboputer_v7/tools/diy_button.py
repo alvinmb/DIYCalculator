@@ -98,9 +98,19 @@ def _color_hex(index: int) -> str:
     return COLORS[0][1]
 
 
-def _color_index(hex_val: str) -> int:
-    for i, (_, h) in enumerate(COLORS):
-        if h.lower() == hex_val.lower():
+def _color_index(value: str) -> int:
+    """Map a color hex string or color *name* to its palette index.
+
+    ``load_defbuttons_file()`` falls back to this when the ``Color=``
+    value isn't a plain digit (e.g. not "5"). Without a name match, a
+    hand-edited file using a name from the file's own documented
+    convention -- "#COLOR 5 = MAGENTA" -- (e.g. ``Color= Magenta``)
+    would silently fall through to Black instead of the intended color,
+    since only hex strings like "#cc00cc" used to be recognised here.
+    """
+    v = value.strip()
+    for i, (name, h) in enumerate(COLORS):
+        if v.lower() == h.lower() or v.lower() == name.lower():
             return i
     return 0
 

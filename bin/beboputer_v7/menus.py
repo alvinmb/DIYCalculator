@@ -69,17 +69,18 @@ def build_menus(win) -> None:
     fm.addAction(act("&Save RAM...",        win._save_ram))
     fm.addAction(act("&Purge RAM...",       win._purge_ram))
     fm.addSeparator()
-    fm.addAction(act("Load &Button File...", win._load_button_file))
-    fm.addAction(act("Save B&utton File...", win._save_button_file))
-    fm.addAction(act("Restore &Defaults",    win._restore_defaults))
-    fm.addSeparator()
     fm.addAction(act("&Exit",               win.close))
 
-    # ── Memory ───────────────────────────────────────────────────────────────
-    mm = mb.addMenu("&Memory")
-    mm.setFont(menu_font)
-    mm.addAction(act("Memory &Walker",      win._show_mem_walker))
-    mm.addAction(act("&Find Address...",    win._find_address))
+    # ── Setup ────────────────────────────────────────────────────────────────
+    # System Clock (moved from Tools) + the button-file commands (moved from
+    # File, where they used to be the last group before Exit).
+    sm = mb.addMenu("&Setup")
+    sm.setFont(menu_font)
+    sm.addAction(act("System &Clock...",     win._set_clock))
+    sm.addSeparator()
+    sm.addAction(act("Load &Button File...", win._load_button_file))
+    sm.addAction(act("Save B&utton File...", win._save_button_file))
+    sm.addAction(act("Restore &Defaults",    win._restore_defaults))
 
     # ── Display ──────────────────────────────────────────────────────────────
     dm = mb.addMenu("&Display")
@@ -90,11 +91,15 @@ def build_menus(win) -> None:
     dm.addAction(act("&Port Map Status",    win._show_ports))
     dm.addAction(act("&Disassembler",       win._show_disassembler))
 
+    # ── Memory ───────────────────────────────────────────────────────────────
+    mm = mb.addMenu("&Memory")
+    mm.setFont(menu_font)
+    mm.addAction(act("Memory &Walker",      win._show_mem_walker))
+    mm.addAction(act("&Find Address...",    win._find_address))
+
     # ── Tools ────────────────────────────────────────────────────────────────
     tm = mb.addMenu("&Tools")
     tm.setFont(menu_font)
-    tm.addAction(act("System &Clock...",        win._set_clock))
-    tm.addSeparator()
     tm.addAction(act("EPROM &Burner",           win._show_eprom))
     tm.addAction(act("Calculator...",           win._show_calculator))
     tm.addAction(act("Keyboard...",             win._show_keyboard))

@@ -437,12 +437,10 @@ class CompilerWindow(QMainWindow):
             )
             return
         n = self._runner.load_into_cpu(self._last_bytecode, self._host.cpu)
-        # Normally a load-and-reset blanks the calculator display (same as
-        # an explicit Reset). But with the Workbench open and the calc on,
-        # the user is watching a live board -- loading a program shouldn't
-        # visibly disturb the calc screen, so skip the clear in that case.
-        skip_calc_clear = self._host._workbench_open_and_calc_on()
-        self._host._do_reset(clear_calc_display=not skip_calc_clear)
+        # Loading a program shouldn't visibly change the calculator screen
+        # -- nothing should happen until the user actually presses Run.
+        # Reset without clearing, same as BebopMain._load_file().
+        self._host._do_reset(clear_calc_display=False)
         addr = self._runner.LOAD_ADDR
         self._host.msg_display.message(
             f"Loaded compiled image ({n} bytes) into CPU @ ${addr:04X}."

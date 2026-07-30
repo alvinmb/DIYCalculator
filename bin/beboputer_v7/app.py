@@ -34,6 +34,15 @@ from .styles import STYLESHEET
 
 
 def main():
+    # High-DPI scaling: without this, on a Windows display running above
+    # 100% scaling (very common on modern laptops/monitors) Qt can compute
+    # showMaximized() geometry against the wrong DPI reference, so the
+    # window reports itself as "maximized" but visibly leaves a border and
+    # doesn't actually fill the screen. Must be set before QApplication()
+    # is constructed -- setting it after has no effect.
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
     app = QApplication(sys.argv)
     app.setStyle("Windows")
     app.setStyleSheet(STYLESHEET)
