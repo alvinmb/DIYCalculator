@@ -1,5 +1,17 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.27 — 2026-07-30
+
+### Fixed
+
+- **Clear and CE button codes were swapped in `Config/defbuttons.ini`.**
+  `Clear` was `Code= $11` and `CE` was `Code= $10`; corrected to
+  `Clear = $10` / `CE = $11`. Both codes already triggered the same
+  display-clear side effect in `main_window.py` (`if val in (0x10,
+  0x11)`), so this didn't affect that behavior, but any example
+  program distinguishing between the two keys needed them the right
+  way round.
+
 ## v9.0.26 — 2026-07-30
 
 ### Fixed
