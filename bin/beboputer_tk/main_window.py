@@ -22,15 +22,25 @@
 main_window.py -- tkinter shell for PY-DIYCALCULATOR.
 
 Phase 1 built the navigable app skeleton (menu bar, status bar,
-MdiArea, non-overlapping startup layout) with every panel as a
-placeholder. Phase 2 wires up a real CPU instance -- same keypad
-read/write hooks as beboputer_v7.main_window -- and replaces five
-panels' placeholders with real, working content: Message Display,
-Port Map Status, Calculator (full DIYButton grid, defbuttons.ini
-load/save, power on/off with random-RAM-fill matching real SRAM
-power-up behaviour), Memory Walker (256-row scrollable grid, single
-step, breakpoints, RUN to BP, Walk 64K), and (new, see below) Control
-Panel. Every other panel is still a Phase 1 placeholder.
+MdiArea, non-overlapping startup layout). Phase 2 (parts 1-6) wires up
+a real CPU instance -- same keypad read/write hooks as
+beboputer_v7.main_window -- and replaces every panel/dialog with real,
+working content: Message Display, Port Map Status, Calculator (full
+DIYButton grid, defbuttons.ini load/save, power on/off with
+random-RAM-fill matching real SRAM power-up behaviour), Memory Walker
+(256-row scrollable grid, single step, breakpoints, RUN to BP, Walk
+64K), CPU Registers, Terminal, Disassembler, Assembler/Editor,
+Workbench 1, Keyboard, EPROM Burner, System Clock, About, and (new,
+see below) Control Panel.
+
+Every File/Setup/Display/Memory/Tools/Help menu item is now wired to
+real behaviour. The only remaining _not_yet() fallbacks are defensive
+-- Load/Save Button File and Restore Defaults delegate to the
+Calculator instance, so they only fall back to "not yet" in the
+unreachable-in-practice case where the Calculator startup panel has
+been closed (see TKINTER_MIGRATION.md for the handful of deliberately
+out-of-scope gaps: printing, sound, Font dialog, inline Memory Walker
+DATA-cell editing, multi-monitor geometry).
 
 Menu structure (labels, grouping, and order) is copied directly from
 beboputer_v7/menus.py so the tkinter build feels like the same app
@@ -43,14 +53,10 @@ Note on Control Panel: beboputer_v7/panels/control_panel.py (RUN /
 STEP / HALT / RESET + bus display + switches) is actually DEAD CODE in
 the current Qt app -- it exists but main_window.py never instantiates
 it (see REFACTORING_NOTES.md sec. 2, which flags this as an open
-"wire it in, or delete" decision the Qt codebase hasn't made). Real
-execution today only happens through Memory Walker's own STEP/RUN-to-
-BP controls. Since Memory Walker isn't built in tkinter yet, Control
+"wire it in, or delete" decision the Qt codebase hasn't made). Control
 Panel is wired in here as a clearly-labeled NEW addition (implementing
-REFACTORING_NOTES.md's "Option A") so the CPU wiring in this file is
-actually end-to-end testable before Memory Walker exists -- this is
-new capability, not a parity port, and is called out as such in the
-Tools menu label and the About dialog.
+REFACTORING_NOTES.md's "Option A") -- new capability, not a parity
+port, called out as such in the Tools menu label.
 """
 
 from __future__ import annotations
@@ -435,7 +441,27 @@ class BebopMain:
     def _show_control_panel(self): self._open_panel("control", 340, 320)
 
     def _find_address(self):
-        self._not_yet("Find Address")
+        from tkinter import simpledialog
+        txt = simpledialog.askstring("Find Address", "Enter hex address:", parent=self.root)
+        if txt is None:
+            return
+        try:
+            addr = int(txt, 16)
+        except ValueError:
+            messagebox.showerror("Find Address", f"Not a valid hex address: {txt!r}")
+            return
+        if self.mem_walker is not None:
+            self.mem_walker._base = addr & 0xFFF0
+            self.mem_walker.addr_var.set(f"{self.mem_walker._base:04X}")
+            self.mem_walker._user_nav = True
+            self.mem_walker.grid.refresh()
+        else:
+            self._show_mem_walker()
+            if self.mem_walker is not None:
+                self.mem_walker._base = addr & 0xFFF0
+                self.mem_walker.addr_var.set(f"{self.mem_walker._base:04X}")
+                self.mem_walker._user_nav = True
+                self.mem_walker.grid.refresh()
 
     # -------------------------------------------------------- CPU ops --
 
@@ -640,14 +666,54 @@ class BebopMain:
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    # -- File / Setup: not wired to real project state yet -----------------
+    # -- File / Setup ---------------------------------------------------------
 
-    def _new_project(self):        self._not_yet("New Project")
+    def _new_project(self):
+        if messagebox.askyesno("New Project", "Clear all RAM and reset CPU?"):
+            self.cpu.ram = bytearray(self.cpu.RAM_SIZE)
+            self._do_reset()
+
     def _open_project(self):       self._load_ram()
-    def _save_project(self):       self._not_yet("Save Project")
-    def _save_project_as(self):    self._not_yet("Save Project As")
-    def _save_ram(self):           self._not_yet("Save RAM")
-    def _purge_ram(self):          self._not_yet("Purge RAM")
+
+    def _save_project(self):
+        path = filedialog.asksaveasfilename(
+            title="Save ROM", defaultextension=".rom",
+            filetypes=[("ROM Files", "*.rom"), ("All Files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            with open(path, "wb") as f:
+                f.write(bytes(self.cpu.ram))
+            if self.msg_display is not None:
+                self.msg_display.message(f"Saved: {os.path.basename(path)}")
+            self.set_status(f"Saved: {path}")
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e))
+
+    def _save_project_as(self):    self._save_project()
+    def _save_ram(self):           self._save_project()
+
+    def _purge_ram(self):
+        if messagebox.askyesno("Purge RAM", "Zero all 64KB of RAM?"):
+            self._do_purge_ram()
+
+    def _do_purge_ram(self):
+        """Zero all RAM in-place and restore I/O sentinels. Every byte is
+        now a known, deterministic value ($00), so mark all of RAM as
+        "touched" -- Memory Walker should display $00, not the
+        undefined-garbage placeholder ($XX). Same as beboputer_v7's
+        _do_purge_ram()."""
+        for i in range(self.cpu.RAM_SIZE):
+            self.cpu.ram[i] = 0
+            self.cpu.ram_touched[i] = 1
+        self.cpu.ram[0xF011] = 0xFF
+        self.cpu.ram[0xF031] = 0x00
+        self.cpu.ram[0xF032] = 0x00
+        self._refresh_all()
+        if self.msg_display is not None:
+            self.msg_display.message("RAM purged.")
+        self.set_status("RAM purged.")
 
     def _set_clock(self):
         new_hz = ask_hz(self.root, self._clock_hz)
@@ -676,9 +742,38 @@ class BebopMain:
         else:
             self._not_yet("Restore Defaults")
 
-    def _show_help(self):          self._not_yet("Help")
-    def _show_web(self):           self._not_yet("DIY Calculator on the web")
-    def _show_credits(self):       self._not_yet("Credits")
+    def _show_help(self):
+        """Open the HTML help file in the system default browser, same
+        source/bundle path logic as beboputer_v7.main_window._show_help()."""
+        import sys as _sys
+        import webbrowser
+        if getattr(_sys, "frozen", False):
+            try:
+                from beboputer_v7.paths import resource_path
+                help_path = resource_path("beboputer_v7_help.html")
+            except ImportError:
+                help_path = os.path.join(os.path.dirname(__file__), "..", "beboputer_v7_help.html")
+        else:
+            help_path = os.path.normpath(
+                os.path.join(os.path.dirname(__file__), "..", "beboputer_v7_help.html")
+            )
+        if os.path.exists(help_path):
+            webbrowser.open(f"file:///{help_path.replace(os.sep, '/')}")
+        else:
+            messagebox.showinfo("Help", f"Help file not found:\n{help_path}")
+
+    def _show_web(self):
+        import webbrowser
+        webbrowser.open("https://www.clivemaxfield.com/diycalculator/index.shtml")
+
+    def _show_credits(self):
+        messagebox.showinfo(
+            "The Crew....",
+            "PY-DIYCALCULATOR\n\n"
+            "by Clive 'Max' Maxfield & Alvin Brown\n"
+            "Python/tkinter port\n\n"
+            "Assembler based on DAS by David Venhoek\n\n",
+        )
 
     def _not_yet(self, feature: str):
         messagebox.showinfo(

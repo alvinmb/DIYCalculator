@@ -619,3 +619,54 @@ correct for a real keypress; EPROM Burner's Burn ROM writes an actual
 correctly; System Clock's dialog validates in-range/out-of-range
 input correctly (real logic, not just "doesn't crash"); About opens.
 `test_harness.py`'s full 47-test suite still passes unchanged.
+
+---
+
+## 13. Menu / form review pass
+
+After Phase 2 reached feature-complete, did a dedicated pass over
+every menu handler and form in `bin/beboputer_tk/` looking for wiring
+bugs -- not new content, just correctness of what's already there.
+
+Found and fixed three menu items left as `_not_yet()` stubs despite
+their Qt equivalents being fully real, working features (not
+placeholders) -- worth calling out since it would've been easy to
+assume "stub" meant "nothing to port" without actually checking:
+
+- **New/Save/Save As Project, Save RAM** -- Qt's versions really do
+  clear all RAM + reset the CPU (New), and really do write a full
+  64KB `.rom` dump of `cpu.ram` to a chosen file (Save/Save As/Save
+  RAM are all the same handler in Qt too). Ported faithfully,
+  including a quirk worth knowing about: New Project resets
+  `cpu.ram` to a fresh all-zero `bytearray` but does *not* reset
+  `ram_touched`, so Memory Walker can briefly show stale "touched"
+  flags against the new zeroed data -- Qt's real behavior, kept as-is
+  rather than "fixed" mid-port.
+- **Purge RAM** -- really zeroes all 64KB and marks it all "known"
+  (distinct from New Project, which leaves `ram_touched` alone).
+- **Find Address** -- really jumps Memory Walker to a typed hex
+  address via the same `_user_nav`-locks-the-view mechanism as GO.
+- **Help / DIY Calculator on the web / Credits** -- Help opens the
+  bundled `beboputer_v7_help.html` in the system browser (same
+  source/bundle path resolution as Qt); the web link opens the same
+  external URL; Credits shows the same message. All three use
+  `webbrowser.open()`, stdlib and Qt-free.
+
+Verified via a full headless sweep (`xvfb-run`) calling every single
+menu handler once -- Display menu panel opens (including re-opening
+an already-open panel, confirming raise-not-duplicate), File/Setup,
+Memory, Help, and CPU ops (Step/Run/Halt/Reset against a real loaded
+program) -- with blocking dialogs (file pickers, `messagebox`, the
+System Clock modal) neutered so the sweep runs unattended; every
+handler completed with no exception. Followed by three targeted
+checks *not* covered by the blanket sweep (since it mocks dialog
+return values to empty/None): Find Address with a real typed address
+actually moves Memory Walker's view, Save Project writes a real,
+correctly-sized RAM dump with the right byte at the right offset, and
+New Project actually zeroes `cpu.ram`. `test_harness.py`'s full
+47-test suite still passes unchanged.
+
+Remaining `_not_yet()` fallbacks (Load/Save Button File, Restore
+Defaults) are defensive-only: they delegate to the Calculator
+instance and only trigger in the unreachable-in-practice case where
+the Calculator startup panel has been closed.
