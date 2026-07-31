@@ -2,11 +2,11 @@
 
 **Status:** Phase 0 (spike/validation) complete — all three spikes
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
-(app shell) complete** — see §5. **Phase 2 parts 1-4 complete** (CPU
+(app shell) complete** — see §5. **Phase 2 parts 1-5 complete** (CPU
 wiring, Message Display, Port Monitor, Control Panel, Calculator +
-DIYButton grid, Memory Walker, CPU Registers, Terminal, Disassembler)
-— see §7-§10. Not started: Compiler/Editor, Keyboard, Workbench, EPROM
-Burner, remaining dialogs, printing/sound.
+DIYButton grid, Memory Walker, CPU Registers, Terminal, Disassembler,
+Assembler/Editor) — see §7-§11. Not started: Keyboard, Workbench,
+EPROM Burner, remaining dialogs, printing/sound.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -507,3 +507,51 @@ CPU-hook call paths):
   PC after a step (via `_refresh_all()`)
 - Reset clears the terminal screen
 - `test_harness.py`'s full 47-test suite still passes unchanged
+
+---
+
+## 11. Phase 2 part 5 — Assembler / Editor
+
+The full source-editing workflow: write/edit `.asm`, assemble it, load
+the result straight into the running CPU.
+
+| File | Role |
+|---|---|
+| `panels/compiler.py` | tkinter port of `beboputer_v7/tools/compiler.py`'s `CompilerWindow`. `AssemblerRunner` (compile / write-`.ram` / write-`.lst` / load-into-CPU) has zero Qt dependency and is imported straight from `beboputer_v7.tools.compiler` rather than duplicated -- same reuse pattern as `diy_button.py`'s file-format helpers. |
+
+**A real gap, not a dead-code trace this time:** tkinter's `Menu`
+widget can only attach to a `Toplevel`/`Tk` root, not to an arbitrary
+`Frame` -- so a `CompilerPanel` living inside an `MdiChild` can't have
+a true attached menu bar the way the Qt `CompilerWindow` (a real
+`QMainWindow` with its own `menuBar()`) does. Built File/Edit/Insert as
+a row of `tk.Menubutton` + `tk.Menu` dropdowns instead -- functionally
+identical (click it, a menu drops down, same items), visually a button
+row rather than a native strip. Keyboard accelerators (Ctrl+N/O/S,
+F5, Ctrl+F, F3, Ctrl+G) are bound to the editor widget specifically,
+not `bind_all()`, so they don't leak into other text widgets elsewhere
+in the app if more than one Compiler panel is ever open at once.
+
+Ported: New / Open / Save / Save As, Assemble, Load -> CPU (with the
+same "calculator must be powered on" gate as the Qt version), Find /
+Find Next / Go to Line, Insert Directive/Instruction snippets, Insert
+String, Insert File. Also added `MdiChild.set_title()` (a small,
+generically useful addition to `mdi.py`) so the panel can update its
+own title bar to show the current filename, matching Qt's
+`setWindowTitle()` calls on Open/Save/New.
+
+**Not ported:** Font... (`QFontDialog` has no tkinter built-in --
+already flagged as a low-priority gap in §2's table) and Printer
+Setup/Print (no tkinter printing framework -- the same gap §6 already
+carries forward from Phase 0, still unresolved and now hit for real by
+a second panel).
+
+**Verified** (headless, via Xvfb, through the real menu/button
+handlers): opening the panel via the Tools menu; loading tutorial 17's
+actual `.asm` source into the editor and running the real `on_compile()`
+-- confirmed it assembles to the exact same 1,020 bytes verified earlier
+this session, and writes real `.ram`/`.lst` files to disk; `on_load_into_cpu()`
+(gated on calculator power, same as Qt) writes the compiled bytecode into
+the live CPU's RAM at `$4000`; `Find` selects real matched text in the
+editor via `tag_add("sel", ...)`; line navigation moves the insertion
+cursor to a real target line; `New` correctly resets editor/state.
+`test_harness.py`'s full 47-test suite still passes unchanged.

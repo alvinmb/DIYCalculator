@@ -154,6 +154,14 @@ class MdiChild(tk.Frame):
         self._place()
         self.raise_child()
 
+    # -- title -----------------------------------------------------------------
+
+    def set_title(self, text: str):
+        """Update the title-bar text -- used by panels whose displayed
+        name changes at runtime (e.g. the Assembler/Editor showing the
+        current file name, matching Qt's setWindowTitle() calls)."""
+        self.title_lbl.configure(text=text)
+
     # -- geometry ------------------------------------------------------------
 
     def _place(self):

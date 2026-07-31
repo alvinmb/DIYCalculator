@@ -69,6 +69,7 @@ from .panels.memory_walker import MemoryWalker
 from .panels.cpu_panel import CPUPanel
 from .panels.terminal import Terminal
 from .panels.disassembler import DisassemblerPanel
+from .panels.compiler import CompilerPanel
 
 try:
     from beboputer_v7 import __version__
@@ -361,6 +362,10 @@ class BebopMain:
         self.disassembler = DisassemblerPanel(child.content, self.cpu)
         self.disassembler.pack(fill="both", expand=True)
         self.disassembler.refresh_at_pc(self.cpu.pc)
+
+    def _populate_compiler(self, child):
+        panel = CompilerPanel(child.content, host_main=self)
+        panel.pack(fill="both", expand=True)
 
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
