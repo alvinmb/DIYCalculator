@@ -19,15 +19,15 @@
 # SOFTWARE.
 
 """
-main_window.py -- tkinter Phase 1 shell for PY-DIYCALCULATOR.
+main_window.py -- tkinter shell for PY-DIYCALCULATOR.
 
-This is the tkinter counterpart of beboputer_v7/main_window.py's
-BebopMain, scoped to Phase 1 of TKINTER_MIGRATION.md: real menu bar,
-real status bar, real MdiArea, real non-overlapping startup layout --
-but every panel a menu item opens is still a placeholder MdiChild
-("coming in Phase 2"), since porting each panel's actual content is
-Phase 2's job, not this one's. The point of Phase 1 is a working,
-navigable app skeleton to build that content into.
+Phase 1 built the navigable app skeleton (menu bar, status bar,
+MdiArea, non-overlapping startup layout) with every panel as a
+placeholder. Phase 2 (this file, first slice) wires up a real CPU
+instance -- same keypad read/write hooks as beboputer_v7.main_window
+-- and replaces three panels' placeholders with real, working content:
+Message Display, Port Map Status, and (new, see below) Control Panel.
+Every other panel is still a Phase 1 placeholder.
 
 Menu structure (labels, grouping, and order) is copied directly from
 beboputer_v7/menus.py so the tkinter build feels like the same app
@@ -35,14 +35,31 @@ from the moment you open it, not a stripped-down cousin.
 
 The CPU engine, assembler, defbuttons.ini format, and resource_path()
 are all reused unchanged -- see TKINTER_MIGRATION.md sec. 1.
+
+Note on Control Panel: beboputer_v7/panels/control_panel.py (RUN /
+STEP / HALT / RESET + bus display + switches) is actually DEAD CODE in
+the current Qt app -- it exists but main_window.py never instantiates
+it (see REFACTORING_NOTES.md sec. 2, which flags this as an open
+"wire it in, or delete" decision the Qt codebase hasn't made). Real
+execution today only happens through Memory Walker's own STEP/RUN-to-
+BP controls. Since Memory Walker isn't built in tkinter yet, Control
+Panel is wired in here as a clearly-labeled NEW addition (implementing
+REFACTORING_NOTES.md's "Option A") so the CPU wiring in this file is
+actually end-to-end testable before Memory Walker exists -- this is
+new capability, not a parity port, and is called out as such in the
+Tools menu label and the About dialog.
 """
 
 from __future__ import annotations
 
+import os
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 
 from .mdi import MdiArea, MdiChild, PanelSpec, tile_children
+from .panels.message_display import MessageDisplay
+from .panels.port_monitor import PortMonitor
+from .panels.control_panel import ControlPanel
 
 try:
     from beboputer_v7 import __version__
@@ -54,22 +71,20 @@ try:
 except ImportError:  # pragma: no cover
     C = {"bg": "#c0c0c0", "grey": "#606060"}
 
+from beboputer_v7.cpu import CPU
+from beboputer_v7.instruction_messages import InstructionMessages
+
 
 PLACEHOLDER_NOTE = (
     "This panel is a Phase 1 placeholder.\n\n"
-    "Real content lands in Phase 2 of the tkinter migration --\n"
+    "Real content lands in a later slice of Phase 2 --\n"
     "see TKINTER_MIGRATION.md for the sequencing."
 )
 
 
 class BebopMain:
-    """tkinter counterpart of beboputer_v7.main_window.BebopMain,
-    scoped to Phase 1 (shell only -- see module docstring)."""
+    """tkinter counterpart of beboputer_v7.main_window.BebopMain."""
 
-    # (menu_key, title) pairs for every panel the Qt app's menus open.
-    # menu_key is also used as the MdiChild registry key, so re-opening
-    # an already-open panel raises it instead of creating a duplicate --
-    # the same behaviour QMdiArea gives the Qt app for free.
     PANEL_TITLES = {
         "calculator":    "Calculator",
         "mem_walker":    "Memory Walker",
@@ -82,13 +97,23 @@ class BebopMain:
         "keyboard":      "Keyboard",
         "workbench":     "Workbench 1",
         "compiler":      "Assembler / Editor",
+        "control":       "Control Panel  [new]",
     }
 
     def __init__(self, root: tk.Tk):
         self.root = root
         self._panels: dict[str, MdiChild] = {}  # menu_key -> MdiChild
 
-        root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter Phase 1)")
+        # -- CPU + instruction-message decoder, same as beboputer_v7 ------
+        self.cpu = CPU()
+        self._instr_msgs = InstructionMessages()
+        self._clock_hz = 100          # simulated Hz (ticks/sec), same default
+        self._run_after_id = None     # tkinter's .after() handle for the run loop
+        self.msg_display: MessageDisplay | None = None
+        self.port_mon: PortMonitor | None = None
+        self.control_panel: ControlPanel | None = None
+
+        root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
         root.geometry("1200x800")
         try:
@@ -100,8 +125,36 @@ class BebopMain:
         self._build_statusbar()
         self._build_mdi()
         self._open_startup_panels()
+        self._wire_keypad_hooks()
+
+        self.msg_display.message("PY-DIYCALCULATOR")
+        self.msg_display.message(
+            f"RAM: {self.cpu.RAM_SIZE // 1024}KB  |  Clock: {self._clock_hz}Hz (simulated)"
+        )
+        self.msg_display.message("tkinter build -- Load RAM..., then Control Panel to Run/Step.")
 
         self.set_status("Ready")
+
+    # ------------------------------------------------------ keypad hooks --
+
+    def _wire_keypad_hooks(self):
+        """Same two hooks as beboputer_v7.main_window.__init__: a
+        read-clear strobe on $F011 (each key value is seen exactly
+        once by a polling program), and a write hook that forwards
+        every keypress to the Port Monitor (when open) before that
+        strobe wipes it, plus the CE/Clear-clears-display shortcut."""
+
+        def _keypad_read_hook(val):
+            if val != 0xFF:
+                self.cpu.ram[0xF011] = 0xFF
+        self.cpu._read_hooks[0xF011] = _keypad_read_hook
+
+        def _keypad_write_hook(val):
+            if self.port_mon is not None:
+                self.port_mon.on_key_press(val)
+            if val in (0x10, 0x11):  # CE or Clear
+                self.cpu._write(0xF031, 0x10)  # send CLRCODE to display
+        self.cpu._write_hooks[0xF011] = _keypad_write_hook
 
     # ------------------------------------------------------------ menu --
 
@@ -155,6 +208,9 @@ class BebopMain:
         tm.add_command(label="Keyboard...",          command=self._show_keyboard)
         tm.add_command(label="Workbench 1...",       command=self._show_workbench)
         tm.add_command(label="Assembler / Editor...", command=self._show_compiler)
+        tm.add_separator()
+        tm.add_command(label="Control Panel  [new -- see About]",
+                        command=self._show_control_panel)
 
         # ── Help ─────────────────────────────────────────────────────────
         hm = tk.Menu(mb, tearoff=0)
@@ -186,17 +242,19 @@ class BebopMain:
     def _open_startup_panels(self):
         """Calculator, Memory Walker, Message Display -- the same three
         panels beboputer_v7.main_window opens by default, tiled the
-        same non-overlapping way via tile_children()."""
+        same non-overlapping way via tile_children(). Message Display
+        gets real content immediately; Calculator/Memory Walker are
+        still placeholders (later Phase 2 slices)."""
         specs = [
             PanelSpec(self.PANEL_TITLES["calculator"], 340, 460),
             PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460),
-            PanelSpec(self.PANEL_TITLES["msg_display"], 380, 200),
+            PanelSpec(self.PANEL_TITLES["msg_display"], 380, 220),
         ]
         self.mdi.update_idletasks()
         children = tile_children(self.mdi, specs)
         for key, child in zip(("calculator", "mem_walker", "msg_display"), children):
             self._panels[key] = child
-            self._populate_placeholder(child, key)
+            self._populate(child, key)
             child.on_close = self._make_on_close(key)
 
     # ------------------------------------------------ generic panel open --
@@ -204,7 +262,22 @@ class BebopMain:
     def _make_on_close(self, key):
         def _on_close():
             self._panels.pop(key, None)
+            if key == "msg_display":
+                self.msg_display = None
+            elif key == "ports":
+                self.port_mon = None
+            elif key == "control":
+                self.control_panel = None
         return _on_close
+
+    def _populate(self, child, key):
+        """Dispatch to a real panel builder if one exists for *key*,
+        else fall back to the Phase 1 placeholder."""
+        builder = getattr(self, f"_populate_{key}", None)
+        if builder is not None:
+            builder(child)
+        else:
+            self._populate_placeholder(child, key)
 
     def _populate_placeholder(self, child, key):
         title = self.PANEL_TITLES.get(key, key)
@@ -219,11 +292,28 @@ class BebopMain:
             bg="#d4d0c8", anchor="nw", justify="left",
         ).pack(fill="both", expand=True, pady=(8, 0))
 
+    def _populate_msg_display(self, child):
+        self.msg_display = MessageDisplay(child.content)
+        self.msg_display.pack(fill="both", expand=True)
+
+    def _populate_ports(self, child):
+        self.port_mon = PortMonitor(child.content, self.cpu)
+        self.port_mon.pack(fill="both", expand=True)
+        self.port_mon.refresh()
+
+    def _populate_control(self, child):
+        self.control_panel = ControlPanel(
+            child.content,
+            on_run=self._do_run, on_step=self._do_step,
+            on_halt=self._do_halt, on_reset=self._do_reset,
+        )
+        self.control_panel.pack(fill="both", expand=True)
+        self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
+
     def _open_panel(self, key, width=360, height=280):
-        """Open (or re-raise, if already open) the placeholder MdiChild
-        for *key*. This is the pattern every real Phase 2 panel will
-        follow too, just with real content built in _populate_* instead
-        of the placeholder."""
+        """Open (or re-raise, if already open) the MdiChild for *key*,
+        with real content if a _populate_<key> builder exists, else the
+        Phase 1 placeholder."""
         existing = self._panels.get(key)
         if existing is not None and existing.winfo_exists():
             existing.raise_child()
@@ -231,34 +321,145 @@ class BebopMain:
         title = self.PANEL_TITLES[key]
         child = self.mdi.add_child(title, x=40, y=40, width=width, height=height)
         self._panels[key] = child
-        self._populate_placeholder(child, key)
+        self._populate(child, key)
         child.on_close = self._make_on_close(key)
 
     # ---------------------------------------------------- menu handlers --
-    # Panels: open/raise a placeholder MdiChild (real content in Phase 2).
 
     def _show_calculator(self):    self._open_panel("calculator", 340, 460)
     def _show_mem_walker(self):    self._open_panel("mem_walker", 420, 460)
-    def _show_msg_display(self):   self._open_panel("msg_display", 380, 200)
+    def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
     def _show_cpu(self):           self._open_panel("cpu")
     def _show_terminal(self):      self._open_panel("terminal")
-    def _show_ports(self):         self._open_panel("ports")
+    def _show_ports(self):         self._open_panel("ports", 420, 340)
     def _show_disassembler(self):  self._open_panel("disassembler", 480, 360)
     def _show_eprom(self):         self._open_panel("eprom")
     def _show_keyboard(self):      self._open_panel("keyboard")
     def _show_workbench(self):     self._open_panel("workbench")
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
+    def _show_control_panel(self): self._open_panel("control", 340, 320)
 
     def _find_address(self):
         self._not_yet("Find Address")
 
-    # File / Setup: not wired to real CPU/project state yet (Phase 2+).
+    # -------------------------------------------------------- CPU ops --
+
+    def _do_run(self):
+        if self.cpu.halted:
+            self.msg_display.message("CPU is HALTed. Reset first.")
+            return
+        self.cpu.running = True
+        self.set_status("Running…")
+        self._run_tick()
+
+    def _do_halt(self):
+        self.cpu.running = False
+        if self._run_after_id is not None:
+            self.root.after_cancel(self._run_after_id)
+            self._run_after_id = None
+        self.set_status(f"Halted at PC=${self.cpu.pc:04X}")
+        self._refresh_all()
+
+    def _do_step(self):
+        if self._run_after_id is not None:
+            self.root.after_cancel(self._run_after_id)
+            self._run_after_id = None
+        self.cpu.running = False
+        self.cpu.step()
+        self.msg_display.message(self._instr_msgs.describe(self.cpu))
+        self._refresh_all()
+        if self.cpu.halted:
+            self.set_status("HALT instruction executed.")
+            self.msg_display.message("--- HALT ---")
+
+    def _do_reset(self, clear_calc_display=True):
+        if self._run_after_id is not None:
+            self.root.after_cancel(self._run_after_id)
+            self._run_after_id = None
+        self.cpu.reset()
+        if self.port_mon is not None:
+            self.port_mon.reset()
+        if self.msg_display is not None:
+            self.msg_display.message("↺ CPU Reset.")
+        self.set_status("Reset")
+        self._refresh_all()
+
+    def _run_tick(self):
+        if self.cpu.halted:
+            self._run_after_id = None
+            self.cpu.running = False
+            self.set_status(f"HALT at PC=${self.cpu.pc:04X}")
+            self._refresh_all()
+            return
+        for _ in range(10):    # execute 10 instructions per tick, same as Qt build
+            self.cpu.step()
+            if self.cpu.halted:
+                break
+        self._refresh_all()
+        if self.cpu.halted:
+            self.set_status(f"HALT at PC=${self.cpu.pc:04X}")
+            self.msg_display.message("--- HALT ---")
+            self._run_after_id = None
+            return
+        self._run_after_id = self.root.after(
+            max(1, 1000 // max(1, self._clock_hz)), self._run_tick
+        )
+
+    def _refresh_all(self):
+        if self.port_mon is not None:
+            self.port_mon.refresh()
+        if self.control_panel is not None:
+            self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
+
+    # -------------------------------------------------------- Load RAM --
+
+    def _load_ram(self):
+        path = filedialog.askopenfilename(
+            title="Load RAM",
+            filetypes=[("RAM/ROM files", "*.ram *.rom"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        self._load_file(path)
+
+    def _load_file(self, path: str):
+        """Same load-address rule as beboputer_v7.main_window._load_file():
+        .rom -> $0000 (boot/reset vector), .ram or anything else -> $4000
+        (compiler output / user program). A file exactly RAM_SIZE bytes
+        is treated as a full 64KB image."""
+        ext = os.path.splitext(path)[1].lower()
+        load_addr = 0x0000 if ext == ".rom" else 0x4000
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+            self.cpu.ram = bytearray(self.cpu.RAM_SIZE)
+            self.cpu.ram_touched = bytearray(self.cpu.RAM_SIZE)
+            if len(data) == self.cpu.RAM_SIZE:
+                self.cpu.ram[:] = data
+                self.cpu.ram_touched[:] = b"\x01" * self.cpu.RAM_SIZE
+                msg = f"Loaded: {os.path.basename(path)}  (full 64KB image)"
+                status = f"Loaded {path} (full 64KB image)"
+            else:
+                max_bytes = self.cpu.RAM_SIZE - load_addr
+                chunk = data[:max_bytes]
+                self.cpu.ram[load_addr:load_addr + len(chunk)] = chunk
+                self.cpu.ram_touched[load_addr:load_addr + len(chunk)] = b"\x01" * len(chunk)
+                msg = (f"Loaded: {os.path.basename(path)}  "
+                       f"({len(chunk)} bytes @ ${load_addr:04X})")
+                status = f"Loaded {path} @ ${load_addr:04X}"
+            self._do_reset(clear_calc_display=False)
+            if self.msg_display is not None:
+                self.msg_display.message(msg)
+            self.set_status(status)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    # -- File / Setup: not wired to real project state yet -----------------
 
     def _new_project(self):        self._not_yet("New Project")
-    def _open_project(self):       self._not_yet("Open Project")
+    def _open_project(self):       self._load_ram()
     def _save_project(self):       self._not_yet("Save Project")
     def _save_project_as(self):    self._not_yet("Save Project As")
-    def _load_ram(self):           self._not_yet("Load RAM")
     def _save_ram(self):           self._not_yet("Save RAM")
     def _purge_ram(self):          self._not_yet("Purge RAM")
     def _set_clock(self):          self._not_yet("System Clock")
@@ -273,17 +474,22 @@ class BebopMain:
         messagebox.showinfo(
             feature,
             f"{feature} isn't wired up yet in the tkinter build.\n\n"
-            f"This is Phase 1 (app shell) of the migration -- see "
-            f"TKINTER_MIGRATION.md for what's next.",
+            f"See TKINTER_MIGRATION.md for what's next.",
         )
-        self.set_status(f"{feature}: not yet implemented (Phase 1 build)")
+        self.set_status(f"{feature}: not yet implemented")
 
     def _show_about(self):
         messagebox.showinfo(
             "About",
             f"PY-DIYCALCULATOR  v{__version__}\n\n"
-            f"tkinter Phase 1 build -- app shell only.\n"
-            f"See TKINTER_MIGRATION.md for migration status.",
+            f"tkinter build -- Phase 1 shell + Phase 2 (Message Display, "
+            f"Port Map Status, Load RAM, and a real CPU run/step loop).\n\n"
+            f"Control Panel (Tools menu) is NEW in this build -- "
+            f"beboputer_v7's own control_panel.py is unused dead code in "
+            f"the Qt app (see REFACTORING_NOTES.md sec. 2); it's wired in "
+            f"here so the CPU can be run/stepped before Memory Walker's "
+            f"own controls exist in tkinter.\n\n"
+            f"See TKINTER_MIGRATION.md for full migration status.",
         )
 
     def _exit(self):

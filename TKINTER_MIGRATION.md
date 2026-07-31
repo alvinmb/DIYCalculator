@@ -2,7 +2,10 @@
 
 **Status:** Phase 0 (spike/validation) complete — all three spikes
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
-(app shell) complete** — see §6. Not started: Phase 2 onward.
+(app shell) complete** — see §5. **Phase 2 part 1 (CPU wiring + Message
+Display + Port Monitor + Control Panel) complete** — see §7. Not
+started: the rest of Phase 2 (Calculator, Memory Walker, Disassembler,
+Compiler/Editor, remaining dialogs, printing/sound).
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -267,3 +270,59 @@ and window icon.
    parity with this session's Qt fixes.
 5. **Sound** — no tkinter built-in; small gap, low effort either way
    (drop or shim).
+
+---
+
+## 7. Phase 2 part 1 — what was built
+
+First real-content slice of Phase 2, landed in the same `bin/beboputer_tk/`
+package. Adds a `panels/` subpackage and wires a real `CPU()` instance
+into `main_window.py` for the first time:
+
+| File | Role |
+|---|---|
+| `panels/message_display.py` | Direct port of `beboputer_v7/panels/message_display.py` — dark-themed scrolling log, one `message(text)` method. Behaviorally identical. |
+| `panels/port_monitor.py` | Direct port of `beboputer_v7/panels/port_monitor.py` — tracks `$F031` (display out), `$F032` (LEDs), `$F011` (buttons, current + previous), editable button-value override field. Same `_last_button_val` / `on_key_press()` design as the Qt version (and the same reasoning comment: the read-clear strobe wipes `ram[$F011]` back to `$FF` the instant the CPU reads it, so the write hook has to capture the value *before* that happens). |
+| `panels/control_panel.py` | **New, not a Qt port** — RUN/STEP/HALT/RESET buttons, address/data bus readout, 8 manual data switches, `ENTER`. `beboputer_v7/panels/control_panel.py` exists but is dead code — `main_window.py` never instantiates it (`REFACTORING_NOTES.md` §2 flags this as an open decision). Wired in here as a clearly-labeled `[new]` Tools-menu item — the Qt `pyqtSignal`s become plain `on_run=`/`on_step=`/`on_halt=`/`on_reset=` callback params, since a single button → single handler wire-up doesn't need a signal/slot layer in tkinter. |
+
+`main_window.py` changes: constructs a real `beboputer_v7.cpu.CPU()` and
+`InstructionMessages()` in `__init__`; wires the same two keypad hooks as
+`beboputer_v7/main_window.py` (`$F011` read-clear strobe, CE/Clear→display-
+clear write shortcut); replaces the Message Display placeholder with a real
+`MessageDisplay` at startup; Port Map Status and the new Control Panel get
+real content the first time they're opened from the menu (lazy, matching
+how Qt's own panels are constructed); adds real `_do_run`/`_do_step`/
+`_do_halt`/`_do_reset`/`_run_tick` methods (`root.after()` replacing
+`QTimer`, same 10-instructions-per-tick and clock-Hz-to-ms conversion as
+the Qt build); replaces the stub `Load RAM...` menu item with a real
+`tkinter.filedialog` handler using the same `.rom`→`$0000` / else→`$4000`
+load-address rule and full-64KB-image special case as
+`beboputer_v7.main_window._load_file()`.
+
+**Verified** (headless, via Xvfb + `/tmp/localtk`-style local `python3-tk`
++ `tk8.6-blt2.5` install, calling the exact callables wired to
+`command=`/write-hooks — equivalent to real clicks/keypresses):
+
+- Message Display is real from startup; Port Monitor and Control Panel
+  build real content the first time they're opened, and stay `None`
+  until then
+- Loading tutorial 17's known-good `.ram` (13/13 test cases verified
+  earlier this session against a bare `CPU()`) lands the exact same
+  1,020 bytes at `$4000`, resets `PC` to the reset vector, and logs the
+  load to Message Display
+- `Control Panel.on_step` (the literal STEP button handler) advances the
+  real CPU and the bus readout tracks the live `PC`/opcode after each
+  step
+- Simulated keypresses (`cpu._write(0xF011, ...)`) correctly update Port
+  Monitor's current-value and previous-value fields through the same
+  `on_key_press()` path a real `DIYButton` click uses
+- A synchronous RUN burst (200 ticks, `_run_tick()` called directly to
+  avoid waiting on real `.after()` timing) runs without error
+- HALT cancels the pending `.after()`; RESET restores `PC` to the reset
+  vector and clears Port Monitor's display fields
+- `test_harness.py`'s full 47-test suite still passes unchanged
+
+**Not yet real:** Calculator and Memory Walker are still Phase 1
+placeholders (next slices, per §4's sequencing) — Control Panel's manual
+STEP/RUN is the only way to drive the CPU in this build until Memory
+Walker's own step/breakpoint controls exist in tkinter.
