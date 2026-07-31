@@ -1,5 +1,34 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.28 — 2026-07-30
+
+### Fixed
+
+- **`Config/defbuttons.ini`'s operator row was scrambled**: `+`/`-`/`*`/`/`
+  had their Annotations and Codes rotated relative to their own
+  Description fields, and two buttons both claimed `Code= $17`
+  (annotated `*`, described "Subtract" and "Multiply"). Corrected to
+  `+`=`$16`, `-`=`$17`, `*`=`$18`, `/`=`$19`, matching the dispatch
+  table already used by `Data/2funcal.asm` and `Data/lab5a`-`e.asm`
+  (which needed no code changes as a result — their table was right
+  all along). Also fixed `Mod` (was `$1C`, colliding with `Pi`) to
+  `$1D`, and swapped the `Mod`/`=` buttons' Description fields back
+  to match their own Annotation ("Equals" had drifted onto `Mod`,
+  and `=`'s description read "Display remainder of division").
+- **5 tutorial files used stale keypad codes** predating the current
+  `Config/defbuttons.ini` scheme: `tutorial/10, 11, 12, 13, 14`
+  checked Clear as `$1B`/CE as `$7F` (now `$10`/`$11`), and 10 + 13
+  additionally checked `+/-/*//` as `$2B/$2D/$2A/$2F`, `=` as `$3D`,
+  and Enter as `$0D` (now `$16/$17/$18/$19`, `$1A`, `$13`). Fixing
+  the operator codes also required translating the raw keypad code
+  to its ASCII glyph before echoing it to the display in `10` and
+  `13` — the new codes ($16-$19) aren't in the ranges `write_display()`
+  recognizes as characters, unlike the old scheme where the keypad
+  code and the display glyph happened to be the same byte. `12` also
+  had its own separate Sin/Cos/Tan code mismatch (was `$73/$63/$74`
+  from `_BUTTON_DEFAULTS`, corrected to `$3A/$39/$38` from the ini).
+  All 5 files re-verified against the CPU simulator after the fix.
+
 ## v9.0.27 — 2026-07-30
 
 ### Fixed

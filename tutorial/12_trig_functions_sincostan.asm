@@ -10,9 +10,11 @@
 #   Exercise 11 had to claim a blank button because Circumference
 #   isn't a button the Calculator already has. Sin, Cos, and Tan are
 #   different - they're real buttons in the scientific column on the
-#   left of the keypad already, wired up in _BUTTON_DEFAULTS same as
-#   every other key:
-#       Sin -> Code $73   Cos -> Code $63   Tan -> Code $74
+#   left of the keypad already, with their codes defined in
+#   Config/defbuttons.ini (the file the Calculator actually loads
+#   its button codes from - see Configure Button Attributes to
+#   inspect any button yourself):
+#       Sin -> Code $3A   Cos -> Code $39   Tan -> Code $38
 #   Nothing currently listens for those three bytes on port $F011,
 #   so today they light up and do nothing. This exercise is what
 #   makes them do something - just assemble, load, and run; there is
@@ -149,9 +151,9 @@
 
 KEY:      .EQU    $F011
 DISP:     .EQU    $F031
-SIN_KEY:  .EQU    $73        # code the Sin button already sends
-COS_KEY:  .EQU    $63        # code the Cos button already sends
-TAN_KEY:  .EQU    $74        # code the Tan button already sends
+SIN_KEY:  .EQU    $3A        # code the Sin button already sends
+COS_KEY:  .EQU    $39        # code the Cos button already sends
+TAN_KEY:  .EQU    $38        # code the Tan button already sends
 
         .ORG    $4000
 
@@ -166,9 +168,9 @@ WAIT:   LDA     [KEY]
         JZ      [WAIT]
         STA     [KEYVAL]        # stash it - this is the ONLY read of KEY
 
-        CMPA    $1B             # Clear key
+        CMPA    $10             # Clear key
         JZ      [DO_CLEAR]
-        CMPA    $7F             # CE key
+        CMPA    $11             # CE key
         JZ      [DO_CLEAR]
 
         LDA     [STAGE]

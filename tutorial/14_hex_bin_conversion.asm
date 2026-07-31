@@ -198,9 +198,9 @@ WAIT:   LDA     [KEY]
         JZ      [WAIT]
         STA     [KEYVAL]        # stash it - this is the ONLY read of KEY
 
-        CMPA    $1B             # Clear key
+        CMPA    $10             # Clear key
         JZ      [DO_CLEAR]
-        CMPA    $7F             # CE key
+        CMPA    $11             # CE key
         JZ      [DO_CLEAR]
 
         LDA     [STAGE]

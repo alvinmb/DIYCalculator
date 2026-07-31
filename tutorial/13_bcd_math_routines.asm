@@ -278,9 +278,9 @@ WAIT:   LDA     [KEY]
         JZ      [WAIT]
         STA     [KEYVAL]        # stash it - this is the ONLY read of KEY
 
-        CMPA    $1B             # Clear key
+        CMPA    $10             # Clear key
         JZ      [DO_CLEAR]
-        CMPA    $7F             # CE key
+        CMPA    $11             # CE key
         JZ      [DO_CLEAR]
 
         LDA     [STAGE]
@@ -339,11 +339,40 @@ ST_OP1_ONES:
 
 # ---------------------------------------------------------------
 # STAGE 2 : operator  (+ - * /)
+#
+# OPCODE keeps the raw keypad code ($16/$17/$18/$19) for DO_EQUALS'
+# dispatch below, but the display (port $F031) doesn't understand
+# that range as a character (it only knows printable ASCII, raw
+# digit/hex codes, and the clear codes - see tools/calculator.py's
+# write_display()), so it has to be translated to its ASCII glyph
+# ('+' $2B, '-' $2D, '*' $2A, '/' $2F) before echoing to DISP.
 # ---------------------------------------------------------------
 ST_OPCODE:
         LDA     [KEYVAL]
         STA     [OPCODE]         # remember which operator was pressed
-        STA     [DISP]           # echo it
+
+        CMPA    $16              # '+'
+        JZ      [OP_ECHO_ADD]
+        CMPA    $17              # '-'
+        JZ      [OP_ECHO_SUB]
+        CMPA    $18              # '*'
+        JZ      [OP_ECHO_MUL]
+        JMP     [OP_ECHO_DIV]    # only remaining value is '/'
+
+OP_ECHO_ADD:
+        LDA     $2B
+        JMP     [OP_ECHO_DONE]
+OP_ECHO_SUB:
+        LDA     $2D
+        JMP     [OP_ECHO_DONE]
+OP_ECHO_MUL:
+        LDA     $2A
+        JMP     [OP_ECHO_DONE]
+OP_ECHO_DIV:
+        LDA     $2F
+OP_ECHO_DONE:
+        STA     [DISP]           # echo the operator's ASCII glyph
+
         LDA     $03
         STA     [STAGE]
         JMP     [WAIT]
@@ -384,24 +413,24 @@ ST_OP2_ONES:
 # ---------------------------------------------------------------
 ST_EQUALS:
         LDA     [KEYVAL]
-        CMPA    $3D              # '='
+        CMPA    $1A              # '=' key
         JZ      [DO_EQUALS]
-        CMPA    $0D              # Enter
+        CMPA    $13              # Enter key
         JZ      [DO_EQUALS]
         JMP     [WAIT]
 
 DO_EQUALS:
-        LDA     $3D
-        STA     [DISP]           # echo the '=' sign
+        LDA     $3D              # ASCII '=' -- the display glyph, not the
+        STA     [DISP]           # keypad code (see ST_OPCODE's note)
 
         LDA     [OPCODE]
-        CMPA    $2B              # '+'
+        CMPA    $16              # '+'
         JZ      [DO_ADD]
-        CMPA    $2D              # '-'
+        CMPA    $17              # '-'
         JZ      [DO_SUB]
-        CMPA    $2A              # '*'
+        CMPA    $18              # '*'
         JZ      [DO_MUL]
-        CMPA    $2F              # '/'
+        CMPA    $19              # '/'
         JZ      [DO_DIV]
         JMP     [WAIT]           # (shouldn't happen)
 
