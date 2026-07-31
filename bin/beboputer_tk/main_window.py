@@ -70,6 +70,11 @@ from .panels.cpu_panel import CPUPanel
 from .panels.terminal import Terminal
 from .panels.disassembler import DisassemblerPanel
 from .panels.compiler import CompilerPanel
+from .panels.workbench import WorkbenchPanel
+from .panels.keyboard import KeyboardPanel
+from .dialogs.eprom_burner import EpromBurner
+from .dialogs.system_clock import ask_hz
+from .dialogs.about import AboutDialog
 
 try:
     from beboputer_v7 import __version__
@@ -127,6 +132,7 @@ class BebopMain:
         self.cpu_panel: CPUPanel | None = None
         self.terminal: Terminal | None = None
         self.disassembler: DisassemblerPanel | None = None
+        self.workbench: WorkbenchPanel | None = None
 
         root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
@@ -293,6 +299,8 @@ class BebopMain:
                 self.terminal = None
             elif key == "disassembler":
                 self.disassembler = None
+            elif key == "workbench":
+                self.workbench = None
         return _on_close
 
     def _populate(self, child, key):
@@ -367,6 +375,20 @@ class BebopMain:
         panel = CompilerPanel(child.content, host_main=self)
         panel.pack(fill="both", expand=True)
 
+    def _populate_workbench(self, child):
+        self.workbench = WorkbenchPanel(child.content, self.cpu)
+        self.workbench.pack(fill="both", expand=True)
+        powered = self.calculator.powered if self.calculator is not None else False
+        self.workbench.set_power(powered)
+        self.workbench.sync_from_ram()
+
+    def _populate_keyboard(self, child):
+        panel = KeyboardPanel(
+            child.content, self.cpu,
+            terminal_cb=self.terminal.write_char if self.terminal is not None else None,
+        )
+        panel.pack(fill="both", expand=True)
+
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
             child.content,
@@ -399,9 +421,16 @@ class BebopMain:
     def _show_terminal(self):      self._open_panel("terminal")
     def _show_ports(self):         self._open_panel("ports", 420, 340)
     def _show_disassembler(self):  self._open_panel("disassembler", 480, 360)
-    def _show_eprom(self):         self._open_panel("eprom")
-    def _show_keyboard(self):      self._open_panel("keyboard")
-    def _show_workbench(self):     self._open_panel("workbench")
+    def _show_eprom(self):
+        # A fresh EpromBurner dialog every time -- same as Qt, no state
+        # persists between opens (see EpromBurner's docstring).
+        EpromBurner(
+            self.root, self.cpu, on_ram_changed=self._refresh_all,
+            calculator=self.calculator,
+        )
+
+    def _show_keyboard(self):      self._open_panel("keyboard", 460, 260)
+    def _show_workbench(self):     self._open_panel("workbench", 420, 260)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
     def _show_control_panel(self): self._open_panel("control", 340, 320)
 
@@ -452,6 +481,8 @@ class BebopMain:
             self.port_mon.reset()
         if self.terminal is not None:
             self.terminal.clear()   # blank the terminal, if anything was printed
+        if self.workbench is not None:
+            self.workbench.reset()  # switches back to off position, outputs blanked
         if self.msg_display is not None:
             self.msg_display.message("↺ CPU Reset.")
         self.set_status("Reset")
@@ -494,6 +525,8 @@ class BebopMain:
         beboputer_v7.main_window._on_power_changed()."""
         if self.terminal is not None:
             self.terminal.set_power(on)
+        if self.workbench is not None:
+            self.workbench.set_power(on)
         if on:
             self._do_random_fill_ram()
             self._do_reset(clear_calc_display=False)
@@ -615,10 +648,34 @@ class BebopMain:
     def _save_project_as(self):    self._not_yet("Save Project As")
     def _save_ram(self):           self._not_yet("Save RAM")
     def _purge_ram(self):          self._not_yet("Purge RAM")
-    def _set_clock(self):          self._not_yet("System Clock")
-    def _load_button_file(self):   self._not_yet("Load Button File")
-    def _save_button_file(self):   self._not_yet("Save Button File")
-    def _restore_defaults(self):   self._not_yet("Restore Defaults")
+
+    def _set_clock(self):
+        new_hz = ask_hz(self.root, self._clock_hz)
+        if new_hz is not None:
+            self._clock_hz = new_hz
+            self.set_status(f"Clock set to {new_hz} Hz")
+            if self.msg_display is not None:
+                self.msg_display.message(f"System clock set to {new_hz} Hz.")
+
+    def _load_button_file(self):
+        if self.calculator is not None:
+            self.calculator._load_button_file()
+        else:
+            self._not_yet("Load Button File")
+
+    def _save_button_file(self):
+        if self.calculator is not None:
+            self.calculator._save_button_file()
+        else:
+            self._not_yet("Save Button File")
+
+    def _restore_defaults(self):
+        if self.calculator is not None:
+            self.calculator._restore_defaults()
+            self.set_status("Button definitions restored to defaults.")
+        else:
+            self._not_yet("Restore Defaults")
+
     def _show_help(self):          self._not_yet("Help")
     def _show_web(self):           self._not_yet("DIY Calculator on the web")
     def _show_credits(self):       self._not_yet("Credits")
@@ -632,18 +689,7 @@ class BebopMain:
         self.set_status(f"{feature}: not yet implemented")
 
     def _show_about(self):
-        messagebox.showinfo(
-            "About",
-            f"PY-DIYCALCULATOR  v{__version__}\n\n"
-            f"tkinter build -- Phase 1 shell + Phase 2 (Message Display, "
-            f"Port Map Status, Load RAM, and a real CPU run/step loop).\n\n"
-            f"Control Panel (Tools menu) is NEW in this build -- "
-            f"beboputer_v7's own control_panel.py is unused dead code in "
-            f"the Qt app (see REFACTORING_NOTES.md sec. 2); it's wired in "
-            f"here so the CPU can be run/stepped before Memory Walker's "
-            f"own controls exist in tkinter.\n\n"
-            f"See TKINTER_MIGRATION.md for full migration status.",
-        )
+        AboutDialog(self.root)
 
     def _exit(self):
         self.root.quit()

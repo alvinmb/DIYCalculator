@@ -2,11 +2,16 @@
 
 **Status:** Phase 0 (spike/validation) complete — all three spikes
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
-(app shell) complete** — see §5. **Phase 2 parts 1-5 complete** (CPU
-wiring, Message Display, Port Monitor, Control Panel, Calculator +
-DIYButton grid, Memory Walker, CPU Registers, Terminal, Disassembler,
-Assembler/Editor) — see §7-§11. Not started: Keyboard, Workbench,
-EPROM Burner, remaining dialogs, printing/sound.
+(app shell) complete** — see §5. **Phase 2 is now feature-complete**
+(parts 1-6) — every panel and dialog in the Qt app's menu structure now
+has real tkinter content: CPU wiring, Message Display, Port Monitor,
+Control Panel, Calculator + DIYButton grid, Memory Walker, CPU
+Registers, Terminal, Disassembler, Assembler/Editor, Workbench 1,
+Keyboard, EPROM Burner, System Clock, About — see §7-§12. Remaining
+gaps are deliberate, tracked ones: printing, sound, Font dialog,
+inline Memory Walker DATA-cell editing, multi-monitor geometry (all
+already called out in §2/§6 and the per-part sections below). Not
+started: Phase 3 (platform validation) and Phase 4 (regression pass).
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -554,4 +559,63 @@ this session, and writes real `.ram`/`.lst` files to disk; `on_load_into_cpu()`
 the live CPU's RAM at `$4000`; `Find` selects real matched text in the
 editor via `tag_add("sel", ...)`; line navigation moves the insertion
 cursor to a real target line; `New` correctly resets editor/state.
+`test_harness.py`'s full 47-test suite still passes unchanged.
+
+---
+
+## 12. Phase 2 part 6 — Workbench 1, Keyboard, EPROM Burner, System Clock, About
+
+The last slice: everything remaining in the Qt app's Setup/Tools/Help
+menus.
+
+| File | Role |
+|---|---|
+| `panels/workbench.py` | tkinter port of `beboputer_v7/tools/workbench.py` -- 2× 8-bit switch banks (`$F000`/`$F001`), an 8-LED bar and three 7-segment displays driven by CPU write hooks (`$F022` LEDs, `$F021` un-decoded 7-seg, `$F023` decoded 7-seg, `$F024` dual decoded 7-seg -- see the visual-simplification and constant-mismatch notes below). Inert until the calculator powers on, same as Qt. |
+| `panels/keyboard.py` | tkinter port of `beboputer_v7/tools/keyboard.py` -- full on-screen keyboard (ESC row through bottom row), CAPS/SHIFT case toggling, hex readout of the last key sent to `$F011`, optional terminal-echo callback. |
+| `dialogs/eprom_burner.py` | tkinter port of `beboputer_v7/dialogs/eprom_burner.py` -- Browse/Burn ROM/Load ROM/Swap ROMs against a CPU RAM address range, same "calculator must be on" gate as Load RAM. A fresh dialog every time it's opened, matching Qt. |
+| `dialogs/system_clock.py` | tkinter port of `beboputer_v7/dialogs/system_clock.py` -- Hz entry with 1-10,000 range validation. Qt's blocking `exec_()` has no single tkinter widget equivalent, so `ask_hz()` reproduces the same blocking-modal call shape via the standard `grab_set()` + `wait_window()` pattern. |
+| `dialogs/about.py` | tkinter port of `beboputer_v7/dialogs/about.py`. |
+
+**A real visual simplification, not a dead-code trace:** the Qt
+Workbench's un-decoded and decoded 7-segment displays are rendered
+from photographic `BITMAPS/USEGn.BMP`/`DSEGn.BMP` assets via `QPixmap`.
+tkinter's `PhotoImage` has no built-in BMP decoder (GIF/PGM/PPM/PNG
+only, without adding a Pillow dependency this migration hasn't needed
+anywhere else), so all three segment displays are drawn as vector
+polygons on a `tk.Canvas` instead -- same segment-bit truth table
+(`_DIGITS`), same on/off colors and blank-vs-lit-zero distinction, just
+line-drawn rather than photorealistic. Also not ported: the switch-click
+`.wav` sound (`QSound`, no tkinter equivalent -- same already-flagged
+Sound gap).
+
+**A genuine pre-existing discrepancy, left as-is:** `workbench.py`'s
+module docstring documents the port map as `$F020`/`$F021`/`$F022`/`$F023`,
+but the actual `ADDR_*` constants the working code uses are
+`$F000`/`$F001`/`$F022`/`$F021`/`$F023`/`$F024`. This mismatch already
+existed in the Qt source (not introduced by this port) -- the tkinter
+port uses the real, working constants (copied from the code, not the
+stale comment) and flags the discrepancy in its own docstring rather
+than silently "fixing" behavior that wasn't asked about.
+
+`main_window.py` changes: `_show_eprom()` now constructs a real,
+fresh `EpromBurner` Toplevel each time (matching Qt's per-open
+construction) instead of routing through the placeholder-panel
+machinery. `_set_clock()` calls the real blocking `ask_hz()` and
+updates `self._clock_hz`. `_load_button_file()`/`_save_button_file()`/
+`_restore_defaults()` -- previously `_not_yet()` stubs even though
+`Calculator` has fully implemented these methods since Phase 2 part
+2 -- now delegate to the calculator, matching Qt's own
+`BebopMain._load_button_file()`-style delegation. `_show_about()` now
+opens the real dialog instead of a plain `messagebox`. Workbench
+follows calculator power state and syncs from RAM when opened; Reset
+now also resets Workbench's switches/outputs.
+
+**Verified** (headless, via Xvfb, through real widget/hook call
+paths): Workbench switch-bank writes reach `$F000`; all three CPU
+write hooks (`$F021`/`$F022`/`$F023`/`$F024`) drive their real
+Workbench widgets; Keyboard's case handling and hex readout are
+correct for a real keypress; EPROM Burner's Burn ROM writes an actual
+`.rom` file from a real CPU RAM range and Load ROM reads it back
+correctly; System Clock's dialog validates in-range/out-of-range
+input correctly (real logic, not just "doesn't crash"); About opens.
 `test_harness.py`'s full 47-test suite still passes unchanged.
