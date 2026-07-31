@@ -24,12 +24,13 @@ main_window.py -- tkinter shell for PY-DIYCALCULATOR.
 Phase 1 built the navigable app skeleton (menu bar, status bar,
 MdiArea, non-overlapping startup layout) with every panel as a
 placeholder. Phase 2 wires up a real CPU instance -- same keypad
-read/write hooks as beboputer_v7.main_window -- and replaces four
+read/write hooks as beboputer_v7.main_window -- and replaces five
 panels' placeholders with real, working content: Message Display,
 Port Map Status, Calculator (full DIYButton grid, defbuttons.ini
 load/save, power on/off with random-RAM-fill matching real SRAM
-power-up behaviour), and (new, see below) Control Panel. Every other
-panel is still a Phase 1 placeholder.
+power-up behaviour), Memory Walker (256-row scrollable grid, single
+step, breakpoints, RUN to BP, Walk 64K), and (new, see below) Control
+Panel. Every other panel is still a Phase 1 placeholder.
 
 Menu structure (labels, grouping, and order) is copied directly from
 beboputer_v7/menus.py so the tkinter build feels like the same app
@@ -64,6 +65,7 @@ from .panels.message_display import MessageDisplay
 from .panels.port_monitor import PortMonitor
 from .panels.control_panel import ControlPanel
 from .panels.calculator import Calculator
+from .panels.memory_walker import MemoryWalker
 
 try:
     from beboputer_v7 import __version__
@@ -117,6 +119,7 @@ class BebopMain:
         self.port_mon: PortMonitor | None = None
         self.control_panel: ControlPanel | None = None
         self.calculator: Calculator | None = None
+        self.mem_walker: MemoryWalker | None = None
 
         root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
@@ -275,6 +278,8 @@ class BebopMain:
                 self.control_panel = None
             elif key == "calculator":
                 self.calculator = None
+            elif key == "mem_walker":
+                self.mem_walker = None
         return _on_close
 
     def _populate(self, child, key):
@@ -317,6 +322,14 @@ class BebopMain:
         # evaluator (see panels/calculator.py's module docstring).
         self.cpu._write_hooks[0xF031] = self.calculator.write_display
         self.cpu._write_hooks[0xF032] = self.calculator.write_leds
+
+    def _populate_mem_walker(self, child):
+        self.mem_walker = MemoryWalker(
+            child.content, self.cpu,
+            on_step_executed=self._on_mem_walker_step,
+            on_bp_hit=self._on_mem_walker_bp_hit,
+        )
+        self.mem_walker.pack(fill="both", expand=True)
 
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
@@ -458,9 +471,17 @@ class BebopMain:
             self.set_status(f"HALT at PC=${self.cpu.pc:04X}")
             self._refresh_all()
             return
+        bp_hit = None
+        breakpoints = self.mem_walker._breakpoints if self.mem_walker is not None else ()
         for _ in range(10):    # execute 10 instructions per tick, same as Qt build
             self.cpu.step()
             if self.cpu.halted:
+                break
+            # Stop on a Memory Walker breakpoint, same as its own "RUN to
+            # BP" button -- without this, Run ignores breakpoints entirely
+            # (see beboputer_v7.main_window._run_tick()'s equivalent check).
+            if self.cpu.pc in breakpoints:
+                bp_hit = self.cpu.pc
                 break
         self._refresh_all()
         if self.cpu.halted:
@@ -468,15 +489,36 @@ class BebopMain:
             self.msg_display.message("--- HALT ---")
             self._run_after_id = None
             return
+        if bp_hit is not None:
+            reason = f"BP hit at ${bp_hit:04X}"
+            self.set_status(reason)
+            self.msg_display.message(reason)
+            self._run_after_id = None
+            return
         self._run_after_id = self.root.after(
             max(1, 1000 // max(1, self._clock_hz)), self._run_tick
         )
+
+    def _on_mem_walker_step(self, mnemonic):
+        """Called after Memory Walker's own STEP column single-steps the CPU."""
+        if self.msg_display is not None:
+            self.msg_display.message(self._instr_msgs.describe(self.cpu))
+        self._refresh_all()
+
+    def _on_mem_walker_bp_hit(self, reason):
+        """Called when Memory Walker's RUN to BP stops (BP / HALT / limit)."""
+        if self.msg_display is not None:
+            self.msg_display.message(reason)
+        self.set_status(reason)
+        self._refresh_all()
 
     def _refresh_all(self):
         if self.port_mon is not None:
             self.port_mon.refresh()
         if self.control_panel is not None:
             self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
+        if self.mem_walker is not None:
+            self.mem_walker.highlight_pc(self.cpu.pc)
 
     # -------------------------------------------------------- Load RAM --
 

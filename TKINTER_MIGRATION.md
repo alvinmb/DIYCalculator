@@ -4,8 +4,9 @@
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
 (app shell) complete** — see §5. **Phase 2 part 1 (CPU wiring + Message
 Display + Port Monitor + Control Panel) complete** — see §7. **Phase 2
-part 2 (Calculator + DIYButton grid) complete** — see §8. Not started:
-Memory Walker, Disassembler, Compiler/Editor, remaining dialogs,
+part 2 (Calculator + DIYButton grid) complete** — see §8. **Phase 2
+part 3 (Memory Walker) complete** — see §9. Not started: Disassembler,
+CPU Registers panel, Terminal, Compiler/Editor, remaining dialogs,
 printing/sound.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
@@ -399,3 +400,63 @@ opens correctly but wasn't driven through a full edit-and-persist cycle
 in headless verification (no synthetic right-click event source under
 Xvfb without a window manager) -- worth a manual check on real Windows.
 Memory Walker is still the next slice.
+
+---
+
+## 9. Phase 2 part 3 — Memory Walker
+
+Third content slice: the hardest panel per §4's sequencing, de-risked
+ahead of time by the Phase 0 spike (§3.2).
+
+| File | Role |
+|---|---|
+| `panels/memory_grid.py` | The 256-row BP/STEP/ADDRESS/DATA table widget, promoted from `prototypes/tkinter_migration/memory_grid.py` (same one `tk.Text` + per-substring color tags approach, verified at ~9.3ms/refresh in Phase 0). Two changes from the spike: breakpoints and the view's base address are no longer owned by the grid widget itself (that was a spike-only convenience) -- they're owned by `MemoryWalker` now, matching the Qt panel's `self._breakpoints`/`self._base`, so `main_window.py` can inspect `mem_walker._breakpoints` directly the same way the Qt build's `_run_tick()` does. Added `scroll_to_offset()`, matching Qt's `scrollToItem()` call that keeps the ▶ PC marker in view. |
+| `panels/memory_walker.py` | tkinter port of `beboputer_v7/panels/memory_walker.py` -- Address/GO/Go to PC navigation, RUN to BP, Clear BPs, Walk 64K (continuous 64K auto-paging), status line, and the embedded grid. Same `_user_nav` flag semantics as Qt: manual navigation (GO or Walk) suspends PC-following until you step again or click Go to PC. Default breakpoint at `$0000` preserved (catches the `JMP [$0000]` NOP-sled idiom several tutorials use as an old-style HALT). |
+
+`main_window.py` changes: builds a real `MemoryWalker(child.content,
+self.cpu, on_step_executed=..., on_bp_hit=...)` the first time the
+"mem_walker" panel is opened (it's one of the three startup panels, so
+this happens immediately at launch, same as Calculator/Message
+Display). `_refresh_all()` now also calls `mem_walker.highlight_pc()`
+after every step/run, so the ▶ marker tracks the live PC regardless of
+whether execution was driven from Control Panel, Memory Walker's own
+STEP column, or a future Calculator Step click. `_run_tick()` (the
+Control-Panel-driven Run loop) now checks `mem_walker._breakpoints`
+inside its per-instruction loop and stops with a status message on a
+hit -- previously (Phase 2 part 1) Run ignored breakpoints entirely,
+the same gap the Qt build itself once had and fixed. Two new callbacks,
+`_on_mem_walker_step`/`_on_mem_walker_bp_hit`, log to Message Display
+and refresh other panels when Memory Walker's *own* controls (not
+Control Panel) drive execution -- mirroring the Qt build's
+`step_executed`/`bp_hit` signal connections.
+
+**Verified** (headless, via Xvfb):
+
+- Grid renders real addresses/data from cold construction (`$0000` shows
+  `00`, not `XX`, since ROM is marked "known" even before power-on)
+- Loading tutorial 17's `.ram` and single-stepping via Memory Walker's
+  own `_do_step()` (the literal STEP-column click handler) advances the
+  real CPU, updates the status line with the live mnemonic, and fires
+  the `on_step_executed` callback
+- Breakpoint toggle (the literal BP-column click handler,
+  `_toggle_bp()`) sets and clears `_breakpoints` correctly
+- `run_to_breakpoint()` genuinely stops exactly at a breakpoint address
+  reached mid-program (verified by single-stepping 3 real instructions
+  first to learn a real future PC, setting a breakpoint there, resetting,
+  and confirming Run-to-BP halts at that exact address after exactly 3
+  steps) -- not just "doesn't crash," an actual correct stop
+- A longer `run_to_breakpoint()` run against an unreached breakpoint
+  correctly terminates at the `RUN_LIMIT` (500,000) safety cap rather
+  than hanging
+- Control-Panel-driven `_run_tick()` (500 ticks / 5,000 instructions)
+  runs without error with Memory Walker's breakpoint check wired into
+  the loop
+- `test_harness.py`'s full 47-test suite still passes unchanged
+
+**Not yet real:** double-click-to-edit a DATA cell in place (Qt's
+`QTableWidget` supports inline cell editing; the `Text`-based grid would
+need a floating-`Entry`-on-click overlay to match -- real UI work, not a
+mechanical port). RAM can still be changed via File > Load RAM in the
+meantime. `ideal_width()` (Qt-only exact-pixel subwindow sizing) has no
+tkinter equivalent need since `MdiChild` panels are already sized via
+`PanelSpec`/`tile_children()`.
