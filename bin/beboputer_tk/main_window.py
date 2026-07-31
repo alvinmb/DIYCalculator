@@ -186,6 +186,13 @@ class BebopMain:
     # ------------------------------------------------------------ menu --
 
     def _build_menu(self):
+        # tk.Menu widgets don't pick up any of the font bumps applied
+        # elsewhere in the UI (they were never given an explicit font=
+        # at all, so they fell back to Tk's small default). option_add
+        # here applies to the menu bar AND every cascaded submenu created
+        # below in one shot, rather than repeating font= on each tk.Menu().
+        self.root.option_add("*Menu.font", ("Segoe UI", 12))
+
         mb = tk.Menu(self.root)
         self.root.config(menu=mb)
 
