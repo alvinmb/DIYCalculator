@@ -2,12 +2,11 @@
 
 **Status:** Phase 0 (spike/validation) complete — all three spikes
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
-(app shell) complete** — see §5. **Phase 2 part 1 (CPU wiring + Message
-Display + Port Monitor + Control Panel) complete** — see §7. **Phase 2
-part 2 (Calculator + DIYButton grid) complete** — see §8. **Phase 2
-part 3 (Memory Walker) complete** — see §9. Not started: Disassembler,
-CPU Registers panel, Terminal, Compiler/Editor, remaining dialogs,
-printing/sound.
+(app shell) complete** — see §5. **Phase 2 parts 1-4 complete** (CPU
+wiring, Message Display, Port Monitor, Control Panel, Calculator +
+DIYButton grid, Memory Walker, CPU Registers, Terminal, Disassembler)
+— see §7-§10. Not started: Compiler/Editor, Keyboard, Workbench, EPROM
+Burner, remaining dialogs, printing/sound.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -460,3 +459,51 @@ mechanical port). RAM can still be changed via File > Load RAM in the
 meantime. `ideal_width()` (Qt-only exact-pixel subwindow sizing) has no
 tkinter equivalent need since `MdiChild` panels are already sized via
 `PanelSpec`/`tile_children()`.
+
+---
+
+## 10. Phase 2 part 4 — CPU Registers, Terminal, Disassembler
+
+Three smaller panels, ported together since each is a direct,
+mechanical port with no dead-code surprises this time.
+
+| File | Role |
+|---|---|
+| `panels/cpu_panel.py` | tkinter port of `beboputer_v7/panels/cpu_panel.py` -- the 6-register LCD-style grid (Accumulator, PC, Instruction Reg, Index Reg, Interrupt Vector, Stack Pointer) plus the 5-flag Status Reg row (I/O/N/Z/C). Also ports the two small display widgets it depends on (`beboputer_v7/widgets/leds.py`'s `LEDDisplay`/`FlagLight`) as local `tk.Label` subclasses inside the same file, since nothing else uses them yet. Untouched flags render as italic grey `x` (never-written) vs. `0`/`1`, same three-state design as Qt. |
+| `panels/terminal.py` | tkinter port of `beboputer_v7/panels/terminal.py` -- the `$F028`-driven CRT-style output device, raised/sunken bevel frame, black-screen-when-off / white-screen-when-on styling tied to Calculator power state. |
+| `panels/disassembler.py` | tkinter port of `beboputer_v7/panels/disassembler.py` -- From/Disassemble text output. `cpu.disassemble_at()` does all the real decoding and has zero Qt dependency, so it's reused completely unchanged; this panel is just the address-box + text-output wrapper around it. |
+
+**A third dead-code trace, same pattern as the DIYButton and Calculator
+findings:** `beboputer_v7.main_window._check_port_output()` forwards
+`cpu.ports_out[1]` to the terminal on every refresh -- but nothing in
+`cpu.py` ever writes to `ports_out[1]`; it's leftover from an older
+port-based I/O model that predates the `$F028` memory-mapped write hook
+actually in use. Not ported here (the real `$F028` hook is, and does
+the actual work) -- documented in `panels/terminal.py`'s module
+docstring.
+
+`main_window.py` changes: builds real content for "cpu", "terminal",
+and "disassembler" the first time each is opened from the Display menu
+(all three are Phase 1 placeholders until then, same lazy-build pattern
+as Port Monitor/Control Panel). Wires the `$F028` write hook to
+`terminal.write_char` at that point. `_refresh_all()` now also calls
+`cpu_panel.refresh()` and `disassembler.refresh_at_pc()` when those
+panels are open. `_do_reset()` now calls `terminal.clear()`.
+`_on_power_changed()` now calls `terminal.set_power(on)`, so the
+terminal screen goes black/white in step with the calculator exactly
+as in Qt.
+
+**Verified** (headless, via Xvfb, through the real menu-handler and
+CPU-hook call paths):
+
+- CPU Registers panel shows the live PC and correctly renders
+  never-written flags as `x`
+- Terminal silently discards writes while powered off, then renders
+  characters correctly once powered on (via Calculator's On/Off), and
+  a direct `cpu._write(0xF028, ...)` -- the same path a real `STORE
+  ($F028), A` instruction takes -- reaches the screen
+- Disassembler shows real decoded instructions starting at `$4000`
+  after loading tutorial 17's `.ram`, and stays in sync with the live
+  PC after a step (via `_refresh_all()`)
+- Reset clears the terminal screen
+- `test_harness.py`'s full 47-test suite still passes unchanged

@@ -66,6 +66,9 @@ from .panels.port_monitor import PortMonitor
 from .panels.control_panel import ControlPanel
 from .panels.calculator import Calculator
 from .panels.memory_walker import MemoryWalker
+from .panels.cpu_panel import CPUPanel
+from .panels.terminal import Terminal
+from .panels.disassembler import DisassemblerPanel
 
 try:
     from beboputer_v7 import __version__
@@ -120,6 +123,9 @@ class BebopMain:
         self.control_panel: ControlPanel | None = None
         self.calculator: Calculator | None = None
         self.mem_walker: MemoryWalker | None = None
+        self.cpu_panel: CPUPanel | None = None
+        self.terminal: Terminal | None = None
+        self.disassembler: DisassemblerPanel | None = None
 
         root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
@@ -280,6 +286,12 @@ class BebopMain:
                 self.calculator = None
             elif key == "mem_walker":
                 self.mem_walker = None
+            elif key == "cpu":
+                self.cpu_panel = None
+            elif key == "terminal":
+                self.terminal = None
+            elif key == "disassembler":
+                self.disassembler = None
         return _on_close
 
     def _populate(self, child, key):
@@ -330,6 +342,25 @@ class BebopMain:
             on_bp_hit=self._on_mem_walker_bp_hit,
         )
         self.mem_walker.pack(fill="both", expand=True)
+
+    def _populate_cpu(self, child):
+        self.cpu_panel = CPUPanel(child.content, self.cpu)
+        self.cpu_panel.pack(fill="both", expand=True)
+
+    def _populate_terminal(self, child):
+        self.terminal = Terminal(child.content)
+        self.terminal.pack(fill="both", expand=True)
+        # Same $F028 write hook as beboputer_v7.main_window: any
+        # STORE ($F028), A instruction routes ACC straight to the screen.
+        self.cpu._write_hooks[0xF028] = self.terminal.write_char
+        # Terminal follows the calculator's power state, same as Qt.
+        if self.calculator is not None:
+            self.terminal.set_power(self.calculator.powered)
+
+    def _populate_disassembler(self, child):
+        self.disassembler = DisassemblerPanel(child.content, self.cpu)
+        self.disassembler.pack(fill="both", expand=True)
+        self.disassembler.refresh_at_pc(self.cpu.pc)
 
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
@@ -414,6 +445,8 @@ class BebopMain:
             self.calculator.blank_display()
         if self.port_mon is not None:
             self.port_mon.reset()
+        if self.terminal is not None:
+            self.terminal.clear()   # blank the terminal, if anything was printed
         if self.msg_display is not None:
             self.msg_display.message("↺ CPU Reset.")
         self.set_status("Reset")
@@ -454,6 +487,8 @@ class BebopMain:
     def _on_power_changed(self, on: bool):
         """Called by Calculator.control("On/Off"). Same behaviour as
         beboputer_v7.main_window._on_power_changed()."""
+        if self.terminal is not None:
+            self.terminal.set_power(on)
         if on:
             self._do_random_fill_ram()
             self._do_reset(clear_calc_display=False)
@@ -513,12 +548,16 @@ class BebopMain:
         self._refresh_all()
 
     def _refresh_all(self):
+        if self.cpu_panel is not None:
+            self.cpu_panel.refresh()
         if self.port_mon is not None:
             self.port_mon.refresh()
         if self.control_panel is not None:
             self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
         if self.mem_walker is not None:
             self.mem_walker.highlight_pc(self.cpu.pc)
+        if self.disassembler is not None:
+            self.disassembler.refresh_at_pc(self.cpu.pc)
 
     # -------------------------------------------------------- Load RAM --
 
