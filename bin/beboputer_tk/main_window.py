@@ -188,16 +188,25 @@ class BebopMain:
     def _build_menu(self):
         # tk.Menu widgets don't pick up any of the font bumps applied
         # elsewhere in the UI (they were never given an explicit font=
-        # at all, so they fell back to Tk's small default). option_add
-        # here applies to the menu bar AND every cascaded submenu created
-        # below in one shot, rather than repeating font= on each tk.Menu().
-        self.root.option_add("*Menu.font", ("Segoe UI", 12))
+        # at all, so they fell back to Tk's small default).
+        #
+        # option_add("*Menu.font", ...) alone isn't reliable here: on
+        # Windows, the option-database pattern doesn't always reach
+        # cascaded pulldown submenus even though it reaches the menu
+        # bar itself (a real, observed gap -- the bar got bigger, the
+        # dropdowns didn't). Pass font= explicitly to every tk.Menu()
+        # call below as well, so the pulldowns are guaranteed to pick
+        # it up regardless of platform menu quirks. option_add is kept
+        # too, as a fallback for any Menu created elsewhere (e.g. the
+        # Compiler panel's Menubutton-attached dropdowns).
+        MENU_FONT = ("Segoe UI", 15)
+        self.root.option_add("*Menu.font", MENU_FONT)
 
-        mb = tk.Menu(self.root)
+        mb = tk.Menu(self.root, font=MENU_FONT)
         self.root.config(menu=mb)
 
         # ── File ─────────────────────────────────────────────────────────
-        fm = tk.Menu(mb, tearoff=0)
+        fm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="File", menu=fm)
         fm.add_command(label="New Project...",     command=self._new_project)
         fm.add_command(label="Open Project...",    command=self._open_project)
@@ -211,7 +220,7 @@ class BebopMain:
         fm.add_command(label="Exit", command=self._exit)
 
         # ── Setup ────────────────────────────────────────────────────────
-        sm = tk.Menu(mb, tearoff=0)
+        sm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="Setup", menu=sm)
         sm.add_command(label="System Clock...",   command=self._set_clock)
         sm.add_separator()
@@ -220,7 +229,7 @@ class BebopMain:
         sm.add_command(label="Restore Defaults",    command=self._restore_defaults)
 
         # ── Display ──────────────────────────────────────────────────────
-        dm = tk.Menu(mb, tearoff=0)
+        dm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="Display", menu=dm)
         dm.add_command(label="CPU Registers",   command=self._show_cpu)
         dm.add_command(label="Message Display", command=self._show_msg_display)
@@ -229,13 +238,13 @@ class BebopMain:
         dm.add_command(label="Disassembler",    command=self._show_disassembler)
 
         # ── Memory ───────────────────────────────────────────────────────
-        mm = tk.Menu(mb, tearoff=0)
+        mm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="Memory", menu=mm)
         mm.add_command(label="Memory Walker",   command=self._show_mem_walker)
         mm.add_command(label="Find Address...", command=self._find_address)
 
         # ── Tools ────────────────────────────────────────────────────────
-        tm = tk.Menu(mb, tearoff=0)
+        tm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="Tools", menu=tm)
         tm.add_command(label="EPROM Burner",         command=self._show_eprom)
         tm.add_command(label="Calculator...",        command=self._show_calculator)
@@ -247,7 +256,7 @@ class BebopMain:
                         command=self._show_control_panel)
 
         # ── Help ─────────────────────────────────────────────────────────
-        hm = tk.Menu(mb, tearoff=0)
+        hm = tk.Menu(mb, tearoff=0, font=MENU_FONT)
         mb.add_cascade(label="Help", menu=hm)
         hm.add_command(label="Help...", command=self._show_help)
         hm.add_command(label="DIY Calculator on the web", command=self._show_web)
