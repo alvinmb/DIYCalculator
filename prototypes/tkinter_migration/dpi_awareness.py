@@ -106,31 +106,59 @@ def apply_dpi_scaling(root) -> float:
 # ── self-test -----------------------------------------------------------------
 
 def _selftest():
-    """Confirms this module is safe to import and call on a non-Windows
-    box (graceful no-ops) and that apply_dpi_scaling() doesn't raise
-    against a real (if DPI-boring) Tk root. Does NOT and CANNOT verify
-    real per-monitor Hi-DPI visual correctness -- see module docstring.
+    """Confirms this module is safe to import and call, and that
+    apply_dpi_scaling() doesn't raise against a real Tk root -- on
+    WHATEVER platform it's actually run on. Does NOT and CANNOT verify
+    real per-monitor Hi-DPI visual correctness on its own -- see module
+    docstring; on Windows, look at the window it pops up and judge for
+    yourself whether text/widgets look crisp, not just that this prints
+    PASSED.
     """
     import tkinter as tk
 
+    on_windows = sys.platform == "win32"
+
     did_set = set_process_dpi_aware()
     print(f"set_process_dpi_aware() -> {did_set}  "
-          f"(expected False on this non-Windows sandbox)")
-    assert did_set is False, "unexpected: this sandbox is not win32"
+          f"(platform={sys.platform}; True is expected on Windows, "
+          f"False everywhere else)")
+    if on_windows:
+        assert did_set is True, (
+            "on win32, set_process_dpi_aware() should have succeeded -- "
+            "if this fired, SetProcessDpiAwareness/SetProcessDPIAware "
+            "both failed on this machine, worth investigating directly"
+        )
+    else:
+        assert did_set is False
 
     root = tk.Tk()
     root.geometry("300x200")
     scale = apply_dpi_scaling(root)
-    print(f"apply_dpi_scaling() -> scale={scale}  "
-          f"(expected 1.0 -- get_window_dpi() falls back to 96 off-Windows)")
-    assert scale == 1.0
+    if on_windows:
+        note = "real monitor DPI / 96 -- anything other than 1.0 means scaling is actually being applied"
+    else:
+        note = "expected 1.0 off-Windows"
+    print(f"apply_dpi_scaling() -> scale={scale}  ({note})")
+    if not on_windows:
+        assert scale == 1.0
 
     current_scaling = root.tk.call("tk", "scaling")
     print(f"tk scaling now reports: {current_scaling}")
 
-    root.destroy()
-    print("\nSELF-TEST PASSED (Linux no-op path only -- "
-          "run on real Windows Hi-DPI hardware to validate the actual fix)")
+    if on_windows:
+        tk.Label(root, text=f"DPI scale = {scale}\nLook at this text --\n"
+                             f"does it look crisp, not blurry?",
+                 font=("Segoe UI", 12)).pack(expand=True, fill="both")
+        print("\nA window should now be visible -- judge Hi-DPI crispness "
+              "by eye, then close it.")
+        root.mainloop()
+    else:
+        root.destroy()
+
+    print("\nSELF-TEST PASSED"
+          + ("" if on_windows else
+             " (Linux no-op path only -- this does not validate the "
+             "actual Windows Hi-DPI fix)"))
 
 
 if __name__ == "__main__":
