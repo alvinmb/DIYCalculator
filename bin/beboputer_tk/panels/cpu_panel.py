@@ -66,7 +66,7 @@ class LEDDisplay(tk.Label):
         self._box_width = box_width if box_width is not None else width
         super().__init__(
             parent, bg=C["lcd_bg"], fg="#000000",
-            font=("Courier New", 14, "bold"),
+            font=("Courier New", 17, "bold"),
             relief="sunken", bd=2, anchor="e",
             width=self._box_width, **kwargs,
         )
@@ -84,7 +84,7 @@ class FlagLight(tk.Label):
 
     def __init__(self, parent, **kwargs):
         super().__init__(
-            parent, bg=C["lcd_bg"], font=("Courier New", 14, "bold"),
+            parent, bg=C["lcd_bg"], font=("Courier New", 17, "bold"),
             relief="sunken", bd=2, width=2, anchor="center", **kwargs,
         )
         self.set_unknown()
@@ -96,7 +96,7 @@ class FlagLight(tk.Label):
             self.configure(text="0", fg=C.get("lcd_fg", "#000000"))
 
     def set_unknown(self):
-        self.configure(text="x", fg=C["grey"], font=("Courier New", 14, "bold italic"))
+        self.configure(text="x", fg=C["grey"], font=("Courier New", 17, "bold italic"))
 
 
 class CPUPanel(tk.Frame):
@@ -127,7 +127,7 @@ class CPUPanel(tk.Frame):
 
         flag_box = tk.LabelFrame(
             outer, text="Status Reg", bg="#c0c0c0",
-            font=("Arial", 9, "bold"), labelanchor="n",
+            font=("Arial", 12, "bold"), labelanchor="n",
             padx=12, pady=8,
         )
         flag_box.pack(fill="x")
@@ -144,7 +144,7 @@ class CPUPanel(tk.Frame):
         cell.grid(row=row, column=col, padx=6, pady=3, sticky="n")
         tk.Label(
             cell, text=label, fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 9, "bold"),
+            font=("Arial", 12, "bold"),
         ).pack()
         disp = LEDDisplay(cell, width=width, box_width=self._BOX_WIDTH)
         disp.pack()
@@ -155,7 +155,7 @@ class CPUPanel(tk.Frame):
         cell.pack(side="left", padx=4)
         tk.Label(
             cell, text=disp_name, fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 9, "bold"),
+            font=("Arial", 12, "bold"),
         ).pack()
         fl = FlagLight(cell)
         fl.pack()

@@ -95,7 +95,7 @@ class MemoryGrid(tk.Frame):
         header = tk.Label(
             self, text=f"{'BP':<{COL_BP_W}}{'ST':<{COL_STEP_W}}"
                        f"{'ADDR':<{COL_ADDR_W}}{'DATA':<{COL_DATA_W}}",
-            font=("Courier New", 11, "bold"), anchor="w", bg="#dcdcdc",
+            font=("Courier New", 14, "bold"), anchor="w", bg="#dcdcdc",
         )
         header.pack(fill="x")
 
@@ -103,7 +103,7 @@ class MemoryGrid(tk.Frame):
         text_frame.pack(fill="both", expand=True)
 
         self.text = tk.Text(
-            text_frame, font=("Courier New", 11), width=22, height=visible_rows,
+            text_frame, font=("Courier New", 14), width=22, height=visible_rows,
             bg=C.get("bg", "#f5f5f0"), cursor="arrow", wrap="none", state="disabled",
             highlightthickness=0, bd=1, relief="sunken",
         )

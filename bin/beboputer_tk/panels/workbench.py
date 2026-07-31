@@ -122,7 +122,7 @@ class SwitchBank(tk.Frame):
         super().__init__(parent, bg="#c0c0c0", **kwargs)
         self._switches: list[ToggleSwitch] = []
         self._on_value_changed = on_value_changed
-        tk.Label(self, text=label, bg="#c0c0c0", font=("Arial", 9, "bold")).pack(anchor="w")
+        tk.Label(self, text=label, bg="#c0c0c0", font=("Arial", 12, "bold")).pack(anchor="w")
         row = tk.Frame(self, bg="#c0c0c0")
         row.pack()
         for _ in range(8):
@@ -346,7 +346,7 @@ class WorkbenchPanel(tk.Frame):
         self._sw2 = SwitchBank(left, "8-Bit Switch Bank 2", on_value_changed=self._sw2_write)
         self._sw2.pack(pady=4)
 
-        tk.Label(left, text="8-Bit LEDs", bg="#c0c0c0", font=("Arial", 9, "bold")).pack(anchor="w", pady=(8, 2))
+        tk.Label(left, text="8-Bit LEDs", bg="#c0c0c0", font=("Arial", 12, "bold")).pack(anchor="w", pady=(8, 2))
         self._leds = LEDBar(left)
         self._leds.pack()
 
@@ -356,7 +356,7 @@ class WorkbenchPanel(tk.Frame):
         cols = tk.Frame(right, bg="#c0c0c0")
         cols.pack()
         for i, title in enumerate(["7-Seg\nUn-Dec", "7-Seg\nDec", "Dual 7-Seg\nDecoded"]):
-            tk.Label(cols, text=title, bg="#c0c0c0", font=("Arial", 9, "bold"),
+            tk.Label(cols, text=title, bg="#c0c0c0", font=("Arial", 12, "bold"),
                      justify="center").grid(row=0, column=i, padx=10)
 
         self._seg1 = SevenSeg(cols, decoded=False)

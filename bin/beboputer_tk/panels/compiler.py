@@ -116,7 +116,7 @@ class CompilerPanel(tk.Frame):
         bar.pack(fill="x")
 
         file_mb = tk.Menubutton(bar, text="File", bg="#d4d0c8", relief="flat",
-                                 font=("Arial", 9), padx=8)
+                                 font=("Arial", 12), padx=8)
         file_menu = tk.Menu(file_mb, tearoff=0)
         file_menu.add_command(label="New", command=self.on_new, accelerator="Ctrl+N")
         file_menu.add_command(label="Open...", command=self.on_open, accelerator="Ctrl+O")
@@ -128,7 +128,7 @@ class CompilerPanel(tk.Frame):
         file_mb.pack(side="left")
 
         edit_mb = tk.Menubutton(bar, text="Edit", bg="#d4d0c8", relief="flat",
-                                 font=("Arial", 9), padx=8)
+                                 font=("Arial", 12), padx=8)
         edit_menu = tk.Menu(edit_mb, tearoff=0)
         edit_menu.add_command(label="Cut", command=lambda: self.editor.event_generate("<<Cut>>"))
         edit_menu.add_command(label="Copy", command=lambda: self.editor.event_generate("<<Copy>>"))
@@ -141,7 +141,7 @@ class CompilerPanel(tk.Frame):
         edit_mb.pack(side="left")
 
         insert_mb = tk.Menubutton(bar, text="Insert", bg="#d4d0c8", relief="flat",
-                                   font=("Arial", 9), padx=8)
+                                   font=("Arial", 12), padx=8)
         insert_menu = tk.Menu(insert_mb, tearoff=0)
         directive_menu = tk.Menu(insert_menu, tearoff=0)
         for label, snippet in _DIRECTIVE_SNIPPETS:
@@ -182,13 +182,13 @@ class CompilerPanel(tk.Frame):
         bar.pack(fill="x", padx=6, pady=4)
 
         self.compile_button = tk.Button(
-            bar, text="Assemble", font=("Arial", 9, "bold"),
+            bar, text="Assemble", font=("Arial", 12, "bold"),
             command=self.on_compile,
         )
         self.compile_button.pack(side="right", padx=2)
 
         self.load_into_cpu_button = tk.Button(
-            bar, text="Load -> CPU", font=("Arial", 9, "bold"),
+            bar, text="Load -> CPU", font=("Arial", 12, "bold"),
             command=self.on_load_into_cpu, state="disabled",
         )
         self.load_into_cpu_button.pack(side="right", padx=2)
@@ -200,11 +200,11 @@ class CompilerPanel(tk.Frame):
         pane.pack(fill="both", expand=True, padx=6, pady=(0, 4))
 
         ed_box = tk.Frame(pane, bg="#c0c0c0")
-        tk.Label(ed_box, text="Source (.asm)", bg="#c0c0c0", font=("Arial", 9)).pack(anchor="w")
+        tk.Label(ed_box, text="Source (.asm)", bg="#c0c0c0", font=("Arial", 12)).pack(anchor="w")
         ed_frame = tk.Frame(ed_box)
         ed_frame.pack(fill="both", expand=True)
         self.editor = tk.Text(
-            ed_frame, font=("Courier New", 12), wrap="none", undo=True,
+            ed_frame, font=("Courier New", 15), wrap="none", undo=True,
         )
         ed_vsb = tk.Scrollbar(ed_frame, orient="vertical", command=self.editor.yview)
         ed_hsb = tk.Scrollbar(ed_frame, orient="horizontal", command=self.editor.xview)
@@ -217,9 +217,9 @@ class CompilerPanel(tk.Frame):
         pane.add(ed_box, stretch="always", height=340)
 
         msg_box = tk.Frame(pane, bg="#c0c0c0")
-        tk.Label(msg_box, text="Messages", bg="#c0c0c0", font=("Arial", 9)).pack(anchor="w")
+        tk.Label(msg_box, text="Messages", bg="#c0c0c0", font=("Arial", 12)).pack(anchor="w")
         self.messages = tk.Text(
-            msg_box, font=("Courier New", 11), height=8, state="disabled",
+            msg_box, font=("Courier New", 14), height=8, state="disabled",
             bg="#f5f5f0",
         )
         self.messages.pack(fill="both", expand=True)

@@ -98,21 +98,21 @@ class MemoryWalker(tk.Frame):
         nav = tk.Frame(self, bg="#c0c0c0")
         nav.pack(fill="x", padx=8, pady=(8, 2))
 
-        tk.Label(nav, text="Address:", bg="#c0c0c0", font=("Arial", 9)).pack(side="left")
+        tk.Label(nav, text="Address:", bg="#c0c0c0", font=("Arial", 12)).pack(side="left")
         self.addr_var = tk.StringVar(value="0000")
         addr_entry = tk.Entry(
             nav, textvariable=self.addr_var, width=8,
-            font=("Courier New", 12, "bold"),
+            font=("Courier New", 15, "bold"),
         )
         addr_entry.pack(side="left", padx=4)
         addr_entry.bind("<Return>", lambda e: self._go())
 
         tk.Button(
-            nav, text="GO", font=("Arial", 9, "bold"), width=5,
+            nav, text="GO", font=("Arial", 12, "bold"), width=5,
             command=self._go,
         ).pack(side="left", padx=2)
         tk.Button(
-            nav, text="Go to PC", font=("Arial", 9, "bold"),
+            nav, text="Go to PC", font=("Arial", 12, "bold"),
             command=self._goto_pc,
         ).pack(side="left", padx=2)
 
@@ -120,17 +120,17 @@ class MemoryWalker(tk.Frame):
         nav2.pack(fill="x", padx=8, pady=2)
 
         self.run_bp_btn = tk.Button(
-            nav2, text="RUN to BP", font=("Arial", 9, "bold"),
+            nav2, text="RUN to BP", font=("Arial", 12, "bold"),
             fg=C["red"], bg=C.get("btn_bg", "#d4d0c8"),
             command=self.run_to_breakpoint,
         )
         self.run_bp_btn.pack(side="left")
         tk.Button(
-            nav2, text="Clear BPs", font=("Arial", 9, "bold"),
+            nav2, text="Clear BPs", font=("Arial", 12, "bold"),
             command=self._clear_all_breakpoints,
         ).pack(side="left", padx=4)
         self.walk_btn = tk.Button(
-            nav2, text="Walk 64K", font=("Arial", 9, "bold"),
+            nav2, text="Walk 64K", font=("Arial", 12, "bold"),
             command=self._toggle_walk,
         )
         self.walk_btn.pack(side="left", padx=4)
@@ -138,7 +138,7 @@ class MemoryWalker(tk.Frame):
         self.status_lbl = tk.Label(
             self,
             text="Click STEP column to single-step  |  Click BP column to toggle breakpoint",
-            fg=C["grey"], bg="#c0c0c0", font=("Arial", 8, "italic"), anchor="w",
+            fg=C["grey"], bg="#c0c0c0", font=("Arial", 11, "italic"), anchor="w",
         )
         self.status_lbl.pack(fill="x", padx=8, pady=(2, 4))
 

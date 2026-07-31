@@ -51,12 +51,12 @@ class AboutDialog(tk.Toplevel):
 
         tk.Label(
             root, text="PY-DIYCALCULATOR", fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 17, "bold"),
+            font=("Arial", 20, "bold"),
         ).pack(pady=(0, 6))
 
         tk.Label(
             root, text=f"tkinter Edition  —  v{__version__}",
-            fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 12),
+            fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 15),
         ).pack(pady=(0, 12))
 
         tk.Label(
@@ -67,10 +67,10 @@ class AboutDialog(tk.Toplevel):
                 'by Clive "Max" Maxfield & Alvin Brown\n\n'
                 'Rewritten in Python 3 + tkinter.'
             ),
-            fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 13), justify="center",
+            fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 16), justify="center",
         ).pack(pady=(0, 16))
 
         tk.Button(
-            root, text="Dismiss", font=("Arial", 10, "bold"),
+            root, text="Dismiss", font=("Arial", 13, "bold"),
             command=self.destroy,
         ).pack()

@@ -56,7 +56,7 @@ class ControlPanel(tk.Frame):
 
         tk.Label(
             layout, text="◈ CONTROL PANEL", fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 11, "bold"),
+            font=("Arial", 14, "bold"),
         ).pack(anchor="w", pady=(0, 6))
 
         btn_row = tk.Frame(layout, bg="#c0c0c0")
@@ -70,7 +70,7 @@ class ControlPanel(tk.Frame):
 
         bus_box = tk.LabelFrame(
             layout, text="Address / Data Bus", bg="#c0c0c0",
-            font=("Arial", 9, "bold"), padx=6, pady=6,
+            font=("Arial", 12, "bold"), padx=6, pady=6,
         )
         bus_box.pack(fill="x", pady=(0, 6))
         tk.Label(bus_box, text="Address Bus:", bg="#c0c0c0").grid(row=0, column=0, sticky="w")
@@ -80,14 +80,14 @@ class ControlPanel(tk.Frame):
         tk.Label(bus_box, text="Data Bus:", bg="#c0c0c0").grid(row=1, column=0, sticky="w")
         self.data_disp = tk.Entry(
             bus_box, justify="left", state="readonly", width=6,
-            font=("Courier New", 12),
+            font=("Courier New", 15),
         )
         self._set_readonly(self.data_disp, "$00")
         self.data_disp.grid(row=1, column=1, sticky="w", padx=6, pady=(2, 0))
 
         sw_box = tk.LabelFrame(
             layout, text="Data Switches  (manual input)", bg="#c0c0c0",
-            font=("Arial", 9, "bold"), padx=6, pady=6,
+            font=("Arial", 12, "bold"), padx=6, pady=6,
         )
         sw_box.pack(fill="x", pady=(0, 6))
         self.switches = []
@@ -101,7 +101,7 @@ class ControlPanel(tk.Frame):
         enter_row.pack(fill="x")
         self.enter_btn = tk.Button(
             enter_row, text="ENTER  ↵", fg=C["green"], bg=C["btn_bg"],
-            relief="raised", bd=1, font=("Arial", 9, "bold"), padx=10, pady=3,
+            relief="raised", bd=1, font=("Arial", 12, "bold"), padx=10, pady=3,
         )
         self.enter_btn.pack(side="right")
 
@@ -115,7 +115,7 @@ class ControlPanel(tk.Frame):
     def _btn(self, parent, text, color, handler):
         b = tk.Button(
             parent, text=text, fg=color, bg=C["btn_bg"], relief="raised",
-            bd=1, font=("Arial", 9, "bold"), padx=8, pady=4,
+            bd=1, font=("Arial", 12, "bold"), padx=8, pady=4,
             command=handler if handler is not None else (lambda: None),
         )
         return b

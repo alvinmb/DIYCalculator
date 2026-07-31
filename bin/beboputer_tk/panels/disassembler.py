@@ -42,22 +42,22 @@ class DisassemblerPanel(tk.Frame):
         nav = tk.Frame(self, bg="#c0c0c0")
         nav.pack(fill="x", padx=8, pady=(8, 4))
 
-        tk.Label(nav, text="From:", bg="#c0c0c0", font=("Arial", 9)).pack(side="left")
+        tk.Label(nav, text="From:", bg="#c0c0c0", font=("Arial", 12)).pack(side="left")
         self.addr_var = tk.StringVar(value="0000")
         addr_entry = tk.Entry(
             nav, textvariable=self.addr_var, width=8,
-            font=("Courier New", 11, "bold"),
+            font=("Courier New", 14, "bold"),
         )
         addr_entry.pack(side="left", padx=4)
         addr_entry.bind("<Return>", lambda e: self._disassemble())
 
         tk.Button(
-            nav, text="Disassemble", font=("Arial", 9, "bold"),
+            nav, text="Disassemble", font=("Arial", 12, "bold"),
             command=self._disassemble,
         ).pack(side="left", padx=2)
 
         self.output = tk.Text(
-            self, font=("Courier New", 11), bg="#ffffff",
+            self, font=("Courier New", 14), bg="#ffffff",
             state="disabled", wrap="none",
         )
         self.output.pack(fill="both", expand=True, padx=8, pady=(0, 8))

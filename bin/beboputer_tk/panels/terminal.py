@@ -61,7 +61,7 @@ class Terminal(tk.Frame):
         bezel.pack(fill="both", expand=True, padx=8, pady=8)
 
         self.screen = tk.Text(
-            bezel, font=("Courier New", 16), bd=0, highlightthickness=0,
+            bezel, font=("Courier New", 19), bd=0, highlightthickness=0,
             wrap="word", state="disabled",
         )
         self.screen.pack(fill="both", expand=True, padx=4, pady=4)

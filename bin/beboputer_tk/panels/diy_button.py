@@ -71,8 +71,8 @@ class ConfigureButtonAttributes(tk.Toplevel):
     def _build(self):
         frm = tk.Frame(self, bg="#c0c0c0", padx=14, pady=12)
         frm.pack(fill="both", expand=True)
-        F = ("Arial", 11, "bold")
-        FIELD = ("Arial", 11)
+        F = ("Arial", 14, "bold")
+        FIELD = ("Arial", 14)
 
         tk.Label(frm, text="Code:", font=F, bg="#c0c0c0").grid(
             row=0, column=0, sticky="e", pady=5, padx=(0, 8))
@@ -162,7 +162,7 @@ class DIYButton(tk.Button):
         self.configure(
             text=d.label, fg=d.color, bg=d.bg_color,
             activebackground="#c0bdb5", activeforeground=d.color,
-            font=("Arial", 10, weight),
+            font=("Arial", 13, weight),
             relief="raised", bd=2,
             width=self._char_w, height=self._char_h,
         )

@@ -323,11 +323,11 @@ class BebopMain:
         frame = tk.Frame(child.content, bg="#d4d0c8")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
         tk.Label(
-            frame, text=title, font=("Segoe UI", 12, "bold"),
+            frame, text=title, font=("Segoe UI", 15, "bold"),
             bg="#d4d0c8", anchor="w",
         ).pack(fill="x")
         tk.Label(
-            frame, text=PLACEHOLDER_NOTE, font=("Segoe UI", 9),
+            frame, text=PLACEHOLDER_NOTE, font=("Segoe UI", 12),
             bg="#d4d0c8", anchor="nw", justify="left",
         ).pack(fill="both", expand=True, pady=(8, 0))
 

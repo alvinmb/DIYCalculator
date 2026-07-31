@@ -103,7 +103,7 @@ class KeyboardPanel(tk.Frame):
 
         self._hex = tk.Label(
             root, text="$--", bg="#000000", fg="#ffffff",
-            font=("Courier New", 13, "bold"), relief="sunken", bd=2, width=5,
+            font=("Courier New", 16, "bold"), relief="sunken", bd=2, width=5,
         )
 
         for r, row in enumerate(_rows()):
@@ -120,7 +120,7 @@ class KeyboardPanel(tk.Frame):
         w = max(2, int(4 * mult))
         fg = "#000000"
         btn = tk.Button(
-            parent, text=label, width=w, font=("Arial", 8, "bold"), fg=fg,
+            parent, text=label, width=w, font=("Arial", 11, "bold"), fg=fg,
             relief="raised", bd=1,
         )
         if label in ("CAPS", "SHIFT"):

@@ -286,7 +286,7 @@ class Calculator(tk.Frame):
     def _build_display(self):
         self.display = tk.Entry(
             self, justify="right", state="readonly",
-            font=("Courier New", 18, "bold"),
+            font=("Courier New", 21, "bold"),
             readonlybackground=_DISPLAY_ON_BG, fg=_DISPLAY_ON_FG,
             relief="sunken", bd=3,
         )
@@ -390,7 +390,7 @@ class Calculator(tk.Frame):
         }
         for lbl in ["On/Off", "Reset", "Step", "Run"]:
             b = tk.Button(
-                bar, text=lbl, font=("Arial", 10, "bold"),
+                bar, text=lbl, font=("Arial", 13, "bold"),
                 bg=_POWER_OFF_BG, relief="raised", bd=2, width=8, height=2,
                 command=lambda l=lbl: self.control(l),
             )
@@ -424,7 +424,7 @@ class Calculator(tk.Frame):
             win.wm_geometry(f"+{x}+{y}")
             tk.Label(
                 win, text=text, bg="#ffffcc", fg="#000000",
-                relief="solid", bd=1, font=("Arial", 8), padx=4, pady=2,
+                relief="solid", bd=1, font=("Arial", 11), padx=4, pady=2,
             ).pack()
             tip["win"] = win
 

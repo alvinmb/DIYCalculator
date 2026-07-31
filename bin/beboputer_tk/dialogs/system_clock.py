@@ -60,12 +60,12 @@ class SystemClockDialog(tk.Toplevel):
         form = tk.Frame(root, bg="#c0c0c0")
         form.pack(fill="x")
         tk.Label(form, text="Clock Speed (Hz):", bg="#c0c0c0",
-                 font=("Arial", 9, "bold")).pack(side="left")
+                 font=("Arial", 12, "bold")).pack(side="left")
         self._hz_var = tk.StringVar(value=str(self._hz))
         entry = tk.Entry(
             form, textvariable=self._hz_var, justify="right", width=10,
             bg=C["lcd_bg"], fg="#000000", relief="sunken", bd=2,
-            font=("Courier New", 11, "bold"),
+            font=("Courier New", 14, "bold"),
         )
         entry.pack(side="left", padx=(8, 0))
         entry.bind("<Return>", lambda e: self._apply())
@@ -73,13 +73,13 @@ class SystemClockDialog(tk.Toplevel):
         entry.select_range(0, "end")
 
         tk.Label(root, text="Range: 1 - 10 000 Hz", bg="#c0c0c0",
-                 font=("Arial", 9, "bold")).pack(anchor="e", pady=(8, 0))
+                 font=("Arial", 12, "bold")).pack(anchor="e", pady=(8, 0))
 
         btn_row = tk.Frame(root, bg="#c0c0c0")
         btn_row.pack(fill="x", pady=(10, 0))
-        tk.Button(btn_row, text="Cancel", font=("Arial", 9),
+        tk.Button(btn_row, text="Cancel", font=("Arial", 12),
                   command=self._cancel).pack(side="right", padx=(4, 0))
-        tk.Button(btn_row, text="OK", font=("Arial", 9, "bold"),
+        tk.Button(btn_row, text="OK", font=("Arial", 12, "bold"),
                   command=self._apply, default="active").pack(side="right")
 
     def _apply(self):

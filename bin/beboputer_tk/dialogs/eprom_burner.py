@@ -69,24 +69,24 @@ class EpromBurner(tk.Toplevel):
 
         field_kwargs = dict(
             bg=C["lcd_bg"], fg="#000000", relief="sunken", bd=2,
-            font=("Courier New", 12, "bold"),
+            font=("Courier New", 15, "bold"),
         )
 
         form = tk.Frame(root, bg="#c0c0c0")
         form.pack(fill="x", pady=(0, 8))
-        tk.Label(form, text="File Name:", bg="#c0c0c0", font=("Arial", 9, "bold")).grid(
+        tk.Label(form, text="File Name:", bg="#c0c0c0", font=("Arial", 12, "bold")).grid(
             row=0, column=0, sticky="e", pady=3)
         self.file_var = tk.StringVar()
         tk.Entry(form, textvariable=self.file_var, width=32, **field_kwargs).grid(
             row=0, column=1, sticky="w", pady=3, padx=6)
 
-        tk.Label(form, text="Start Address $", bg="#c0c0c0", font=("Arial", 9, "bold")).grid(
+        tk.Label(form, text="Start Address $", bg="#c0c0c0", font=("Arial", 12, "bold")).grid(
             row=1, column=0, sticky="e", pady=3)
         self.start_var = tk.StringVar(value="0000")
         tk.Entry(form, textvariable=self.start_var, width=10, **field_kwargs).grid(
             row=1, column=1, sticky="w", pady=3, padx=6)
 
-        tk.Label(form, text="End Address $", bg="#c0c0c0", font=("Arial", 9, "bold")).grid(
+        tk.Label(form, text="End Address $", bg="#c0c0c0", font=("Arial", 12, "bold")).grid(
             row=2, column=0, sticky="e", pady=3)
         self.end_var = tk.StringVar(value="00FF")
         tk.Entry(form, textvariable=self.end_var, width=10, **field_kwargs).grid(
@@ -94,7 +94,7 @@ class EpromBurner(tk.Toplevel):
 
         avail_box = tk.LabelFrame(
             root, text="Available System EPROMs", bg="#c0c0c0",
-            font=("Arial", 9, "bold"),
+            font=("Arial", 12, "bold"),
         )
         avail_box.pack(fill="x", pady=(0, 8))
         columns = ("file", "size")
@@ -112,11 +112,11 @@ class EpromBurner(tk.Toplevel):
             ("Load ROM", self._load_rom), ("Swap ROMs", self._swap),
             ("Cancel", self.destroy),
         ]:
-            tk.Button(btn_row, text=label, font=("Arial", 9), command=cmd).pack(
+            tk.Button(btn_row, text=label, font=("Arial", 12), command=cmd).pack(
                 side="left", padx=3)
 
         self.status_lbl = tk.Label(
-            root, text="", bg="#c0c0c0", fg=C["green_mid"], font=("Arial", 9), anchor="w",
+            root, text="", bg="#c0c0c0", fg=C["green_mid"], font=("Arial", 12), anchor="w",
         )
         self.status_lbl.pack(fill="x")
 

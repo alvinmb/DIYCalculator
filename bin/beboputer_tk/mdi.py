@@ -107,14 +107,14 @@ class MdiChild(tk.Frame):
 
         self.title_lbl = tk.Label(
             self.titlebar, text=title, bg=TITLE_BG, fg=TITLE_FG,
-            font=("Segoe UI", 9, "bold"), anchor="w",
+            font=("Segoe UI", 12, "bold"), anchor="w",
         )
         self.title_lbl.pack(side="left", fill="both", expand=True, padx=(8, 0))
 
         if closable:
             close_btn = tk.Label(
                 self.titlebar, text="✕", bg=TITLE_BG, fg=TITLE_FG,
-                font=("Segoe UI", 10, "bold"), width=3, cursor="hand2",
+                font=("Segoe UI", 13, "bold"), width=3, cursor="hand2",
             )
             close_btn.pack(side="right", fill="y")
             close_btn.bind("<Button-1>", lambda e: self.close())
@@ -123,7 +123,7 @@ class MdiChild(tk.Frame):
 
         max_btn = tk.Label(
             self.titlebar, text="□", bg=TITLE_BG, fg=TITLE_FG,
-            font=("Segoe UI", 10, "bold"), width=3, cursor="hand2",
+            font=("Segoe UI", 13, "bold"), width=3, cursor="hand2",
         )
         max_btn.pack(side="right", fill="y")
         max_btn.bind("<Button-1>", lambda e: self.toggle_maximize())

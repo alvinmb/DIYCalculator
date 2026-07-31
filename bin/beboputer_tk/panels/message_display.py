@@ -37,7 +37,7 @@ class MessageDisplay(tk.Frame):
 
         hdr = tk.Label(
             self, text="▸ Message Display", bg="#2e2e2e", fg="#aaaaaa",
-            font=("Arial", 9), anchor="w", padx=6, pady=2,
+            font=("Arial", 12), anchor="w", padx=6, pady=2,
         )
         hdr.pack(side="top", fill="x")
 
@@ -46,7 +46,7 @@ class MessageDisplay(tk.Frame):
 
         self.log = tk.Text(
             text_frame, bg="#1c1c1c", fg="#c8c8c8", insertbackground="#c8c8c8",
-            font=("Courier New", 11), bd=0, highlightthickness=0,
+            font=("Courier New", 14), bd=0, highlightthickness=0,
             wrap="word", state="disabled",
         )
         vsb = tk.Scrollbar(text_frame, orient="vertical", command=self.log.yview)
