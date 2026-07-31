@@ -3,9 +3,10 @@
 **Status:** Phase 0 (spike/validation) complete — all three spikes
 verified working, including Hi-DPI on real Windows hardware. **Phase 1
 (app shell) complete** — see §5. **Phase 2 part 1 (CPU wiring + Message
-Display + Port Monitor + Control Panel) complete** — see §7. Not
-started: the rest of Phase 2 (Calculator, Memory Walker, Disassembler,
-Compiler/Editor, remaining dialogs, printing/sound).
+Display + Port Monitor + Control Panel) complete** — see §7. **Phase 2
+part 2 (Calculator + DIYButton grid) complete** — see §8. Not started:
+Memory Walker, Disassembler, Compiler/Editor, remaining dialogs,
+printing/sound.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -326,3 +327,75 @@ load-address rule and full-64KB-image special case as
 placeholders (next slices, per §4's sequencing) — Control Panel's manual
 STEP/RUN is the only way to drive the CPU in this build until Memory
 Walker's own step/breakpoint controls exist in tkinter.
+
+---
+
+## 8. Phase 2 part 2 — Calculator + DIYButton grid
+
+Second content slice: the calculator itself, both the physical button
+grid and the on/off-powered board it represents.
+
+| File | Role |
+|---|---|
+| `panels/diy_button.py` | tkinter port of `beboputer_v7/tools/diy_button.py`'s two Qt *widgets* -- `DIYButton` (now a `tk.Button` subclass) and `ConfigureButtonAttributes` (now a `tk.Toplevel` dialog, right-click to open, only when the calculator is off). The file-format helpers underneath (`ButtonDef`, `load_defbuttons_file`, `save_defbuttons_file`, `COLORS`, `_color_index`, `_parse_code`, `_DEFBUTTONS_PATH`, `_BUTTONS_DIR`) have zero Qt dependency, so this module imports and reuses them directly from `beboputer_v7.tools.diy_button` rather than duplicating them -- one `Config/defbuttons.ini` format, shared by both builds. |
+| `panels/calculator.py` | tkinter port of `beboputer_v7/tools/calculator.py` -- display, 6-LED top row, full digit/operator/trig button grid, On/Off + Reset/Step/Run bottom bar, defbuttons.ini load/save/Configure/Restore Defaults. |
+
+**A discovery during the port, same shape as the DIYButton bug found
+earlier this session:** the Qt `Calculator` class has its own
+`.control()`/`.key_press()`/`.evaluate()`/`.trig_op()`/`.func_op()`
+methods and a `_build_memory_row()` widget -- none of it is live code.
+Tracing every call site shows the display is driven *only* by port
+`$F031` (`write_display`, called from the CPU write hook `main_window.py`
+wires up) and the 6 LEDs *only* by `$F032` (`write_leds`) -- every
+calculator key, including the ones named `Clear`/`CE`/`Back`/`Enter`
+that share a name with branches inside `.control()`, is actually a
+`DIYButton` that writes its configured code to `$F011` and lets the
+CPU-resident program decide what happens next. `.control()` itself is
+only ever invoked by the four *non*-DIYButton bottom-bar buttons
+(On/Off, Reset, Step, Run), so its Clear/CE/Back/Enter branches, the
+whole expression-evaluator, and `_build_memory_row()` (defined but never
+called, even in the Qt file) are unreachable. None of that dead code
+was ported -- `panels/calculator.py`'s module docstring documents the
+tracing that led to this conclusion, the same way `main_window.py`
+already documents why `control_panel.py` was found dead in Phase 2 part 1.
+
+`main_window.py` changes: constructs `Calculator(child.content,
+host_main=self)` as real content the first time (and every time --
+Calculator is a startup panel) the "calculator" `MdiChild` is built,
+and wires the CPU's `$F031`/`$F032` write hooks to
+`calculator.write_display`/`calculator.write_leds` at that point,
+mirroring the Qt build's `_calc_win = Calculator(self)` +
+`cpu._write_hooks[...]` pair. Also ports `_do_random_fill_ram()` /
+`_do_power_off_ram()` / `_on_power_changed()` from
+`beboputer_v7.main_window` unchanged in behaviour: real SRAM powers up
+with random garbage, not zeros, so power-on fills `$4000`-`$FFFF` with
+random bytes (ROM at `$0000`-`$3FFF` stays zeroed/defined) rather than
+auto-running anything meaningful; power-off marks RAM "undefined" in
+Memory Walker's sense without touching the underlying values.
+`_do_reset()` now actually calls `calculator.blank_display()` when
+`clear_calc_display=True`, completing the parameter that Phase 2 part 1
+added to the signature but didn't yet act on.
+
+**Verified** (headless, via Xvfb, calling the exact same callables a
+click invokes):
+
+- Calculator is real from startup (all 3 startup panels -- Calculator,
+  Memory Walker placeholder, Message Display -- tile correctly as before)
+- All 69 `DIYButton`s build and load their real codes from
+  `Config/defbuttons.ini` (Sin `$3A`... consistent with the codes this
+  session already verified against the live Qt app)
+- Power-on shows the 24-dash boot placeholder and enables Reset/Step/Run;
+  power-off blanks the display and disables them again
+- Loading tutorial 17's `.ram` and driving real `DIYButton._execute()`
+  calls (the literal left-click handler) writes the exact configured
+  code to `$F011`; stepping the CPU afterward drives the display back
+  through the real `$F031` write hook, confirming the full loop --
+  DIYButton click -> CPU port -> program logic -> display port ->
+  Calculator screen -- works end-to-end, not just each half in isolation
+- `test_harness.py`'s full 47-test suite still passes unchanged
+
+**Not yet real:** the right-click Configure Button Attributes dialog
+opens correctly but wasn't driven through a full edit-and-persist cycle
+in headless verification (no synthetic right-click event source under
+Xvfb without a window manager) -- worth a manual check on real Windows.
+Memory Walker is still the next slice.

@@ -23,11 +23,13 @@ main_window.py -- tkinter shell for PY-DIYCALCULATOR.
 
 Phase 1 built the navigable app skeleton (menu bar, status bar,
 MdiArea, non-overlapping startup layout) with every panel as a
-placeholder. Phase 2 (this file, first slice) wires up a real CPU
-instance -- same keypad read/write hooks as beboputer_v7.main_window
--- and replaces three panels' placeholders with real, working content:
-Message Display, Port Map Status, and (new, see below) Control Panel.
-Every other panel is still a Phase 1 placeholder.
+placeholder. Phase 2 wires up a real CPU instance -- same keypad
+read/write hooks as beboputer_v7.main_window -- and replaces four
+panels' placeholders with real, working content: Message Display,
+Port Map Status, Calculator (full DIYButton grid, defbuttons.ini
+load/save, power on/off with random-RAM-fill matching real SRAM
+power-up behaviour), and (new, see below) Control Panel. Every other
+panel is still a Phase 1 placeholder.
 
 Menu structure (labels, grouping, and order) is copied directly from
 beboputer_v7/menus.py so the tkinter build feels like the same app
@@ -53,6 +55,7 @@ Tools menu label and the About dialog.
 from __future__ import annotations
 
 import os
+import random
 import tkinter as tk
 from tkinter import messagebox, filedialog
 
@@ -60,6 +63,7 @@ from .mdi import MdiArea, MdiChild, PanelSpec, tile_children
 from .panels.message_display import MessageDisplay
 from .panels.port_monitor import PortMonitor
 from .panels.control_panel import ControlPanel
+from .panels.calculator import Calculator
 
 try:
     from beboputer_v7 import __version__
@@ -112,6 +116,7 @@ class BebopMain:
         self.msg_display: MessageDisplay | None = None
         self.port_mon: PortMonitor | None = None
         self.control_panel: ControlPanel | None = None
+        self.calculator: Calculator | None = None
 
         root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
@@ -268,6 +273,8 @@ class BebopMain:
                 self.port_mon = None
             elif key == "control":
                 self.control_panel = None
+            elif key == "calculator":
+                self.calculator = None
         return _on_close
 
     def _populate(self, child, key):
@@ -300,6 +307,16 @@ class BebopMain:
         self.port_mon = PortMonitor(child.content, self.cpu)
         self.port_mon.pack(fill="both", expand=True)
         self.port_mon.refresh()
+
+    def _populate_calculator(self, child):
+        self.calculator = Calculator(child.content, host_main=self)
+        self.calculator.pack(fill="both", expand=True)
+        # Same two write hooks as beboputer_v7.main_window: $F031 (display)
+        # and $F032 (LEDs) are driven purely by whatever a running program
+        # writes to those ports -- the calculator has no built-in expression
+        # evaluator (see panels/calculator.py's module docstring).
+        self.cpu._write_hooks[0xF031] = self.calculator.write_display
+        self.cpu._write_hooks[0xF032] = self.calculator.write_leds
 
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
@@ -377,12 +394,62 @@ class BebopMain:
             self.root.after_cancel(self._run_after_id)
             self._run_after_id = None
         self.cpu.reset()
+        if clear_calc_display and self.calculator is not None:
+            # blank_display(), not write_display(0x10): a Reset means no
+            # program is driving the display yet, so it should go truly
+            # blank rather than showing "0" (same reasoning as Qt).
+            self.calculator.blank_display()
         if self.port_mon is not None:
             self.port_mon.reset()
         if self.msg_display is not None:
             self.msg_display.message("↺ CPU Reset.")
         self.set_status("Reset")
         self._refresh_all()
+
+    def _do_random_fill_ram(self):
+        """Fill RAM with random bytes on power-on, matching real SRAM
+        power-up behaviour (undefined garbage, not a tidy $00). Same
+        logic as beboputer_v7.main_window._do_random_fill_ram()."""
+        rom_end = self.cpu.ROM_END
+        for i in range(rom_end):
+            self.cpu.ram[i] = 0
+            self.cpu.ram_touched[i] = 1
+        for i in range(rom_end, self.cpu.RAM_SIZE):
+            self.cpu.ram[i] = random.randint(0, 255)
+            self.cpu.ram_touched[i] = 0
+        self.cpu.ram[0xF011] = 0xFF
+        self.cpu.ram[0xF031] = 0x00
+        self.cpu.ram[0xF032] = 0x3F
+        for addr in (0xF011, 0xF031, 0xF032):
+            self.cpu.ram_touched[addr] = 1
+        self._refresh_all()
+        if self.msg_display is not None:
+            self.msg_display.message(
+                "Power on: RAM randomized (real hardware powers up with garbage, not zeros)."
+            )
+
+    def _do_power_off_ram(self):
+        """Mark RAM undefined on power-off (not zeroed -- see
+        beboputer_v7.main_window._do_power_off_ram())."""
+        rom_end = self.cpu.ROM_END
+        for i in range(rom_end, self.cpu.RAM_SIZE):
+            self.cpu.ram_touched[i] = 0
+        self._refresh_all()
+        if self.msg_display is not None:
+            self.msg_display.message("Power off.")
+
+    def _on_power_changed(self, on: bool):
+        """Called by Calculator.control("On/Off"). Same behaviour as
+        beboputer_v7.main_window._on_power_changed()."""
+        if on:
+            self._do_random_fill_ram()
+            self._do_reset(clear_calc_display=False)
+        else:
+            if self._run_after_id is not None:
+                self.root.after_cancel(self._run_after_id)
+                self._run_after_id = None
+            self.cpu.running = False
+            self._do_power_off_ram()
 
     def _run_tick(self):
         if self.cpu.halted:
