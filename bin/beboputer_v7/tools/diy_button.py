@@ -444,14 +444,18 @@ class DIYButton(QPushButton):
     def _execute(self):
         if self._cpu is None:
             return
-        code = self._defn.value
-        # Translate ASCII hex-digit codes to raw nibble values (0-15) so that
-        # Beboputer programs receive raw keypad codes, not ASCII characters.
-        if 0x30 <= code <= 0x39:    # '0'-'9'  → raw 0-9
-            code -= 0x30
-        elif 0x41 <= code <= 0x46:  # 'A'-'F'  → raw 10-15
-            code -= 0x37
-        self._cpu._write(_FIXED_PORT, code)
+        # Send the button's Code= value exactly as stored in defbuttons.ini,
+        # with no translation. This used to reinterpret codes $30-$39/$41-$46
+        # as ASCII hex digits and rewrite them down to raw nibbles 0-15 --
+        # but every digit/hex-letter button in the current defbuttons.ini
+        # already stores its raw nibble code directly (e.g. "4" = $04, not
+        # $34), so that translation had no legitimate target left. Its only
+        # live effect was silently corrupting any *non-digit* button whose
+        # Code happened to land in those same ASCII ranges by coincidence --
+        # e.g. Cos ($39) was rewritten to $09, Tan ($38) to $08, Log ($37) to
+        # $07, and n! ($36) to $06, so keypad-reading programs never saw the
+        # byte the button was actually configured to send.
+        self._cpu._write(_FIXED_PORT, self._defn.value)
 
     # -- editor ---------------------------------------------------------------
 

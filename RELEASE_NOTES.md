@@ -1,5 +1,28 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v9.0.29 — 2026-07-31
+
+### Fixed
+
+- **`DIYButton._execute()` silently corrupted any non-digit button whose
+  `Code=` value fell in the ASCII digit/hex-letter ranges `$30`-`$39` or
+  `$41`-`$46`**: a leftover translation step (meant to turn ASCII '0'-'9'
+  / 'A'-'F' into raw nibbles 0-15) rewrote those bytes down before they
+  reached the CPU port, even though every digit/hex button in the current
+  `Config/defbuttons.ini` already stores its raw nibble code directly and
+  never needed the translation. This silently broke `Cos` (`$39`→`$09`),
+  `Tan` (`$38`→`$08`), `Log` (`$37`→`$07`), and `n!` (`$36`→`$06`) — each
+  landed on the CPU as a plain digit instead of its real function code,
+  so any program reading the keypad for one of those keys (e.g.
+  `tutorial/17_bcd_scientific_calculator.asm`'s Cos/Tan/n!) never saw it
+  pressed. `Sin` (`$3A`) escaped only by being one byte outside the
+  range. Fixed by removing the translation entirely — `_execute()` now
+  writes `self._defn.value` to the port unchanged.
+- **`tutorial/17_bcd_scientific_calculator.asm` didn't clear the display
+  on start**, so the exercise could open showing whatever the previously
+  run program last left on screen. `START` now writes the clear code
+  first.
+
 ## v9.0.28 — 2026-07-30
 
 ### Fixed
