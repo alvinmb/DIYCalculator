@@ -1,6 +1,8 @@
 # Migrating PY-DIYCALCULATOR from PyQt5 to tkinter
 
-**Status:** Phase 0 (spike/validation) complete. Not started: Phase 1 onward.
+**Status:** Phase 0 (spike/validation) complete — all three spikes
+verified working, including Hi-DPI on real Windows hardware. Not
+started: Phase 1 onward.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -45,7 +47,7 @@ This migration is scoped entirely to the UI layer: **~7,100 lines across
 |---|---|
 | `QMdiArea`/`QMdiSubWindow` — no MDI container in tkinter at all | **Spiked, working.** See §3.1 |
 | Memory Walker's per-cell colored 256-row grid — no per-cell coloring in `ttk.Treeview` | **Spiked, working.** See §3.2 |
-| Windows Hi-DPI scaling — no `AA_EnableHighDpiScaling` equivalent | **Spiked, needs real-hardware validation.** See §3.3 |
+| Windows Hi-DPI scaling — no `AA_EnableHighDpiScaling` equivalent | **Spiked, verified on real Windows hardware.** See §3.3 |
 | Printing (`QPrinter`/`QPrintDialog`/`QPageSetupDialog`) | Not spiked. Plan: drop native print dialogs, replace with "Export to PDF" and let the OS handle printing from there — tkinter has no printing framework to build this on top of. |
 | `QSound` (sound effects) | Not spiked. No tkinter equivalent; likely `winsound` on Windows + drop or shell out (`aplay`) on Linux/Pi. |
 | `QFontDialog` (if used) | Not spiked. No tkinter built-in; would need a small custom picker. Low priority — confirm it's actually used anywhere before spending time on it. |
@@ -129,15 +131,20 @@ Replaces the Qt side of this session's earlier fix
    widget/font sizes render crisp instead of tkinter drawing at 96 DPI
    and Windows stretching the result.
 
-**Caveat — this is the one spike that couldn't be fully validated here.**
-This sandbox is Linux with no real display DPI to test against. The
-self-test confirms the module imports cleanly, the Windows-only code
-paths no-op safely on other platforms, and `apply_dpi_scaling()` doesn't
-raise against a real Tk root — but it **cannot** confirm the actual
-visual result (crisp rendering at 125%/150%/200%, correct behavior when
-dragging a window between monitors of different DPI). The Windows API
-calls used are standard and well-documented, but this needs a real test
-pass on your Windows hardware with a Hi-DPI display before being trusted.
+**Validated on real Windows hardware.** This sandbox is Linux with no
+real display DPI to test against, so the self-test only confirmed the
+module imports cleanly and the Windows-only code paths no-op safely
+elsewhere. The self-test's first version also had a bug — it hardcoded
+`assert did_set is False`, an assumption that only held on the Linux
+sandbox, so it raised a false-alarm `AssertionError` the first time it
+was actually run on Windows (fixed by making the assertions
+platform-aware instead of Linux-only). Once fixed and re-run on your
+Windows machine, `set_process_dpi_aware()` correctly returned `True`,
+and the sample-text window it pops up was confirmed **readable/crisp by
+eye** — the actual point of this spike. Still worth a follow-up check
+at a couple of different scaling levels (125%/150%/200%) and across a
+monitor drag if you have a multi-monitor Hi-DPI setup, but the core
+mechanism is now proven, not just "should work."
 
 Also flagged: this module only handles DPI *scaling*, not multi-monitor
 *screen geometry* — the `_layout_startup_panels()`/`_reassert_maximized()`
@@ -170,10 +177,10 @@ migration proceeds, rather than a big-bang rewrite:
       highlighting)
    8. Remaining dialogs, menu/toolbar/shortcut wiring
    9. Printing → PDF export, splash screen, sound
-3. **Phase 3 — platform validation.** Windows Hi-DPI real-hardware test
-   pass (§3.3's open item), Raspberry Pi touchscreen validation (button
-   sizes, small-screen layout fallback, touch-drag on `MdiChild` title
-   bars), macOS if relevant.
+3. **Phase 3 — platform validation.** Hi-DPI spot-checks at other scaling
+   levels/multi-monitor (core mechanism already verified, §3.3), Raspberry
+   Pi touchscreen validation (button sizes, small-screen layout fallback,
+   touch-drag on `MdiChild` title bars), macOS if relevant.
 4. **Phase 4 — regression pass.** `test_harness.py` and
    `tests/test_*.py` don't touch the GUI at all, so they stay green
    throughout — but every tutorial and `Data/*.asm` file needs a manual
@@ -193,9 +200,10 @@ migration proceeds, rather than a big-bang rewrite:
 2. **MDI feel** — independent `Toplevel`-based `MdiChild` windows versus
    Qt's `QMdiSubWindow`; functionally equivalent per §3.1, worth a Pi
    touchscreen sanity check once real content is in the panels.
-3. **Hi-DPI** — implemented per standard practice, **not yet verified
-   visually** on real Windows hardware. Treat as the top item to test as
-   soon as Phase 1 has a running window.
+3. **Hi-DPI** — verified crisp/readable on real Windows hardware (§3.3).
+   Still worth spot-checking at a few different scaling levels
+   (125%/150%/200%) and across a monitor drag if a multi-monitor Hi-DPI
+   setup is available, but the core mechanism is proven.
 4. **Multi-monitor geometry** — no tkinter equivalent spiked yet for
    `QScreen.availableGeometry()`; needed for maximize/panel-layout
    parity with this session's Qt fixes.
