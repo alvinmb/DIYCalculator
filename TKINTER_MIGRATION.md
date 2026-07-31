@@ -1,8 +1,8 @@
 # Migrating PY-DIYCALCULATOR from PyQt5 to tkinter
 
 **Status:** Phase 0 (spike/validation) complete — all three spikes
-verified working, including Hi-DPI on real Windows hardware. Not
-started: Phase 1 onward.
+verified working, including Hi-DPI on real Windows hardware. **Phase 1
+(app shell) complete** — see §6. Not started: Phase 2 onward.
 **Driver:** move off PyQt5's GPL/commercial licensing onto a permissively
 licensed stack. tkinter ships in the Python standard library under the
 PSF license — no GPL, no royalty, no separate install.
@@ -160,9 +160,10 @@ Panel-by-panel, easiest first, so the architecture gets validated before
 the hardest pieces, on a branch — keep shipping PyQt5 releases while
 migration proceeds, rather than a big-bang rewrite:
 
-1. **Phase 1 — infrastructure.** New `app.py` entry point: `Tk()` root +
-   `dpi_awareness.py` wired in, `MdiArea` shell, menu bar/toolbar/status
-   bar. CPU engine and assembler are reused unchanged.
+1. **Phase 1 — infrastructure. ✅ Done — see §5.** `app.py` entry point:
+   `Tk()` root + `dpi.py` wired in, `MdiArea` shell, full menu bar,
+   status bar, non-overlapping startup layout. CPU engine and assembler
+   are reused unchanged.
 2. **Phase 2 — panels, simple to hard:**
    1. Message Display (simple text/label panel)
    2. Control Panel / LEDs widget (`Canvas`-based, low risk — already
@@ -191,7 +192,64 @@ migration proceeds, rather than a big-bang rewrite:
 
 ---
 
-## 5. Risks carried forward from Phase 0
+## 5. Phase 1 — what was built
+
+New package, `bin/beboputer_tk/` (parallel to `bin/beboputer_v7/`, not a
+replacement of it — the Qt build still ships unchanged):
+
+| File | Role |
+|---|---|
+| `app.py` | Entry point — DPI awareness before `Tk()`, root window, splash screen (reuses `bin/splash.png` directly), hands off to `main_window.py`, `mainloop()`. |
+| `main_window.py` | `BebopMain` — menu bar, status bar, `MdiArea`, startup panel tiling. Every panel a menu item opens is currently a placeholder `MdiChild` (Phase 2 replaces the placeholder content per-panel). |
+| `mdi.py` | Promoted from `prototypes/tkinter_migration/pseudo_mdi.py` — same `MdiArea`/`MdiChild`/`tile_children()`, trimmed of the demo block for use as a real library module. |
+| `dpi.py` | Promoted from `prototypes/tkinter_migration/dpi_awareness.py` the same way. |
+| `__init__.py` | Re-exports `__version__` from `beboputer_v7` — one source of truth (`VERSIONING.md`); both builds are the same app at the same version. |
+| `bin/run_beboputer_tk.py` | Launcher script, mirrors `run_beboputer_v7.py`. |
+
+**Menu structure** (File/Setup/Display/Memory/Tools/Help, every item
+label) is copied directly from `beboputer_v7/menus.py`, so the tkinter
+build is immediately recognizable as the same app, not a stripped-down
+placeholder shell. Panel-opening menu items (Calculator, Memory Walker,
+Message Display, CPU Registers, Terminal, Port Map Status, Disassembler,
+EPROM Burner, Keyboard, Workbench 1, Assembler/Editor) all go through
+one `_open_panel()` helper that opens-or-raises an `MdiChild` by a
+registry key, so clicking an already-open panel's menu item raises it
+instead of creating a duplicate — the same behavior `QMdiArea` gives the
+Qt app for free. File/Setup items that depend on state Phase 2+ hasn't
+built yet (project save/load, RAM load/save, button file load/save,
+Restore Defaults, System Clock) show a plain "not yet implemented, see
+TKINTER_MIGRATION.md" message rather than silently doing nothing —
+`Exit` and `About` are the two fully real handlers at this stage.
+
+**Verified** (headless, via Xvfb + programmatic calls to the exact same
+callables the menu's `command=` entries invoke — equivalent to clicking
+them, since that's literally what tkinter calls on a real click):
+
+- Window title correctly shows the live version pulled from
+  `beboputer_v7.__version__` (confirms the shared-version-source design
+  works, not just that a string was hardcoded)
+- Calculator, Memory Walker, and Message Display all open at startup,
+  tiled via `tile_children()` with **zero overlap**
+- Opening an already-open panel raises it rather than duplicating it
+- Closing a panel correctly removes it from the registry, and it can be
+  re-opened cleanly afterward
+- Multiple different panels can be open simultaneously
+- Status bar reads "Ready" after startup, positioned correctly
+  (confirmed via direct widget-geometry query — screenshot capture
+  under headless Xvfb with no window manager clips a small strip off
+  window screenshots, a tooling artifact, not an app issue; the
+  geometry query is the more reliable check in this environment)
+- `test_harness.py`'s full 47-test suite still passes unchanged — this
+  package is purely additive, nothing in `beboputer_v7` was touched
+
+**Not yet real** (by design — this is Phase 1, infrastructure only):
+every panel's actual content, all File/Setup menu actions that need CPU
+or project state, toolbar (menu bar only so far), keyboard shortcuts,
+and window icon.
+
+---
+
+## 6. Risks carried forward from Phase 0
 
 1. **Printing** — real capability gap, no tkinter framework to build on.
    Needs a product decision (drop printing entirely / PDF-export-only /
