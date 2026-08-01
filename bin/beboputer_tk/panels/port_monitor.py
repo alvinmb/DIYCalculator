@@ -48,7 +48,7 @@ ADDR_BUTTONS = 0xF011
 
 def _value_box(parent, title):
     box = tk.LabelFrame(
-        parent, text=title, fg=C["red"], font=("Arial", 11, "bold"),
+        parent, text=title, fg=C["blue"], font=("Arial", 11, "bold"),
         bg="#c0c0c0", bd=2, relief="groove", padx=5, pady=4,
     )
     lbl = tk.Label(
@@ -101,7 +101,7 @@ class PortMonitor(tk.Frame):
         bracket.grid(row=2, column=0, rowspan=2, padx=(0, 4), sticky="ns")
 
         cur_box = tk.LabelFrame(
-            outer, text="I/P from Buttons", fg=C["red"], font=("Arial", 11, "bold"),
+            outer, text="I/P from Buttons", fg=C["blue"], font=("Arial", 11, "bold"),
             bg="#c0c0c0", bd=2, relief="groove", padx=5, pady=4,
         )
         self.btn_edit = tk.Entry(
