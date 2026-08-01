@@ -129,19 +129,30 @@ class MemoryWalker(tk.Frame):
         addr_entry.pack(side="left", padx=4)
         addr_entry.bind("<Return>", lambda e: self._go())
 
+        # Equal gap after every button (was inconsistent -- "Go to PC"
+        # and "RUN to BP" nearly touched while "Clear BPs"/"Walk 64K"
+        # had a visible gap -- now all buttons use the same BTN_GAP).
+        BTN_GAP = 8
+
         tk.Button(
             nav, text="GO", font=BTN_FONT, width=5, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._go,
-        ).pack(side="left", padx=2)
+        ).pack(side="left", padx=(2, BTN_GAP))
+
+        # Walk 64K moved here from nav2 -- nav (Address/GO) used to be
+        # visibly narrower than nav2's 4-button row and the grid below
+        # it, leaving a block of unused white space to its right; a
+        # fifth control fills that row out instead of leaving it empty.
+        self.walk_btn = tk.Button(
+            nav, text="Walk 64K", font=BTN_FONT, bg=BTN_BG,
+            padx=BTN_PADX, pady=BTN_PADY,
+            command=self._toggle_walk,
+        )
+        self.walk_btn.pack(side="left")
 
         nav2 = tk.Frame(self, bg="#c0c0c0")
         nav2.pack(fill="x", padx=8, pady=2)
-
-        # Equal gap after every button (was inconsistent -- "Go to PC"
-        # and "RUN to BP" nearly touched while "Clear BPs"/"Walk 64K"
-        # had a visible gap -- now all four use the same BTN_GAP).
-        BTN_GAP = 8
 
         tk.Button(
             nav2, text="Go to PC", font=BTN_FONT, bg=BTN_BG,
@@ -159,12 +170,6 @@ class MemoryWalker(tk.Frame):
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._clear_all_breakpoints,
         ).pack(side="left", padx=(0, BTN_GAP))
-        self.walk_btn = tk.Button(
-            nav2, text="Walk 64K", font=BTN_FONT, bg=BTN_BG,
-            padx=BTN_PADX, pady=BTN_PADY,
-            command=self._toggle_walk,
-        )
-        self.walk_btn.pack(side="left", padx=(0, BTN_GAP))
 
         # The static instructional sentence this used to open with
         # ("Click STEP column...") was also the single widest row in
