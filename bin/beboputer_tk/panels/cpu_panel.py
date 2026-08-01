@@ -138,7 +138,7 @@ class CPUPanel(tk.Frame):
 
         flag_box = tk.LabelFrame(
             outer, text="Status Reg", bg="#c0c0c0",
-            font=("Arial", 12, "bold"), labelanchor="n",
+            font=("Arial", 14, "bold"), labelanchor="n",
             padx=12, pady=8,
         )
         flag_box.pack(fill="x")
@@ -155,7 +155,7 @@ class CPUPanel(tk.Frame):
         cell.grid(row=row, column=col, padx=6, pady=3, sticky="n")
         tk.Label(
             cell, text=label, fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 12, "bold"),
+            font=("Arial", 14, "bold"),
         ).pack()
         disp = LEDDisplay(cell, width=width, box_width=self._BOX_WIDTH)
         disp.pack()
@@ -166,7 +166,7 @@ class CPUPanel(tk.Frame):
         cell.pack(side="left", padx=4)
         tk.Label(
             cell, text=disp_name, fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 12, "bold"),
+            font=("Arial", 14, "bold"),
         ).pack()
         fl = FlagLight(cell)
         fl.pack()
