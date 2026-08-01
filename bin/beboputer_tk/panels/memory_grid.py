@@ -57,21 +57,25 @@ except ImportError:  # pragma: no cover
     }
 
 ROWS = 256
-# Column widths auto-sized to their real content: each is
-# max(header label, widest real cell value) + a separator gap. Bumped
-# from a 1-space to a 2-space gap alongside the table's +3pt font
-# bump (17->20) -- a single space reads as visually tight once each
-# character occupies more pixels, so the column math grew with it
-# rather than staying a stale character count from a smaller font --
-#   BP:   "BP"/"●"      -> max(2,1)+2 = 4
-#   STEP: "ST"/"▶"      -> max(2,1)+2 = 4
-#   ADDR: "ADDR"/"$FFFF" -> max(4,5)+2 = 7
-#   DATA: "DATA"/"FF"    -> max(4,2)+2 = 6
-COL_BP_W, COL_STEP_W, COL_ADDR_W, COL_DATA_W = 4, 4, 7, 6
+# DATA is auto-sized to its real content (max(header, widest value) +
+# a 2-space separator gap: "DATA"/"FF" -> max(4,2)+2 = 6). BP and STEP
+# are set equal to ADDR's width instead of their own auto-sized value
+# -- a deliberate visual choice (all three "marker" columns read as one
+# consistent width) rather than the tightest-possible fit.
+COL_ADDR_W = 7  # max(4,5)+2 = 7, from "ADDR" vs. "$FFFF"
+COL_BP_W = COL_STEP_W = COL_ADDR_W
+COL_DATA_W = 6
 BP_START, BP_END = 0, COL_BP_W
 STEP_START, STEP_END = BP_END, BP_END + COL_STEP_W
 ADDR_START, ADDR_END = STEP_END, STEP_END + COL_ADDR_W
 DATA_START, DATA_END = ADDR_END, ADDR_END + COL_DATA_W
+
+# BP/STEP glyphs (●/▶/·) render 3pt larger than the rest of the row and
+# centered within their (now wider) column -- tagged across the whole
+# padded field, not just the glyph character, so the surrounding
+# spaces share the same font and the centering math stays consistent.
+_BASE_FONT_SIZE = 20
+SYMBOL_FONT = ("Courier New", _BASE_FONT_SIZE + 3)
 
 
 class MemoryGrid(tk.Frame):
@@ -128,9 +132,19 @@ class MemoryGrid(tk.Frame):
             ("addr_normal", C["green_mid"]), ("addr_pc", C["green"]),
             ("data_normal", "#000000"), ("data_undefined", C["grey"]),
             ("data_pc", C["amber"]),
-            ("bp_set", C["red"]), ("step_pc", C["amber"]), ("step_idle", C["grey"]),
         ):
             self.text.tag_configure(name, foreground=color)
+
+        # BP/STEP tags additionally carry the larger SYMBOL_FONT --
+        # bp_idle is new (the "no breakpoint here" case previously went
+        # untagged, at the base font size; now it's tagged too so the
+        # whole column is consistently sized whether or not a
+        # breakpoint dot is showing).
+        for name, color in (
+            ("bp_set", C["red"]), ("bp_idle", C["grey"]),
+            ("step_pc", C["amber"]), ("step_idle", C["grey"]),
+        ):
+            self.text.tag_configure(name, foreground=color, font=SYMBOL_FONT)
 
         self.text.tag_configure("row_pc_bg", background="#fff2cc")
 
@@ -158,7 +172,9 @@ class MemoryGrid(tk.Frame):
             addr_str = f"${addr:04X}"
             data_str = f"{b:02X}" if touched else "XX"
 
-            line = (f"{bp_char:<{COL_BP_W}}{step_char:<{COL_STEP_W}}"
+            # BP/STEP glyphs are centered (^) in their column; ADDR/DATA
+            # stay left-justified (<) as before.
+            line = (f"{bp_char:^{COL_BP_W}}{step_char:^{COL_STEP_W}}"
                     f"{addr_str:<{COL_ADDR_W}}{data_str:<{COL_DATA_W}}\n")
             line_start = f"{row + 1}.0"
             self.text.insert("end", line)
@@ -166,9 +182,8 @@ class MemoryGrid(tk.Frame):
             def span(col_start, col_end, row=row):
                 return (f"{row + 1}.{col_start}", f"{row + 1}.{col_end}")
 
-            if self.is_bp(addr):
-                s, e = span(BP_START, BP_END)
-                self.text.tag_add("bp_set", s, e)
+            s, e = span(BP_START, BP_END)
+            self.text.tag_add("bp_set" if self.is_bp(addr) else "bp_idle", s, e)
 
             s, e = span(STEP_START, STEP_END)
             self.text.tag_add("step_pc" if is_pc else "step_idle", s, e)
