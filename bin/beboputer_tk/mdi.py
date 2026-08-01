@@ -89,11 +89,12 @@ class MdiChild(tk.Frame):
     def __init__(self, area: "MdiArea", title: str,
                  x: int = 20, y: int = 20, width: int = 320, height: int = 220,
                  resizable: bool = True, closable: bool = True,
-                 on_close=None):
+                 maximizable: bool = True, on_close=None):
         super().__init__(area, bg=BORDER, bd=0, highlightthickness=1,
                           highlightbackground=BORDER, highlightcolor=BORDER)
         self.area = area
         self.resizable_ = resizable
+        self.maximizable_ = maximizable
         self.on_close = on_close
         self._maximized = False
         self._restore_geom = None  # (x, y, w, h) saved across maximize toggle
@@ -121,19 +122,22 @@ class MdiChild(tk.Frame):
             close_btn.bind("<Enter>", lambda e: close_btn.config(bg="#C0392B"))
             close_btn.bind("<Leave>", lambda e: close_btn.config(bg=TITLE_BG))
 
-        max_btn = tk.Label(
-            self.titlebar, text="□", bg=TITLE_BG, fg=TITLE_FG,
-            font=("Segoe UI", 16, "bold"), width=3, cursor="hand2",
-        )
-        max_btn.pack(side="right", fill="y")
-        max_btn.bind("<Button-1>", lambda e: self.toggle_maximize())
-        self._max_btn = max_btn
+        self._max_btn = None
+        if maximizable:
+            max_btn = tk.Label(
+                self.titlebar, text="□", bg=TITLE_BG, fg=TITLE_FG,
+                font=("Segoe UI", 16, "bold"), width=3, cursor="hand2",
+            )
+            max_btn.pack(side="right", fill="y")
+            max_btn.bind("<Button-1>", lambda e: self.toggle_maximize())
+            self._max_btn = max_btn
 
         # -- content area -------------------------------------------------
         self.content = tk.Frame(self, bg="#D4D0C8")
         self.content.pack(side="top", fill="both", expand=True)
 
         # -- resize grip --------------------------------------------------
+        self.grip = None
         if resizable:
             self.grip = tk.Frame(self, bg=BORDER, cursor="bottom_right_corner",
                                   width=GRIP_SIZE, height=GRIP_SIZE)
@@ -145,7 +149,8 @@ class MdiChild(tk.Frame):
         for w in (self.titlebar, self.title_lbl):
             w.bind("<ButtonPress-1>", self._drag_start)
             w.bind("<B1-Motion>", self._drag_move)
-        self.title_lbl.bind("<Double-Button-1>", lambda e: self.toggle_maximize())
+        if maximizable:
+            self.title_lbl.bind("<Double-Button-1>", lambda e: self.toggle_maximize())
 
         # raise-to-front on any click anywhere in the child
         self.bind("<ButtonPress-1>", self._raise_only, add="+")
@@ -220,6 +225,8 @@ class MdiChild(tk.Frame):
     # -- maximize toggle --------------------------------------------------------
 
     def toggle_maximize(self):
+        if not self.maximizable_:
+            return
         if not self._maximized:
             self._restore_geom = (self.x, self.y, self.width, self.height)
             self.x, self.y = 0, 0
@@ -262,10 +269,11 @@ class MdiArea(tk.Frame):
         self._active: MdiChild | None = None
 
     def add_child(self, title, x=20, y=20, width=320, height=220,
-                  resizable=True, closable=True, on_close=None) -> MdiChild:
+                  resizable=True, closable=True, maximizable=True,
+                  on_close=None) -> MdiChild:
         child = MdiChild(self, title, x, y, width, height,
                           resizable=resizable, closable=closable,
-                          on_close=on_close)
+                          maximizable=maximizable, on_close=on_close)
         self._children.append(child)
         return child
 
@@ -297,6 +305,7 @@ class PanelSpec:
     min_height: int = MIN_H
     resizable: bool = True
     closable: bool = True
+    maximizable: bool = True
 
 
 def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
@@ -325,7 +334,7 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in specs:
             c = area.add_child(s.title, x=x, y=margin, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable)
+                                closable=s.closable, maximizable=s.maximizable)
             children.append(c)
             x += s.width + margin
         return children
@@ -343,7 +352,7 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in row1:
             c = area.add_child(s.title, x=x, y=margin, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable)
+                                closable=s.closable, maximizable=s.maximizable)
             children.append(c)
             x += s.width + margin
         x = margin
@@ -351,7 +360,7 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in row2:
             c = area.add_child(s.title, x=x, y=y2, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable)
+                                closable=s.closable, maximizable=s.maximizable)
             children.append(c)
             x += s.width + margin
         return children
@@ -363,7 +372,8 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
     for s in specs:
         w = min(s.width, avail_w - margin * 2)
         c = area.add_child(s.title, x=margin, y=y, width=w, height=each_h,
-                            resizable=s.resizable, closable=s.closable)
+                            resizable=s.resizable, closable=s.closable,
+                            maximizable=s.maximizable)
         children.append(c)
         y += each_h + margin
     return children

@@ -66,7 +66,7 @@ import random
 import tkinter as tk
 from tkinter import messagebox, filedialog
 
-from .mdi import MdiArea, MdiChild, PanelSpec, tile_children
+from .mdi import MdiArea, MdiChild, PanelSpec, tile_children, TITLE_H
 from .panels.message_display import MessageDisplay
 from .panels.port_monitor import PortMonitor
 from .panels.control_panel import ControlPanel
@@ -299,17 +299,21 @@ class BebopMain:
         """Calculator, Memory Walker, Message Display -- the same three
         panels beboputer_v7.main_window opens by default, tiled the
         same non-overlapping way via tile_children(). All three get
-        real content immediately. Calculator's startup size here is
-        deliberately smaller than _show_calculator()'s -- the keypad is
-        now one unified 12-column uniform grid (see
-        panels/calculator.py's _button_grid()), so it compresses
-        gracefully and evenly if given less room; there's no need to
-        force tile_children() into its cramped Tier-3 stacked fallback
-        just to give the calculator its full natural size at startup.
-        Re-opening it via Tools > Calculator... uses the larger,
-        uncompressed size instead."""
+        real content immediately.
+
+        Calculator is fixed-size (resizable=False, maximizable=False):
+        _populate_calculator() measures the real, built button grid's
+        actual on-screen size (font metrics/DPI vary enough across
+        machines that no hardcoded width/height reliably avoided
+        clipping -- see TKINTER_MIGRATION.md) and snaps the window to
+        fit that exactly right after building it, then locks the size
+        so a stray drag-resize can't reintroduce clipping. The width/
+        height given here are only tile_children()'s initial layout
+        guess -- _populate_calculator() corrects them once the real
+        content exists."""
         specs = [
-            PanelSpec(self.PANEL_TITLES["calculator"], 750, 380),
+            PanelSpec(self.PANEL_TITLES["calculator"], 750, 380,
+                      resizable=False, maximizable=False),
             PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460),
             PanelSpec(self.PANEL_TITLES["msg_display"], 380, 220),
         ]
@@ -404,6 +408,15 @@ class BebopMain:
         hbar.grid(row=1, column=0, sticky="ew")
 
         self.calculator = Calculator(canvas, host_main=self)
+
+        # Snap the (fixed-size, resizable=False) MdiChild to the
+        # calculator's real built size on THIS machine, then it stays
+        # locked at that size -- see _autosize_fixed_panel(). The
+        # scrolling canvas above stays in place as a defensive fallback
+        # (e.g. if a future label/font change grows the content again),
+        # but with an exact fit there should be nothing to scroll.
+        self._autosize_fixed_panel(child, self.calculator, pad_w=40, pad_h=20)
+
         win_id = canvas.create_window((0, 0), window=self.calculator, anchor="nw")
 
         def _sync_scrollregion(event=None):
@@ -487,7 +500,8 @@ class BebopMain:
         self.control_panel.pack(fill="both", expand=True)
         self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
 
-    def _open_panel(self, key, width=360, height=280):
+    def _open_panel(self, key, width=360, height=280,
+                     resizable=True, maximizable=True):
         """Open (or re-raise, if already open) the MdiChild for *key*,
         with real content if a _populate_<key> builder exists, else the
         Phase 1 placeholder."""
@@ -496,14 +510,43 @@ class BebopMain:
             existing.raise_child()
             return
         title = self.PANEL_TITLES[key]
-        child = self.mdi.add_child(title, x=40, y=40, width=width, height=height)
+        child = self.mdi.add_child(title, x=40, y=40, width=width, height=height,
+                                    resizable=resizable, maximizable=maximizable)
         self._panels[key] = child
         self._populate(child, key)
         child.on_close = self._make_on_close(key)
 
+    def _autosize_fixed_panel(self, child, content_widget, pad_w=28, pad_h=12):
+        """Snap *child* (an MdiChild opened with resizable=False) to the
+        real, already-built *content_widget*'s actual required size,
+        instead of trusting a hardcoded guess that may not match this
+        machine's font metrics/DPI scaling.
+
+        Called once, right after a fixed-size panel's real content has
+        been constructed and packed -- winfo_reqwidth/reqheight only
+        reflect reality once the widget tree exists, so this can't run
+        any earlier than that. pad_w/pad_h cover the MdiChild's own
+        border + a small safety margin (the scrolling Canvas some fixed
+        panels use for defense-in-depth doesn't need it, but a plain
+        content frame like this one benefits from a few spare pixels).
+        """
+        child.update_idletasks()
+        req_w = content_widget.winfo_reqwidth()
+        req_h = content_widget.winfo_reqheight()
+        new_w = req_w + pad_w
+        new_h = req_h + TITLE_H + pad_h
+        # keep it fully on-screen rather than growing past the MdiArea
+        area_w = max(self.mdi.winfo_width(), new_w)
+        area_h = max(self.mdi.winfo_height(), new_h)
+        child.width = min(new_w, area_w - child.x)
+        child.height = min(new_h, area_h - child.y)
+        child._place()
+
     # ---------------------------------------------------- menu handlers --
 
-    def _show_calculator(self):    self._open_panel("calculator", 1120, 560)
+    def _show_calculator(self):
+        self._open_panel("calculator", 1120, 560,
+                          resizable=False, maximizable=False)
     def _show_mem_walker(self):    self._open_panel("mem_walker", 420, 460)
     def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
     def _show_cpu(self):           self._open_panel("cpu")
