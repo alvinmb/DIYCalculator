@@ -108,10 +108,22 @@ class MemoryGrid(tk.Frame):
 
         col_total = COL_BP_W + COL_STEP_W + COL_ADDR_W + COL_DATA_W
 
+        # bd/highlightthickness/padx/pady are set explicitly and
+        # identically on the header Label and the Text widget below --
+        # they default similarly but not necessarily *identically*
+        # across platforms/themes, and any difference between the two
+        # shifts the header text sideways relative to the data columns
+        # beneath it even though both use the exact same COL_*_W
+        # character counts. relief differs (flat vs. sunken) but that's
+        # just shading of the same reserved 1px border, not extra width.
+        HDR_TXT_BD, HDR_TXT_PADX, HDR_TXT_PADY = 1, 1, 1
+
         header = tk.Label(
-            self, text=f"{'BP':^{COL_BP_W}}{'ST':^{COL_STEP_W}}"
+            self, text=f"{'BP':^{COL_BP_W}}{'STEP':^{COL_STEP_W}}"
                        f"{'ADDR':^{COL_ADDR_W}}{'DATA':^{COL_DATA_W}}",
             font=("Courier New", 20, "bold"), anchor="w", bg="#dcdcdc",
+            bd=HDR_TXT_BD, relief="flat", highlightthickness=0,
+            padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
         )
         header.pack(fill="x")
 
@@ -121,7 +133,8 @@ class MemoryGrid(tk.Frame):
         self.text = tk.Text(
             text_frame, font=("Courier New", 20), width=col_total, height=visible_rows,
             bg=C.get("bg", "#f5f5f0"), cursor="arrow", wrap="none", state="disabled",
-            highlightthickness=0, bd=1, relief="sunken",
+            highlightthickness=0, bd=HDR_TXT_BD, relief="sunken",
+            padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
         )
         vsb = tk.Scrollbar(text_frame, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=vsb.set)
