@@ -499,6 +499,11 @@ class BebopMain:
         powered = self.calculator.powered if self.calculator is not None else False
         self.workbench.set_power(powered)
         self.workbench.sync_from_ram()
+        # Same fixed-size-to-real-content treatment as Calculator/CPU
+        # Registers/Port Map/Keyboard/Control Panel -- see
+        # _autosize_fixed_panel()'s docstring. _show_workbench() opens
+        # this panel with resizable=False, maximizable=False.
+        self._autosize_fixed_panel(child, self.workbench)
 
     def _populate_keyboard(self, child):
         panel = KeyboardPanel(
@@ -610,7 +615,8 @@ class BebopMain:
 
     def _show_keyboard(self):
         self._open_panel("keyboard", 460, 260, resizable=False, maximizable=False)
-    def _show_workbench(self):     self._open_panel("workbench", 420, 260)
+    def _show_workbench(self):
+        self._open_panel("workbench", 420, 260, resizable=False, maximizable=False)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
     def _show_control_panel(self):
         self._open_panel("control", 340, 320, resizable=False, maximizable=False)
