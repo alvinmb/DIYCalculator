@@ -256,7 +256,6 @@ class BebopMain:
         # ── Memory ───────────────────────────────────────────────────────
         mm = _menu("Memory")
         mm.add_command(label="Memory Walker",   command=self._show_mem_walker)
-        mm.add_command(label="Find Address...", command=self._find_address)
 
         # ── Tools ────────────────────────────────────────────────────────
         tm = _menu("Tools")
@@ -615,29 +614,6 @@ class BebopMain:
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
     def _show_control_panel(self):
         self._open_panel("control", 340, 320, resizable=False, maximizable=False)
-
-    def _find_address(self):
-        from tkinter import simpledialog
-        txt = simpledialog.askstring("Find Address", "Enter hex address:", parent=self.root)
-        if txt is None:
-            return
-        try:
-            addr = int(txt, 16)
-        except ValueError:
-            messagebox.showerror("Find Address", f"Not a valid hex address: {txt!r}")
-            return
-        if self.mem_walker is not None:
-            self.mem_walker._base = addr & 0xFFF0
-            self.mem_walker.addr_var.set(f"{self.mem_walker._base:04X}")
-            self.mem_walker._user_nav = True
-            self.mem_walker.grid.refresh()
-        else:
-            self._show_mem_walker()
-            if self.mem_walker is not None:
-                self.mem_walker._base = addr & 0xFFF0
-                self.mem_walker.addr_var.set(f"{self.mem_walker._base:04X}")
-                self.mem_walker._user_nav = True
-                self.mem_walker.grid.refresh()
 
     # -------------------------------------------------------- CPU ops --
 

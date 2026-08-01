@@ -644,8 +644,10 @@ assume "stub" meant "nothing to port" without actually checking:
   rather than "fixed" mid-port.
 - **Purge RAM** -- really zeroes all 64KB and marks it all "known"
   (distinct from New Project, which leaves `ram_touched` alone).
-- **Find Address** -- really jumps Memory Walker to a typed hex
-  address via the same `_user_nav`-locks-the-view mechanism as GO.
+- **Find Address** -- removed from the Memory menu; Memory Walker's
+  own Address field + GO button already do the identical
+  `_user_nav`-locks-the-view jump, so the separate dialog was a
+  redundant second entry point to the same behavior.
 - **Help / DIY Calculator on the web / Credits** -- Help opens the
   bundled `beboputer_v7_help.html` in the system browser (same
   source/bundle path resolution as Qt); the web link opens the same
@@ -658,13 +660,14 @@ an already-open panel, confirming raise-not-duplicate), File/Setup,
 Memory, Help, and CPU ops (Step/Run/Halt/Reset against a real loaded
 program) -- with blocking dialogs (file pickers, `messagebox`, the
 System Clock modal) neutered so the sweep runs unattended; every
-handler completed with no exception. Followed by three targeted
-checks *not* covered by the blanket sweep (since it mocks dialog
-return values to empty/None): Find Address with a real typed address
-actually moves Memory Walker's view, Save Project writes a real,
-correctly-sized RAM dump with the right byte at the right offset, and
-New Project actually zeroes `cpu.ram`. `test_harness.py`'s full
-47-test suite still passes unchanged.
+handler completed with no exception. Followed by targeted checks
+*not* covered by the blanket sweep (since it mocks dialog return
+values to empty/None): Save Project writes a real, correctly-sized
+RAM dump with the right byte at the right offset, and New Project
+actually zeroes `cpu.ram`. `test_harness.py`'s full 47-test suite
+still passes unchanged. (Find Address was later removed from the
+Memory menu -- see note above -- so it's no longer part of this
+sweep.)
 
 Remaining `_not_yet()` fallbacks (Load/Save Button File, Restore
 Defaults) are defensive-only: they delegate to the Calculator
