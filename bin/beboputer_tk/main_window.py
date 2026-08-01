@@ -66,7 +66,7 @@ import random
 import tkinter as tk
 from tkinter import messagebox, filedialog
 
-from .mdi import MdiArea, MdiChild, PanelSpec, tile_children, TITLE_H
+from .mdi import MdiArea, MdiChild, PanelSpec, tile_children, retile_children, TITLE_H
 from .panels.message_display import MessageDisplay
 from .panels.port_monitor import PortMonitor
 from .panels.control_panel import ControlPanel
@@ -301,16 +301,18 @@ class BebopMain:
         same non-overlapping way via tile_children(). All three get
         real content immediately.
 
-        Calculator is fixed-size (resizable=False, maximizable=False):
-        _populate_calculator() measures the real, built button grid's
-        actual on-screen size (font metrics/DPI vary enough across
-        machines that no hardcoded width/height reliably avoided
-        clipping -- see TKINTER_MIGRATION.md) and snaps the window to
-        fit that exactly right after building it, then locks the size
-        so a stray drag-resize can't reintroduce clipping. The width/
-        height given here are only tile_children()'s initial layout
-        guess -- _populate_calculator() corrects them once the real
-        content exists."""
+        Calculator and Memory Walker both self-correct their real size
+        after being built (_autosize_fixed_panel(), called from their
+        _populate_<key>() -- font metrics/DPI vary enough across
+        machines that no hardcoded width/height reliably avoids
+        clipping, see TKINTER_MIGRATION.md), which can end up wider or
+        narrower than tile_children()'s initial PanelSpec guess below.
+        Since each later panel's x position was computed from that
+        guess, a panel growing during its own autosize pass can leave a
+        sibling overlapping it or squeezed into less room than it
+        actually has -- so after every panel in the group has finished
+        self-correcting, retile_children() lays all three out fresh
+        from their real, final sizes."""
         specs = [
             PanelSpec(self.PANEL_TITLES["calculator"], 750, 380,
                       resizable=False, maximizable=False),
@@ -323,6 +325,7 @@ class BebopMain:
             self._panels[key] = child
             self._populate(child, key)
             child.on_close = self._make_on_close(key)
+        retile_children(self.mdi, children)
 
     # ------------------------------------------------ generic panel open --
 
@@ -564,8 +567,18 @@ class BebopMain:
         child.update_idletasks()
         req_w = content_widget.winfo_reqwidth()
         new_w = req_w + pad_w
+        # Cap against the MdiArea's total width, not "what's left to the
+        # right of wherever this child currently sits" -- child.x may
+        # still be a stale placeholder from an earlier layout guess
+        # (e.g. tile_children() positioned this panel next to a sibling
+        # that has since grown during its own autosize pass). Capping by
+        # position here would needlessly shrink a panel that has plenty
+        # of room once positions get corrected. For startup-tiled panels
+        # that's retile_children(), called once every panel in the
+        # group has finished self-correcting; a standalone _open_panel()
+        # (Tools/Display menu) always opens at a fresh x=40 anyway.
         area_w = max(self.mdi.winfo_width(), new_w)
-        child.width = min(new_w, area_w - child.x)
+        child.width = min(new_w, area_w)
         if fix_height:
             req_h = content_widget.winfo_reqheight()
             new_h = req_h + TITLE_H + pad_h

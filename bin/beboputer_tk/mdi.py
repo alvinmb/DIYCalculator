@@ -402,3 +402,66 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
     return children
 
 
+def retile_children(area: MdiArea, children: list[MdiChild], margin: int = 8):
+    """Reposition already-existing *children* without overlap, using
+    their CURRENT (already-correct) .width/.height -- same 3-tier idea
+    as tile_children(), but repositioning in place instead of creating
+    new windows.
+
+    tile_children() has to guess each panel's width/height from
+    PanelSpec *before* any panel's real content exists. Panels that
+    self-correct their own size afterward (BebopMain._autosize_fixed_panel(),
+    called from each _populate_<key>() once the real widget tree is
+    built) can end up wider or narrower than tile_children guessed --
+    which, since later panels' x position was computed from the earlier
+    guess, can leave them overlapping a since-grown sibling or sitting
+    in less space than they actually need. Call this once every panel
+    in the group has finished self-correcting, to lay them out fresh
+    from ground truth.
+    """
+    area.update_idletasks()
+    avail_w = max(area.winfo_width(), 1)
+    avail_h = max(area.winfo_height(), 1)
+
+    total_w = sum(c.width for c in children) + margin * (len(children) + 1)
+    tallest = max(c.height for c in children) + margin * 2
+
+    def _place_at(c, x, y):
+        c.x, c.y = x, y
+        c._place()
+
+    if total_w <= avail_w and tallest <= avail_h:
+        x = margin
+        for c in children:
+            _place_at(c, x, margin)
+            x += c.width + margin
+        return
+
+    half = (len(children) + 1) // 2
+    row1, row2 = children[:half], children[half:]
+    row1_w = sum(c.width for c in row1) + margin * (len(row1) + 1)
+    row2_w = sum(c.width for c in row2) + margin * (len(row2) + 1)
+    row_h = max((c.height for c in row1), default=0) + margin
+    total_h = row_h + max((c.height for c in row2), default=0) + margin * 2
+
+    if max(row1_w, row2_w) <= avail_w and total_h <= avail_h:
+        x = margin
+        for c in row1:
+            _place_at(c, x, margin)
+            x += c.width + margin
+        x = margin
+        y2 = row_h + margin
+        for c in row2:
+            _place_at(c, x, y2)
+            x += c.width + margin
+        return
+
+    # Tier 3: stacked column -- widths already reflect each panel's real
+    # need, so just stack them (no further shrinking; a panel that's
+    # still too wide for avail_w was already too wide before retiling).
+    y = margin
+    for c in children:
+        _place_at(c, margin, y)
+        y += c.height + margin
+
+
