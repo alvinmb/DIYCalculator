@@ -57,14 +57,17 @@ except ImportError:  # pragma: no cover
     }
 
 ROWS = 256
-# Column widths auto-sized to their real content instead of an
-# arbitrary guess: each is max(header label length, widest possible
-# cell value) + 1 trailing space as a column separator --
-#   BP:   "BP"/"●"      -> max(2,1)+1 = 3
-#   STEP: "ST"/"▶"      -> max(2,1)+1 = 3
-#   ADDR: "ADDR"/"$FFFF" -> max(4,5)+1 = 6
-#   DATA: "DATA"/"FF"    -> max(4,2)+1 = 5
-COL_BP_W, COL_STEP_W, COL_ADDR_W, COL_DATA_W = 3, 3, 6, 5
+# Column widths auto-sized to their real content: each is
+# max(header label, widest real cell value) + a separator gap. Bumped
+# from a 1-space to a 2-space gap alongside the table's +3pt font
+# bump (17->20) -- a single space reads as visually tight once each
+# character occupies more pixels, so the column math grew with it
+# rather than staying a stale character count from a smaller font --
+#   BP:   "BP"/"●"      -> max(2,1)+2 = 4
+#   STEP: "ST"/"▶"      -> max(2,1)+2 = 4
+#   ADDR: "ADDR"/"$FFFF" -> max(4,5)+2 = 7
+#   DATA: "DATA"/"FF"    -> max(4,2)+2 = 6
+COL_BP_W, COL_STEP_W, COL_ADDR_W, COL_DATA_W = 4, 4, 7, 6
 BP_START, BP_END = 0, COL_BP_W
 STEP_START, STEP_END = BP_END, BP_END + COL_STEP_W
 ADDR_START, ADDR_END = STEP_END, STEP_END + COL_ADDR_W
@@ -104,7 +107,7 @@ class MemoryGrid(tk.Frame):
         header = tk.Label(
             self, text=f"{'BP':<{COL_BP_W}}{'ST':<{COL_STEP_W}}"
                        f"{'ADDR':<{COL_ADDR_W}}{'DATA':<{COL_DATA_W}}",
-            font=("Courier New", 17, "bold"), anchor="w", bg="#dcdcdc",
+            font=("Courier New", 20, "bold"), anchor="w", bg="#dcdcdc",
         )
         header.pack(fill="x")
 
@@ -112,7 +115,7 @@ class MemoryGrid(tk.Frame):
         text_frame.pack(fill="both", expand=True)
 
         self.text = tk.Text(
-            text_frame, font=("Courier New", 17), width=col_total, height=visible_rows,
+            text_frame, font=("Courier New", 20), width=col_total, height=visible_rows,
             bg=C.get("bg", "#f5f5f0"), cursor="arrow", wrap="none", state="disabled",
             highlightthickness=0, bd=1, relief="sunken",
         )
