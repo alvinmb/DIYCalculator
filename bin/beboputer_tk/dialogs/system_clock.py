@@ -57,15 +57,18 @@ class SystemClockDialog(tk.Toplevel):
         root = tk.Frame(self, bg="#c0c0c0", padx=16, pady=16)
         root.pack(fill="both", expand=True)
 
+        # Label/entry fonts matched to CPU Registers panel: Arial 14
+        # bold for descriptive labels, Courier New 18 bold for the
+        # LCD-style numeric readout/entry (see cpu_panel.py).
         form = tk.Frame(root, bg="#c0c0c0")
         form.pack(fill="x")
         tk.Label(form, text="Clock Speed (Hz):", bg="#c0c0c0",
-                 font=("Arial", 12, "bold")).pack(side="left")
+                 font=("Arial", 14, "bold")).pack(side="left")
         self._hz_var = tk.StringVar(value=str(self._hz))
         entry = tk.Entry(
             form, textvariable=self._hz_var, justify="right", width=10,
             bg=C["lcd_bg"], fg="#000000", relief="sunken", bd=2,
-            font=("Courier New", 14, "bold"),
+            font=("Courier New", 18, "bold"),
         )
         entry.pack(side="left", padx=(8, 0))
         entry.bind("<Return>", lambda e: self._apply())
@@ -73,13 +76,20 @@ class SystemClockDialog(tk.Toplevel):
         entry.select_range(0, "end")
 
         tk.Label(root, text="Range: 1 - 10 000 Hz", bg="#c0c0c0",
-                 font=("Arial", 12, "bold")).pack(anchor="e", pady=(8, 0))
+                 font=("Arial", 14, "bold")).pack(anchor="e", pady=(8, 0))
 
+        # Bigger buttons: larger font plus real padding (was text-hugging
+        # with no padx/pady at all), same BTN_PADX/BTN_PADY convention
+        # used for Memory Walker's buttons.
+        BTN_FONT = ("Arial", 14, "bold")
+        BTN_PADX, BTN_PADY = 14, 8
         btn_row = tk.Frame(root, bg="#c0c0c0")
-        btn_row.pack(fill="x", pady=(10, 0))
-        tk.Button(btn_row, text="Cancel", font=("Arial", 12),
-                  command=self._cancel).pack(side="right", padx=(4, 0))
-        tk.Button(btn_row, text="OK", font=("Arial", 12, "bold"),
+        btn_row.pack(fill="x", pady=(14, 0))
+        tk.Button(btn_row, text="Cancel", font=BTN_FONT,
+                  padx=BTN_PADX, pady=BTN_PADY,
+                  command=self._cancel).pack(side="right", padx=(6, 0))
+        tk.Button(btn_row, text="OK", font=BTN_FONT,
+                  padx=BTN_PADX, pady=BTN_PADY,
                   command=self._apply, default="active").pack(side="right")
 
     def _apply(self):
