@@ -65,7 +65,7 @@ SP = 3    # gap between keys    (px)
 HEX_W = 90
 HEX_FONT = ("Courier New", 20, "bold")
 
-BTN_FONT = ("Arial", 14, "bold")
+BTN_FONT = ("Arial", 17, "bold")
 
 
 def _k(lbl, val, m=1.0):
