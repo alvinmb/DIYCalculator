@@ -333,7 +333,7 @@ class Calculator(tk.Frame):
         # proper rectangle instead of a sliver, independent of font size.
         self.display = tk.Entry(
             self, justify="right", state="readonly",
-            font=("Courier New", 24, "bold"),
+            font=("Courier New", 32, "bold"),
             readonlybackground=_DISPLAY_ON_BG, fg=_DISPLAY_ON_FG,
             relief="sunken", bd=3,
         )
