@@ -90,13 +90,24 @@ class FlagLight(tk.Label):
         self.set_unknown()
 
     def set_on(self, on):
+        # Explicitly restore the plain bold font here -- set_unknown()
+        # (always called once from __init__) leaves the widget on its
+        # italic font, and nothing was resetting it back afterward, so
+        # a flag that had ever been "x" (every flag, at startup) stayed
+        # on that font even once it became a known 0/1.
+        self.configure(font=("Courier New", 17, "bold"))
         if on:
             self.configure(text="1", fg=C["red"])
         else:
             self.configure(text="0", fg=C.get("lcd_fg", "#000000"))
 
     def set_unknown(self):
-        self.configure(text="x", fg=C["grey"], font=("Courier New", 17, "bold italic"))
+        # Style must be separate tuple elements ("bold", "italic"), not
+        # one combined string "bold italic" -- the combined form isn't
+        # a recognized Tk font style keyword, so Tk silently fell back
+        # off bold too (not just skipping italic), which is what made
+        # the flag status font read as not-bold in practice.
+        self.configure(text="x", fg=C["grey"], font=("Courier New", 17, "bold", "italic"))
 
 
 class CPUPanel(tk.Frame):
