@@ -66,7 +66,7 @@ class LEDDisplay(tk.Label):
         self._box_width = box_width if box_width is not None else width
         super().__init__(
             parent, bg=C["lcd_bg"], fg="#000000",
-            font=("Courier New", 14, "bold"),
+            font=("Courier New", 18, "bold"),
             relief="sunken", bd=2, anchor="e",
             width=self._box_width, **kwargs,
         )
@@ -84,7 +84,7 @@ class FlagLight(tk.Label):
 
     def __init__(self, parent, **kwargs):
         super().__init__(
-            parent, bg=C["lcd_bg"], font=("Courier New", 14, "bold"),
+            parent, bg=C["lcd_bg"], font=("Courier New", 18, "bold"),
             relief="sunken", bd=2, width=2, anchor="center", **kwargs,
         )
         self.set_unknown()
@@ -95,7 +95,7 @@ class FlagLight(tk.Label):
         # italic font, and nothing was resetting it back afterward, so
         # a flag that had ever been "x" (every flag, at startup) stayed
         # on that font even once it became a known 0/1.
-        self.configure(font=("Courier New", 14, "bold"))
+        self.configure(font=("Courier New", 18, "bold"))
         if on:
             self.configure(text="1", fg=C["red"])
         else:
@@ -107,7 +107,7 @@ class FlagLight(tk.Label):
         # a recognized Tk font style keyword, so Tk silently fell back
         # off bold too (not just skipping italic), which is what made
         # the flag status font read as not-bold in practice.
-        self.configure(text="x", fg=C["grey"], font=("Courier New", 14, "bold", "italic"))
+        self.configure(text="x", fg=C["grey"], font=("Courier New", 18, "bold", "italic"))
 
 
 class CPUPanel(tk.Frame):
