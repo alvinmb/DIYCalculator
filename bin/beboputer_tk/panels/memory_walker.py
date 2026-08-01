@@ -102,6 +102,12 @@ class MemoryWalker(tk.Frame):
         # them visibly bigger, not just the font.
         BTN_FONT = ("Arial", 15, "bold")
         BTN_PADX, BTN_PADY = 12, 7
+        # RUN to BP used to stand out with red text on a different
+        # background than the other four buttons -- all five now share
+        # one consistent grey, same as the rest of the app's plain
+        # buttons (Calculator's control row, etc.), rather than one
+        # button looking like a distinct color-coded control.
+        BTN_BG = "#d4d0c8"
 
         nav = tk.Frame(self, bg="#c0c0c0")
         nav.pack(fill="x", padx=8, pady=(8, 2))
@@ -116,7 +122,7 @@ class MemoryWalker(tk.Frame):
         addr_entry.bind("<Return>", lambda e: self._go())
 
         tk.Button(
-            nav, text="GO", font=BTN_FONT, width=5,
+            nav, text="GO", font=BTN_FONT, width=5, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._go,
         ).pack(side="left", padx=2)
@@ -125,24 +131,23 @@ class MemoryWalker(tk.Frame):
         nav2.pack(fill="x", padx=8, pady=2)
 
         tk.Button(
-            nav2, text="Go to PC", font=BTN_FONT,
+            nav2, text="Go to PC", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._goto_pc,
         ).pack(side="left", padx=(0, 2))
         self.run_bp_btn = tk.Button(
-            nav2, text="RUN to BP", font=BTN_FONT,
-            fg=C["red"], bg=C.get("btn_bg", "#d4d0c8"),
+            nav2, text="RUN to BP", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self.run_to_breakpoint,
         )
         self.run_bp_btn.pack(side="left")
         tk.Button(
-            nav2, text="Clear BPs", font=BTN_FONT,
+            nav2, text="Clear BPs", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._clear_all_breakpoints,
         ).pack(side="left", padx=4)
         self.walk_btn = tk.Button(
-            nav2, text="Walk 64K", font=BTN_FONT,
+            nav2, text="Walk 64K", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._toggle_walk,
         )
