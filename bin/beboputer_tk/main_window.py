@@ -379,6 +379,10 @@ class BebopMain:
         self.port_mon = PortMonitor(child.content, self.cpu)
         self.port_mon.pack(fill="both", expand=True)
         self.port_mon.refresh()
+        # Same fixed-size-to-real-content treatment as the calculator --
+        # see _autosize_fixed_panel()'s docstring. _show_ports() opens
+        # this panel with resizable=False, maximizable=False.
+        self._autosize_fixed_panel(child, self.port_mon)
 
     def _populate_calculator(self, child):
         # The calculator's button grid has a real minimum size (driven by
@@ -457,6 +461,10 @@ class BebopMain:
     def _populate_cpu(self, child):
         self.cpu_panel = CPUPanel(child.content, self.cpu)
         self.cpu_panel.pack(fill="both", expand=True)
+        # Same fixed-size-to-real-content treatment as the calculator --
+        # see _autosize_fixed_panel()'s docstring. _show_cpu() opens
+        # this panel with resizable=False, maximizable=False.
+        self._autosize_fixed_panel(child, self.cpu_panel)
 
     def _populate_terminal(self, child):
         self.terminal = Terminal(child.content)
@@ -490,6 +498,10 @@ class BebopMain:
             terminal_cb=self.terminal.write_char if self.terminal is not None else None,
         )
         panel.pack(fill="both", expand=True)
+        # Same fixed-size-to-real-content treatment as the calculator --
+        # see _autosize_fixed_panel()'s docstring. _show_keyboard() opens
+        # this panel with resizable=False, maximizable=False.
+        self._autosize_fixed_panel(child, panel)
 
     def _populate_control(self, child):
         self.control_panel = ControlPanel(
@@ -549,9 +561,11 @@ class BebopMain:
                           resizable=False, maximizable=False)
     def _show_mem_walker(self):    self._open_panel("mem_walker", 420, 460)
     def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
-    def _show_cpu(self):           self._open_panel("cpu")
+    def _show_cpu(self):
+        self._open_panel("cpu", resizable=False, maximizable=False)
     def _show_terminal(self):      self._open_panel("terminal")
-    def _show_ports(self):         self._open_panel("ports", 420, 340)
+    def _show_ports(self):
+        self._open_panel("ports", 420, 340, resizable=False, maximizable=False)
     def _show_disassembler(self):  self._open_panel("disassembler", 480, 360)
     def _show_eprom(self):
         # A fresh EpromBurner dialog every time -- same as Qt, no state
@@ -561,7 +575,8 @@ class BebopMain:
             calculator=self.calculator,
         )
 
-    def _show_keyboard(self):      self._open_panel("keyboard", 460, 260)
+    def _show_keyboard(self):
+        self._open_panel("keyboard", 460, 260, resizable=False, maximizable=False)
     def _show_workbench(self):     self._open_panel("workbench", 420, 260)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
     def _show_control_panel(self): self._open_panel("control", 340, 320)
