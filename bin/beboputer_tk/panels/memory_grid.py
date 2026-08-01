@@ -70,12 +70,34 @@ STEP_START, STEP_END = BP_END, BP_END + COL_STEP_W
 ADDR_START, ADDR_END = STEP_END, STEP_END + COL_ADDR_W
 DATA_START, DATA_END = ADDR_END, ADDR_END + COL_DATA_W
 
-# BP/STEP glyphs (●/▶/·) render 3pt larger than the rest of the row and
-# centered within their (now wider) column -- tagged across the whole
-# padded field, not just the glyph character, so the surrounding
-# spaces share the same font and the centering math stays consistent.
+# BP/STEP glyphs (●/▶/·) render 3pt larger than the rest of the row.
+# Earlier this tagged the glyph's WHOLE padded field (all COL_BP_W/
+# COL_STEP_W characters, including the surrounding blank spaces) with
+# the bigger font -- but a monospace font's characters are wider at
+# 23pt than at 20pt, so a "7-char" BP/STEP field at 23pt is physically
+# wider on screen than the header's 7-char BP/STEP field at 20pt. That
+# extra width (x2, for both BP and STEP) accumulated and pushed every
+# column after it -- ADDR, DATA -- visibly rightward of where the
+# header expected them. Now only the single glyph character itself
+# (found at the centered offset `_center_offset()` puts it, matching
+# Python's `:^` format spec) gets the bigger font; the surrounding
+# padding spaces stay at the base 20pt size, so each field's total
+# character-cell width tracks the header's 20pt-based math almost
+# exactly (residual: one character's worth of 23pt-vs-20pt width
+# difference per field, not the whole field's).
 _BASE_FONT_SIZE = 20
+BASE_FONT = ("Courier New", _BASE_FONT_SIZE)
 SYMBOL_FONT = ("Courier New", _BASE_FONT_SIZE + 3)
+
+
+def _center_offset(width: int) -> int:
+    """Index of a single centered character within an f'{c:^{width}}'
+    field -- must match str.format's own centering rule exactly."""
+    return (width - 1) // 2
+
+
+BP_GLYPH_COL = BP_START + _center_offset(COL_BP_W)
+STEP_GLYPH_COL = STEP_START + _center_offset(COL_STEP_W)
 
 
 class MemoryGrid(tk.Frame):
@@ -118,10 +140,17 @@ class MemoryGrid(tk.Frame):
         # just shading of the same reserved 1px border, not extra width.
         HDR_TXT_BD, HDR_TXT_PADX, HDR_TXT_PADY = 1, 1, 1
 
+        # Header uses the exact same (non-bold) font tuple as the data
+        # body -- a bold weight of a nominally-"monospace" font isn't
+        # guaranteed to share the regular weight's character advance
+        # width on every platform, which (like the field-width issue
+        # above) would drift the header sideways relative to the data
+        # columns beneath it, worse for later columns as the
+        # per-character difference accumulates.
         header = tk.Label(
             self, text=f"{'BP':^{COL_BP_W}}{'STEP':^{COL_STEP_W}}"
                        f"{'ADDR':^{COL_ADDR_W}}{'DATA':^{COL_DATA_W}}",
-            font=("Courier New", 20, "bold"), anchor="w", bg="#dcdcdc",
+            font=BASE_FONT, anchor="w", bg="#dcdcdc",
             bd=HDR_TXT_BD, relief="flat", highlightthickness=0,
             padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
         )
@@ -131,7 +160,7 @@ class MemoryGrid(tk.Frame):
         text_frame.pack(fill="both", expand=True)
 
         self.text = tk.Text(
-            text_frame, font=("Courier New", 20), width=col_total, height=visible_rows,
+            text_frame, font=BASE_FONT, width=col_total, height=visible_rows,
             bg=C.get("bg", "#f5f5f0"), cursor="arrow", wrap="none", state="disabled",
             highlightthickness=0, bd=HDR_TXT_BD, relief="sunken",
             padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
@@ -194,10 +223,13 @@ class MemoryGrid(tk.Frame):
             def span(col_start, col_end, row=row):
                 return (f"{row + 1}.{col_start}", f"{row + 1}.{col_end}")
 
-            s, e = span(BP_START, BP_END)
+            # Font-size tag only spans the single glyph character
+            # (BP_GLYPH_COL/STEP_GLYPH_COL), not the whole padded
+            # field -- see the SYMBOL_FONT comment above for why.
+            s, e = span(BP_GLYPH_COL, BP_GLYPH_COL + 1)
             self.text.tag_add("bp_set" if self.is_bp(addr) else "bp_idle", s, e)
 
-            s, e = span(STEP_START, STEP_END)
+            s, e = span(STEP_GLYPH_COL, STEP_GLYPH_COL + 1)
             self.text.tag_add("step_pc" if is_pc else "step_idle", s, e)
 
             s, e = span(ADDR_START, ADDR_END)
