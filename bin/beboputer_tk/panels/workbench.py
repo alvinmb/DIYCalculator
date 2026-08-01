@@ -158,9 +158,21 @@ class SwitchBank(tk.Frame):
 
 
 class LEDBar(tk.Canvas):
-    """Row of 8 green LEDs driven by a byte value."""
+    """Row of 8 green LEDs driven by a byte value.
 
-    _D, _SP, _X0 = 20, 8, 6
+    Geometry is matched to ToggleSwitch/SwitchBank so each LED sits
+    directly below its corresponding switch, same intent as the Qt
+    version's LEDBar (which spells out the matching pitch math in its
+    own docstring):
+      switch width = 30px, switch gap = 6px (3px pack padx each side)
+        -> pitch = 36px, first switch center = 3 + 30/2 = 18px
+      LED diameter = 24px, LED gap = 12px -> pitch = 36px (same as
+        switches, so the per-LED offset from the switch above it stays
+        constant across all 8, not just the first)
+      X0 = 18 - 24/2 = 6px -- centers LED[0] under Switch[0]
+    """
+
+    _D, _SP, _X0 = 24, 12, 6
 
     def __init__(self, parent, **kwargs):
         D, SP, X0 = self._D, self._SP, self._X0
@@ -368,7 +380,11 @@ class WorkbenchPanel(tk.Frame):
 
         tk.Label(left, text="8-Bit LEDs", bg="#c0c0c0", font=("Arial", 12, "bold")).pack(anchor="w", pady=(8, 2))
         self._leds = LEDBar(left)
-        self._leds.pack()
+        # LEDBar (228px) is narrower than the switch rows (288px), so
+        # pack()'s default center anchor was shifting it ~30px right of
+        # the switches above -- anchor="w" flushes its left edge to
+        # match theirs instead.
+        self._leds.pack(anchor="w")
 
         right = tk.Frame(root, bg="#c0c0c0")
         right.pack(side="left", fill="y")
