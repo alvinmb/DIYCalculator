@@ -1,5 +1,44 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v10.0.0 — 2026-08-01
+
+### Changed
+
+- **The tkinter rebuild (`beboputer_tk`, `run_beboputer_tk.py`) is now
+  the primary, actively developed build** — a from-scratch port of
+  every panel and dialog in the original PyQt5 app (Calculator,
+  Memory Walker, CPU Registers, Port Monitor, Disassembler, Assembler/
+  Editor, Terminal, Keyboard, Workbench, EPROM Burner, System Clock,
+  Control Panel, Message Display, and File > Project save/restore),
+  followed by an extensive UI-polish pass across nearly every panel:
+  consistent font sizing and matching between related panels/dialogs,
+  auto-fit-then-lock panel sizing (no more clipped or oversized
+  windows), the Memory Walker grid gained real column/row grid lines
+  and rectangular buttons, the Workbench's 7-segment displays now use
+  real bitmap art instead of vector approximations with correctly
+  aligned LEDs, the Interrupt feature was ported over from Qt's
+  toolbar, and the About dialog now shows the splash artwork. This is
+  a MAJOR version bump because the tkinter build is now the intended
+  installation target going forward, superseding the PyQt5 build
+  (`beboputer_v7`, `run_beboputer_v7.py`) as the primary distributed
+  app — PyQt5's licensing (GPL/commercial dual license) makes it
+  unsuitable to keep carrying forward as a distributed build, whereas
+  tkinter ships with the Python standard library under the PSF
+  license, with no separate licensing terms to track. The Qt build's
+  source remains in the repo for reference but will not receive
+  further installer/package releases.
+- **New Windows installer and .deb build scripts for the tkinter
+  build**, under `bin/beboputer_tk/`: `beboputer_tk.spec`
+  (PyInstaller), `build_installer.bat` + `beboputer_tk_setup.iss`
+  (Inno Setup installer, must be run on Windows), and
+  `RPI_INSTALL/build_deb.sh` + `build_deb.bat` (Debian/Raspberry Pi
+  package, depends on `python3-tk` instead of `python3-pyqt5`).
+  Mirror the existing `beboputer_v7` build scripts structurally; all
+  read the version from the same single source of truth
+  (`bin/beboputer_v7/__init__.py`'s `__version__`, which `beboputer_tk`
+  re-exports unchanged) so there's one version number for the app
+  regardless of which UI build is packaged.
+
 ## v9.0.29 — 2026-07-31
 
 ### Fixed
