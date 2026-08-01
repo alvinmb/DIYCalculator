@@ -100,8 +100,16 @@ class MemoryWalker(tk.Frame):
         # no padx/pady set defaults to ~1px of internal padding (text-
         # hugging), so BTN_PADX/BTN_PADY below are what actually make
         # them visibly bigger, not just the font.
+        # BTN_PADY is deliberately smaller than BTN_PADX -- with square-
+        # ish padding (the old 12/7, plus the font's own ~20px line
+        # height and 2px default bevel) these read as near-square blobs
+        # rather than flat rectangular keys, same issue the Calculator's
+        # buttons had before that fix (see calculator.py's _diy() call
+        # comment: "flat, clearly rectangular... shape"). Cutting
+        # vertical padding while keeping horizontal padding wide is the
+        # same fix applied here.
         BTN_FONT = ("Arial", 15, "bold")
-        BTN_PADX, BTN_PADY = 12, 7
+        BTN_PADX, BTN_PADY = 16, 4
         # RUN to BP used to stand out with red text on a different
         # background than the other four buttons -- all five now share
         # one consistent grey, same as the rest of the app's plain

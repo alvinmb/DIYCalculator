@@ -65,10 +65,31 @@ ROWS = 256
 COL_ADDR_W = 7  # max(4,5)+2 = 7, from "ADDR" vs. "$FFFF"
 COL_BP_W = COL_STEP_W = COL_ADDR_W
 COL_DATA_W = 6
+
+# Column-separator "|" characters -- one between each pair of adjacent
+# fields (3 total: BP|STEP|ADDR|DATA), drawn via a plain grey-foreground
+# tag on a literal character rather than tk.Text tag borderwidth/relief.
+# The border/relief route was prototyped first and rejected: Tk merges
+# a tag's relief-bordered regions across *all* lines that share that
+# tag into one contiguous shape (confirmed via screenshot -- the BP
+# column's border became a single tall blob spanning many rows instead
+# of a per-row box), and relief only renders at all when the tag also
+# sets -background, which would have meant overriding the existing
+# per-cell foreground/background colour tags. Literal separator
+# characters have neither failure mode and stay exactly in step with
+# the existing character-column offset math everywhere else in this
+# file.
+SEP_W = 1
 BP_START, BP_END = 0, COL_BP_W
-STEP_START, STEP_END = BP_END, BP_END + COL_STEP_W
-ADDR_START, ADDR_END = STEP_END, STEP_END + COL_ADDR_W
-DATA_START, DATA_END = ADDR_END, ADDR_END + COL_DATA_W
+SEP1_COL = BP_END
+STEP_START = SEP1_COL + SEP_W
+STEP_END = STEP_START + COL_STEP_W
+SEP2_COL = STEP_END
+ADDR_START = SEP2_COL + SEP_W
+ADDR_END = ADDR_START + COL_ADDR_W
+SEP3_COL = ADDR_END
+DATA_START = SEP3_COL + SEP_W
+DATA_END = DATA_START + COL_DATA_W
 
 # BP/STEP glyphs (●/▶/·) render 3pt larger than the rest of the row.
 # Earlier this tagged the glyph's WHOLE padded field (all COL_BP_W/
@@ -134,7 +155,7 @@ class MemoryGrid(tk.Frame):
         self.on_toggle_bp = on_toggle_bp
         self.on_step = on_step
 
-        col_total = COL_BP_W + COL_STEP_W + COL_ADDR_W + COL_DATA_W
+        col_total = DATA_END  # includes the 3 single-char "|" separators
 
         # bd/highlightthickness/padx/pady are set explicitly and
         # identically on the header Label and the Text widget below --
@@ -155,8 +176,8 @@ class MemoryGrid(tk.Frame):
         # difference accumulates. So the body is bolded too instead of
         # only the header.
         header = tk.Label(
-            self, text=f"{'BP':^{COL_BP_W}}{'STEP':^{COL_STEP_W}}"
-                       f"{'ADDR':^{COL_ADDR_W}}{'DATA':^{COL_DATA_W}}",
+            self, text=f"{'BP':^{COL_BP_W}}|{'STEP':^{COL_STEP_W}}|"
+                       f"{'ADDR':^{COL_ADDR_W}}|{'DATA':^{COL_DATA_W}}",
             font=BASE_FONT, anchor="w", bg="#dcdcdc",
             bd=HDR_TXT_BD, relief="flat", highlightthickness=0,
             padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
@@ -197,6 +218,15 @@ class MemoryGrid(tk.Frame):
 
         self.text.tag_configure("row_pc_bg", background="#fff2cc")
 
+        # Grid lines: "sep" colours the literal "|" column-separator
+        # characters inserted between fields (see the SEP_W/SEP*_COL
+        # comment above); "rowline" underlines each full row to form a
+        # horizontal rule beneath it. Neither sets foreground/background
+        # itself, so both compose cleanly with the colour tags above
+        # regardless of tag priority/order.
+        self.text.tag_configure("sep", foreground="#a0a0a0")
+        self.text.tag_configure("rowline", underline=True)
+
         self.text.bind("<Button-1>", self._on_click)
 
         self.refresh()
@@ -221,9 +251,10 @@ class MemoryGrid(tk.Frame):
             addr_str = f"${addr:04X}"
             data_str = f"{b:02X}" if touched else "XX"
 
-            # All four columns center-justified (^) to match the header.
-            line = (f"{bp_char:^{COL_BP_W}}{step_char:^{COL_STEP_W}}"
-                    f"{addr_str:^{COL_ADDR_W}}{data_str:^{COL_DATA_W}}\n")
+            # All four columns center-justified (^) to match the header,
+            # with a literal "|" between each pair of adjacent fields.
+            line = (f"{bp_char:^{COL_BP_W}}|{step_char:^{COL_STEP_W}}|"
+                    f"{addr_str:^{COL_ADDR_W}}|{data_str:^{COL_DATA_W}}\n")
             line_start = f"{row + 1}.0"
             self.text.insert("end", line)
 
@@ -252,6 +283,12 @@ class MemoryGrid(tk.Frame):
 
             if is_pc:
                 self.text.tag_add("row_pc_bg", line_start, f"{row + 1}.end")
+
+            for sep_col in (SEP1_COL, SEP2_COL, SEP3_COL):
+                s, e = span(sep_col, sep_col + 1)
+                self.text.tag_add("sep", s, e)
+
+            self.text.tag_add("rowline", line_start, f"{row + 1}.{DATA_END}")
 
         self.text.configure(state="disabled")
 
