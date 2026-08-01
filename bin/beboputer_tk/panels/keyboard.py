@@ -26,6 +26,23 @@ number row, QWERTY, ASDF, ZXCV, bottom row). The HEX display (top
 row) shows $XX for the last key pressed. CAPS and SHIFT toggle letter
 capitalisation. Arrow keys send control codes 0x1C-0x1F equivalents
 (Le/Ri/Up/Do, matching the Qt key map exactly).
+
+Keys are sized in real pixels (KW/KH/SP below), not tk.Button's
+default character-count width -- that matters for two things this
+file used to get wrong:
+  - "make the keyboard 25% bigger" is a real, precise multiply on the
+    px dimensions; the old width=max(2, int(4*mult)) character-count
+    scheme rounded so coarsely that e.g. ESC (mult=1.2) and a plain
+    key (mult=1.0) came out the exact same rendered width (int(4.8)
+    == int(4) == 4), silently losing the width-multiplier distinction
+    the row data asked for.
+  - the bottom row's Up/Do/| keys are aligned under row 4's Le/Ri/;
+    by measuring real, already-built geometry and inserting a spacer
+    of the exact remaining gap (see _build()'s row-5 handling) --
+    Qt's version does the same alignment with a hardcoded 191px
+    spacer, but that number was derived for Qt's own KW/KH pixel
+    scale and wouldn't transfer correctly to this port's (different)
+    scale, so it's computed here instead of copied.
 """
 
 from __future__ import annotations
@@ -33,6 +50,22 @@ from __future__ import annotations
 import tkinter as tk
 
 _PORT = 0xF011
+
+# Base key pixel dimensions -- 25% bigger than this port's original
+# character-width-based sizing (measured: a mult=1.0 key used to
+# render at 66x32px with a 2px gap; 66*1.25=82.5, 32*1.25=40,
+# 2*1.25=2.5, all rounded to the nearest px below).
+KW = 82   # standard key width  (px), before the per-key `mult`
+KH = 40   # key height          (px)
+SP = 3    # gap between keys    (px)
+
+# Hex "last key sent" display -- sized to match KH (same height as a
+# key, as in Qt's version) with a width scaled the same 25% as the
+# keys (was 71x32, ~= KW*1.1 at the old scale).
+HEX_W = 90
+HEX_FONT = ("Courier New", 20, "bold")
+
+BTN_FONT = ("Arial", 14, "bold")
 
 
 def _k(lbl, val, m=1.0):
@@ -79,6 +112,9 @@ def _rows():
          _k("Le", 0x0A), _k("Ri", 0x09),
          _k(";", 59)],
 
+        # Row 5 -- CTRL/ALT/SPACE, then Up/Do/| (the alignment spacer
+        # between SPACE and Up is computed at build time, not stored
+        # here -- see _build()).
         [("CTRL", None, 1.6), ("ALT", None, 1.6),
          _k("SPACE", 32, 5.3),
          _k("Up", 0x07), _k("Do", 0x08),
@@ -95,34 +131,88 @@ class KeyboardPanel(tk.Frame):
         self._terminal_cb = terminal_cb
         self._caps = False
         self._shift = False
+        self._le_x = None  # row 4's "Le" key's left-edge x -- row 5's spacer aligns to it
         self._build()
 
     def _build(self):
         root = tk.Frame(self, bg="#c0c0c0")
         root.pack(padx=6, pady=6)
 
+        # Fixed-pixel-size wrapper, same trick _make_btn() uses for keys
+        # (see its docstring) -- a plain tk.Label's width= is character
+        # units, not pixels, so it can't be sized to match KH directly.
+        hex_cell = tk.Frame(root, width=HEX_W, height=KH, bg="#c0c0c0")
+        hex_cell.pack_propagate(False)
         self._hex = tk.Label(
-            root, text="$--", bg="#000000", fg="#ffffff",
-            font=("Courier New", 16, "bold"), relief="sunken", bd=2, width=5,
+            hex_cell, text="$--", bg="#000000", fg="#ffffff",
+            font=HEX_FONT, relief="sunken", bd=2,
         )
+        self._hex.pack(fill="both", expand=True)
 
-        for r, row in enumerate(_rows()):
+        rows = _rows()
+
+        # Rows 0-4 build normally. Le's left-edge x is captured via
+        # winfo_reqwidth() -- NOT winfo_x()/winfo_rootx(), which only
+        # reflect real assigned coordinates once the widget tree is
+        # actually mapped to an on-screen window. _build() runs from
+        # __init__(), before the caller has packed/placed this panel
+        # anywhere, so nothing here is mapped yet and winfo_x() would
+        # read back 0 for everything -- reqwidth (the geometry manager's
+        # *requested* size) is available regardless of mapping, so
+        # summing it as each item is packed gives an accurate x-offset
+        # even at construction time.
+        for r in range(5):
             hbox = tk.Frame(root, bg="#c0c0c0")
-            hbox.grid(row=r, column=0, sticky="w", pady=1)
-            for item in row:
+            hbox.grid(row=r, column=0, sticky="w", pady=(0, SP))
+            for item in rows[r]:
                 if item is None:
-                    self._hex.pack(side="left", padx=1, in_=hbox)
-                else:
-                    label, val, mult = item
-                    self._make_btn(hbox, label, val, mult).pack(side="left", padx=1)
+                    hex_cell.pack(side="left", padx=(0, SP), in_=hbox)
+                    continue
+                label, val, mult = item
+                if label == "Le":
+                    hbox.update_idletasks()
+                    self._le_x = hbox.winfo_reqwidth()
+                cell = self._make_btn(hbox, label, val, mult)
+                cell.pack(side="left", padx=(0, SP))
+
+        # Row 5 needs row 4's real geometry before its last three keys
+        # (Up/Do/|) can be positioned -- build CTRL/ALT/SPACE first,
+        # measure how far along the row that leaves us against Le's
+        # captured x (not a hardcoded pixel guess, see module
+        # docstring), then insert a spacer of exactly the remaining gap
+        # before continuing with Up/Do/|.
+        ctrl, alt, space, up, do, pipe = rows[5]
+        hbox5 = tk.Frame(root, bg="#c0c0c0")
+        hbox5.grid(row=5, column=0, sticky="w", pady=(0, SP))
+        for label, val, mult in (ctrl, alt, space):
+            self._make_btn(hbox5, label, val, mult).pack(side="left", padx=(0, SP))
+
+        hbox5.update_idletasks()
+        next_x = hbox5.winfo_reqwidth()
+        le_x = self._le_x if self._le_x is not None else next_x
+        spacer_w = max(0, le_x - next_x)
+        if spacer_w > 0:
+            tk.Frame(hbox5, width=spacer_w, height=1, bg="#c0c0c0").pack(side="left")
+
+        for label, val, mult in (up, do, pipe):
+            self._make_btn(hbox5, label, val, mult).pack(side="left", padx=(0, SP))
 
     def _make_btn(self, parent, label, val, mult):
-        w = max(2, int(4 * mult))
+        # Fixed-pixel-width wrapper frame (pack_propagate(False)) around
+        # the real Button -- tk.Button's own width= option is measured
+        # in characters, which rounds so coarsely at these mult values
+        # that nearby multipliers (e.g. 1.2 vs 1.0) can render
+        # identically (see module docstring). Wrapping in a frame with
+        # an explicit pixel width sidesteps that entirely.
+        w = max(24, int(KW * mult))
+        cell = tk.Frame(parent, width=w, height=KH, bg="#c0c0c0")
+        cell.pack_propagate(False)
         fg = "#000000"
         btn = tk.Button(
-            parent, text=label, width=w, font=("Arial", 11, "bold"), fg=fg,
+            cell, text=label, font=BTN_FONT, fg=fg,
             relief="raised", bd=1,
         )
+        btn.pack(fill="both", expand=True)
         if label in ("CAPS", "SHIFT"):
             btn._active = False
 
@@ -136,7 +226,7 @@ class KeyboardPanel(tk.Frame):
         elif val is not None:
             btn.configure(command=lambda v=val, lbl=label: self._press(v, lbl))
         # CTRL / ALT -- cosmetic only, no command
-        return btn
+        return cell
 
     def _mod(self, label, on):
         if label == "CAPS":
