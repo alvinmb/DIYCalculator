@@ -75,6 +75,12 @@ _DIRECTIVE_SNIPPETS = [
     (".END <integer>",            "        .END    $4000               # end of program\n"),
 ]
 
+# Matches main_window.py's own menu-bar font (_build_menu()'s
+# MENU_FONT) -- used both for this panel's File/Edit/Insert
+# Menubutton row and for its section labels ("Source (.asm)",
+# "Messages"), which previously used a smaller, unrelated Arial 12.
+MENU_FONT = ("Segoe UI", 15)
+
 _INSTRUCTION_SNIPPETS = [
     ("Implied",        "        NOP                         # implied\n"),
     ("Immediate",      "        LDA     $00                 # immediate\n"),
@@ -112,12 +118,16 @@ class CompilerPanel(tk.Frame):
     # ------------------------------------------------------------- menu row --
 
     def _build_menu_row(self):
+        # MENU_FONT (module-level) matches the main window's own menu
+        # bar font exactly (see main_window.py's _build_menu()'s
+        # MENU_FONT) -- this row used a smaller, different font
+        # (Arial 12) than every other menu in the app.
         bar = tk.Frame(self, bg="#d4d0c8", bd=1, relief="raised")
         bar.pack(fill="x")
 
         file_mb = tk.Menubutton(bar, text="File", bg="#d4d0c8", relief="flat",
-                                 font=("Arial", 12), padx=8)
-        file_menu = tk.Menu(file_mb, tearoff=0)
+                                 font=MENU_FONT, padx=8)
+        file_menu = tk.Menu(file_mb, tearoff=0, font=MENU_FONT)
         file_menu.add_command(label="New", command=self.on_new, accelerator="Ctrl+N")
         file_menu.add_command(label="Open...", command=self.on_open, accelerator="Ctrl+O")
         file_menu.add_command(label="Save", command=self.on_save, accelerator="Ctrl+S")
@@ -128,8 +138,8 @@ class CompilerPanel(tk.Frame):
         file_mb.pack(side="left")
 
         edit_mb = tk.Menubutton(bar, text="Edit", bg="#d4d0c8", relief="flat",
-                                 font=("Arial", 12), padx=8)
-        edit_menu = tk.Menu(edit_mb, tearoff=0)
+                                 font=MENU_FONT, padx=8)
+        edit_menu = tk.Menu(edit_mb, tearoff=0, font=MENU_FONT)
         edit_menu.add_command(label="Cut", command=lambda: self.editor.event_generate("<<Cut>>"))
         edit_menu.add_command(label="Copy", command=lambda: self.editor.event_generate("<<Copy>>"))
         edit_menu.add_command(label="Paste", command=lambda: self.editor.event_generate("<<Paste>>"))
@@ -141,13 +151,13 @@ class CompilerPanel(tk.Frame):
         edit_mb.pack(side="left")
 
         insert_mb = tk.Menubutton(bar, text="Insert", bg="#d4d0c8", relief="flat",
-                                   font=("Arial", 12), padx=8)
-        insert_menu = tk.Menu(insert_mb, tearoff=0)
-        directive_menu = tk.Menu(insert_menu, tearoff=0)
+                                   font=MENU_FONT, padx=8)
+        insert_menu = tk.Menu(insert_mb, tearoff=0, font=MENU_FONT)
+        directive_menu = tk.Menu(insert_menu, tearoff=0, font=MENU_FONT)
         for label, snippet in _DIRECTIVE_SNIPPETS:
             directive_menu.add_command(label=label, command=lambda s=snippet: self._insert_text(s))
         insert_menu.add_cascade(label="Directive", menu=directive_menu)
-        instr_menu = tk.Menu(insert_menu, tearoff=0)
+        instr_menu = tk.Menu(insert_menu, tearoff=0, font=MENU_FONT)
         for label, snippet in _INSTRUCTION_SNIPPETS:
             instr_menu.add_command(label=label, command=lambda s=snippet: self._insert_text(s))
         insert_menu.add_cascade(label="Instruction", menu=instr_menu)
@@ -214,7 +224,7 @@ class CompilerPanel(tk.Frame):
         pane.pack(fill="both", expand=True, padx=6, pady=(0, 4))
 
         ed_box = tk.Frame(pane, bg="#c0c0c0")
-        tk.Label(ed_box, text="Source (.asm)", bg="#c0c0c0", font=("Arial", 12)).pack(anchor="w")
+        tk.Label(ed_box, text="Source (.asm)", bg="#c0c0c0", font=MENU_FONT).pack(anchor="w")
         ed_frame = tk.Frame(ed_box)
         ed_frame.pack(fill="both", expand=True)
         self.editor = tk.Text(
@@ -231,7 +241,7 @@ class CompilerPanel(tk.Frame):
         pane.add(ed_box, stretch="always", height=340)
 
         msg_box = tk.Frame(pane, bg="#c0c0c0")
-        tk.Label(msg_box, text="Messages", bg="#c0c0c0", font=("Arial", 12)).pack(anchor="w")
+        tk.Label(msg_box, text="Messages", bg="#c0c0c0", font=MENU_FONT).pack(anchor="w")
         self.messages = tk.Text(
             msg_box, font=("Courier New", 14), height=8, state="disabled",
             bg="#f5f5f0",
