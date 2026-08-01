@@ -35,19 +35,23 @@ copied from the working code, not the stale comment.):
     Output  $F023   7-Segment decoded (low nibble -> hex digit 0-F)
     Output  $F024   Dual 7-Segment decoded (hi nibble=left, lo=right)
 
-Visual simplification from the Qt version: the Qt build's un-decoded
-and decoded 7-segment displays are rendered from photographic BMP
-assets (BITMAPS/USEGn.BMP / DSEGn.BMP). tkinter's PhotoImage has no
-built-in BMP decoder (only GIF/PGM/PPM/PNG without adding a Pillow
-dependency), so all three 7-segment displays here are drawn as vector
-polygons on a tk.Canvas instead -- same segment-bit truth table
-(_DIGITS), same on/off colors, just line-drawn rather than
-photorealistic. The single-digit vector renderer doubles as both the
-"un-decoded" and "decoded" display (only the bit-to-segment mapping
-differs, controlled by the `decoded` flag), matching the Qt SevenSeg
-class Workbench itself doesn't use directly but which this port
-adopts as the one real implementation instead of duplicating
-image-vs-vector code paths.
+The three 7-segment displays use the same photographic assets as the
+Qt build (BITMAPS/USEGn.BMP for the un-decoded display, one file per
+raw 7-bit value 0-127; BITMAPS/DSEGx.BMP for the decoded displays, one
+file per hex digit 0-F plus DSEGG.BMP for the blank/off glyph -- real
+segments render green-when-lit / dark-red-when-off, straight from the
+photo). tkinter's PhotoImage has no built-in BMP decoder and no
+built-in arbitrary-ratio resize (only GIF/PGM/PPM/PNG, and only
+integer zoom/subsample scaling, without adding a Pillow runtime
+dependency) -- so rather than either drawing vector approximations or
+adding Pillow as a shipped dependency, all 145 BMPs were pre-converted
+*once* (a dev-time-only step, using Pillow purely as a build tool, the
+same way an image would be exported by hand in an image editor) to
+PNGs already scaled to the display size (63x120, matching Qt's
+SevenSegImage/SevenSegDec). Those PNGs live alongside their source
+BMPs in BITMAPS/ and are loaded at runtime with plain
+tk.PhotoImage(file=...), which decodes PNG natively -- no Pillow
+import anywhere in this file or at app runtime.
 
 Not ported: the switch-click .wav sound (QSound has no tkinter
 equivalent -- same already-flagged Sound gap in TKINTER_MIGRATION.md).
@@ -57,6 +61,14 @@ from __future__ import annotations
 
 import tkinter as tk
 
+try:
+    from beboputer_v7.paths import resource_path
+except ImportError:  # pragma: no cover
+    import os
+
+    def resource_path(*parts):
+        return os.path.join(*parts)
+
 ADDR_SW1 = 0xF000
 ADDR_SW2 = 0xF001
 ADDR_LED = 0xF022
@@ -64,12 +76,9 @@ ADDR_SEG1 = 0xF021
 ADDR_SEG2 = 0xF023
 ADDR_SEG3 = 0xF024
 
-# bit 0=a(top) 1=b(upper-right) 2=c(lower-right) 3=d(bottom)
-# bit 4=e(lower-left) 5=f(upper-left) 6=g(middle)
-_DIGITS = [
-    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
-    0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71,
-]
+# Suffix for each nibble value 0-F in the DSEGx.png filenames; 'G' is
+# the blank/off glyph (DSEGG.png), not a real digit.
+_DSEG_SUFFIX = "0123456789ABCDEF"
 
 
 class ToggleSwitch(tk.Canvas):
@@ -178,66 +187,77 @@ class LEDBar(tk.Canvas):
             self.create_oval(x, y0, x + D, y0 + D, fill=fill, outline="#004400")
 
 
-class SevenSeg(tk.Canvas):
-    """Single vector-drawn 7-segment digit.
+class SevenSeg(tk.Label):
+    """Single 7-segment digit, rendered from the real BITMAPS/*.BMP
+    photos (pre-scaled to PNG at 63x120 -- see module docstring), same
+    as the Qt version's SevenSegImage/SevenSegDec.
 
-    decoded=False -- raw bits 0-6 map directly to segments a-g.
-    decoded=True  -- low nibble of value -> 0-F digit shape (_DIGITS).
+    decoded=False -- raw 7-bit value (bits 0-6 = segments a-g) selects
+                     BITMAPS/USEG{val}.png directly (one photo per
+                     value, 0-127 -- no bit-to-segment math needed).
+    decoded=True  -- low nibble of value selects BITMAPS/DSEG{hex}.png
+                     (0-F); blank() shows BITMAPS/DSEGG.png, the true
+                     off glyph.
     """
 
-    _W, _H, _T, _G, _MX, _MY = 50, 80, 7, 3, 7, 6
-    _ON, _OFF = "#dd2200", "#2a0600"
+    _W, _H = 63, 120
+
+    # One shared cache per class, keyed by "USEG3" / "DSEGA" / "DSEGG"
+    # -- every digit position (seg1/seg2/seg3's four sub-digits) reuses
+    # the same loaded tk.PhotoImage instead of re-decoding the PNG.
+    _cache: dict[str, "tk.PhotoImage | None"] = {}
 
     def __init__(self, parent, decoded=True, **kwargs):
         super().__init__(parent, width=self._W, height=self._H,
-                          bg="#080808", highlightthickness=0, **kwargs)
+                          bg="#080808", bd=0, highlightthickness=0, **kwargs)
         self._decoded = decoded
-        self._value = 0
+        self._value = -1  # force the first render to actually load an image
         self._blank = False
-        self._draw()
+        if decoded:
+            self.blank()
+        else:
+            self.set_value(0)
 
     def set_value(self, val: int):
-        val &= 0xFF
-        if self._value != val or self._blank:
-            self._value = val
-            self._blank = False
-            self._draw()
+        val &= 0x0F if self._decoded else 0x7F
+        if self._value == val and not self._blank:
+            return
+        self._value = val
+        self._blank = False
+        self._render()
 
     def blank(self):
-        if not self._blank:
-            self._blank = True
-            self._draw()
-
-    def _bits(self) -> int:
+        """Show the true off/blank glyph -- only meaningful for decoded
+        digits (DSEGG.png); set_value(0) would light up '0' instead."""
+        if not self._decoded:
+            self.set_value(0)
+            return
         if self._blank:
-            return 0
-        return _DIGITS[self._value & 0x0F] if self._decoded else self._value & 0x7F
+            return
+        self._blank = True
+        self._render()
 
-    def _draw(self):
-        self.delete("all")
-        T, G, mx, my = self._T, self._G, self._MX, self._MY
-        W, H = self._W - 2 * mx, self._H - 2 * my
-        H2 = H // 2
-        bits = self._bits()
+    def _asset_name(self) -> str:
+        if self._decoded:
+            suffix = "G" if self._blank else _DSEG_SUFFIX[self._value]
+            return f"DSEG{suffix}"
+        return f"USEG{self._value}"
 
-        def h_seg(x, y, w):
-            return [x + G, y, x + w - G, y, x + w - G - T // 2, y + T, x + G + T // 2, y + T]
-
-        def v_seg(x, y, hh):
-            return [x, y + G, x + T, y + G + T // 2, x + T, y + hh - G - T // 2, x, y + hh - G]
-
-        segs = [
-            (0, h_seg(mx, my, W)),
-            (1, v_seg(mx + W - T, my, H2)),
-            (2, v_seg(mx + W - T, my + H2, H2)),
-            (3, h_seg(mx, my + H, W)),
-            (4, v_seg(mx, my + H2, H2)),
-            (5, v_seg(mx, my, H2)),
-            (6, h_seg(mx, my + H2, W)),
-        ]
-        for bit, pts in segs:
-            color = self._ON if (bits >> bit) & 1 else self._OFF
-            self.create_polygon(pts, fill=color, outline=color)
+    def _render(self):
+        name = self._asset_name()
+        img = self._cache.get(name)
+        if name not in self._cache:
+            try:
+                img = tk.PhotoImage(file=resource_path("BITMAPS", f"{name}.png"))
+            except tk.TclError:
+                img = None  # missing/corrupt asset -- fall back to a blank square
+            self._cache[name] = img
+        if img is not None:
+            self.configure(image=img)
+            self.image = img  # keep a reference -- Tk drops PhotoImages with none
+        else:
+            self.configure(image="")
+            self.image = None
 
 
 class DualSevenSeg(tk.Frame):
