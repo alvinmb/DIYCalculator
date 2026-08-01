@@ -57,7 +57,7 @@ class DisassemblerPanel(tk.Frame):
         ).pack(side="left", padx=2)
 
         self.output = tk.Text(
-            self, font=("Courier New", 14), bg="#ffffff",
+            self, font=("Courier New", 20), bg="#ffffff",
             state="disabled", wrap="none",
         )
         self.output.pack(fill="both", expand=True, padx=8, pady=(0, 8))
