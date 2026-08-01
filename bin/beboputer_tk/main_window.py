@@ -314,7 +314,7 @@ class BebopMain:
         specs = [
             PanelSpec(self.PANEL_TITLES["calculator"], 750, 380,
                       resizable=False, maximizable=False),
-            PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460),
+            PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460, fixed_width=True),
             PanelSpec(self.PANEL_TITLES["msg_display"], 380, 220),
         ]
         self.mdi.update_idletasks()
@@ -457,6 +457,12 @@ class BebopMain:
             on_bp_hit=self._on_mem_walker_bp_hit,
         )
         self.mem_walker.pack(fill="both", expand=True)
+        # Width is fixed to the row layout's real content width (same
+        # clipping-avoidance reasoning as _autosize_fixed_panel()'s other
+        # callers); height stays freely resizable -- fix_height=False --
+        # so more/fewer memory rows can be shown, via a vertical-only
+        # grip (_show_mem_walker() opens with fixed_width=True).
+        self._autosize_fixed_panel(child, self.mem_walker, fix_height=False)
 
     def _populate_cpu(self, child):
         self.cpu_panel = CPUPanel(child.content, self.cpu)
@@ -511,9 +517,13 @@ class BebopMain:
         )
         self.control_panel.pack(fill="both", expand=True)
         self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
+        # Same fixed-size-to-real-content treatment as the calculator --
+        # see _autosize_fixed_panel()'s docstring. _show_control_panel()
+        # opens this panel with resizable=False, maximizable=False.
+        self._autosize_fixed_panel(child, self.control_panel)
 
     def _open_panel(self, key, width=360, height=280,
-                     resizable=True, maximizable=True):
+                     resizable=True, maximizable=True, fixed_width=False):
         """Open (or re-raise, if already open) the MdiChild for *key*,
         with real content if a _populate_<key> builder exists, else the
         Phase 1 placeholder."""
@@ -523,35 +533,44 @@ class BebopMain:
             return
         title = self.PANEL_TITLES[key]
         child = self.mdi.add_child(title, x=40, y=40, width=width, height=height,
-                                    resizable=resizable, maximizable=maximizable)
+                                    resizable=resizable, maximizable=maximizable,
+                                    fixed_width=fixed_width)
         self._panels[key] = child
         self._populate(child, key)
         child.on_close = self._make_on_close(key)
 
-    def _autosize_fixed_panel(self, child, content_widget, pad_w=28, pad_h=12):
-        """Snap *child* (an MdiChild opened with resizable=False) to the
-        real, already-built *content_widget*'s actual required size,
-        instead of trusting a hardcoded guess that may not match this
-        machine's font metrics/DPI scaling.
+    def _autosize_fixed_panel(self, child, content_widget, pad_w=28, pad_h=12,
+                               fix_height=True):
+        """Snap *child*'s width (and, unless fix_height=False, its height
+        too) to the real, already-built *content_widget*'s actual
+        required size, instead of trusting a hardcoded guess that may
+        not match this machine's font metrics/DPI scaling.
 
-        Called once, right after a fixed-size panel's real content has
-        been constructed and packed -- winfo_reqwidth/reqheight only
-        reflect reality once the widget tree exists, so this can't run
-        any earlier than that. pad_w/pad_h cover the MdiChild's own
-        border + a small safety margin (the scrolling Canvas some fixed
-        panels use for defense-in-depth doesn't need it, but a plain
-        content frame like this one benefits from a few spare pixels).
+        Called once, right after a panel's real content has been
+        constructed and packed -- winfo_reqwidth/reqheight only reflect
+        reality once the widget tree exists, so this can't run any
+        earlier than that. pad_w/pad_h cover the MdiChild's own border +
+        a small safety margin (the scrolling Canvas some fixed panels
+        use for defense-in-depth doesn't need it, but a plain content
+        frame like this one benefits from a few spare pixels).
+
+        fix_height=False leaves the current height alone (the panel
+        should have been opened with fixed_width=True and
+        resizable=True in that case -- e.g. Memory Walker: the row
+        layout has one correct width, but a user may want more or fewer
+        rows visible, so height should stay user-resizable via the
+        vertical-only grip).
         """
         child.update_idletasks()
         req_w = content_widget.winfo_reqwidth()
-        req_h = content_widget.winfo_reqheight()
         new_w = req_w + pad_w
-        new_h = req_h + TITLE_H + pad_h
-        # keep it fully on-screen rather than growing past the MdiArea
         area_w = max(self.mdi.winfo_width(), new_w)
-        area_h = max(self.mdi.winfo_height(), new_h)
         child.width = min(new_w, area_w - child.x)
-        child.height = min(new_h, area_h - child.y)
+        if fix_height:
+            req_h = content_widget.winfo_reqheight()
+            new_h = req_h + TITLE_H + pad_h
+            area_h = max(self.mdi.winfo_height(), new_h)
+            child.height = min(new_h, area_h - child.y)
         child._place()
 
     # ---------------------------------------------------- menu handlers --
@@ -559,7 +578,9 @@ class BebopMain:
     def _show_calculator(self):
         self._open_panel("calculator", 1120, 560,
                           resizable=False, maximizable=False)
-    def _show_mem_walker(self):    self._open_panel("mem_walker", 420, 460)
+    def _show_mem_walker(self):
+        self._open_panel("mem_walker", 420, 460,
+                          maximizable=True, fixed_width=True)
     def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
     def _show_cpu(self):
         self._open_panel("cpu", resizable=False, maximizable=False)
@@ -579,7 +600,8 @@ class BebopMain:
         self._open_panel("keyboard", 460, 260, resizable=False, maximizable=False)
     def _show_workbench(self):     self._open_panel("workbench", 420, 260)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
-    def _show_control_panel(self): self._open_panel("control", 340, 320)
+    def _show_control_panel(self):
+        self._open_panel("control", 340, 320, resizable=False, maximizable=False)
 
     def _find_address(self):
         from tkinter import simpledialog

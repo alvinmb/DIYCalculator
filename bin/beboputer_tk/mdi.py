@@ -89,12 +89,20 @@ class MdiChild(tk.Frame):
     def __init__(self, area: "MdiArea", title: str,
                  x: int = 20, y: int = 20, width: int = 320, height: int = 220,
                  resizable: bool = True, closable: bool = True,
-                 maximizable: bool = True, on_close=None):
+                 maximizable: bool = True, fixed_width: bool = False,
+                 on_close=None):
         super().__init__(area, bg=BORDER, bd=0, highlightthickness=1,
                           highlightbackground=BORDER, highlightcolor=BORDER)
         self.area = area
         self.resizable_ = resizable
         self.maximizable_ = maximizable
+        # When True, the resize grip and maximize both only ever change
+        # height -- width stays exactly as set (typically by
+        # BebopMain._autosize_fixed_panel()) for panels that should read
+        # consistently at one width but may need more vertical room (e.g.
+        # Memory Walker: fixed-width row layout, but the row count a user
+        # wants visible varies).
+        self.fixed_width_ = fixed_width
         self.on_close = on_close
         self._maximized = False
         self._restore_geom = None  # (x, y, w, h) saved across maximize toggle
@@ -139,7 +147,8 @@ class MdiChild(tk.Frame):
         # -- resize grip --------------------------------------------------
         self.grip = None
         if resizable:
-            self.grip = tk.Frame(self, bg=BORDER, cursor="bottom_right_corner",
+            grip_cursor = "sb_v_double_arrow" if fixed_width else "bottom_right_corner"
+            self.grip = tk.Frame(self, bg=BORDER, cursor=grip_cursor,
                                   width=GRIP_SIZE, height=GRIP_SIZE)
             self.grip.place(relx=1.0, rely=1.0, anchor="se")
             self.grip.bind("<ButtonPress-1>", self._resize_start)
@@ -215,9 +224,12 @@ class MdiChild(tk.Frame):
             return
         area_w = self.area.winfo_width()
         area_h = self.area.winfo_height()
-        dw = event.x_root - self._resize_ox
         dh = event.y_root - self._resize_oy
-        new_w = max(MIN_W, min(self._resize_ow + dw, area_w - self.x))
+        if self.fixed_width_:
+            new_w = self.width  # locked -- only height tracks the drag
+        else:
+            dw = event.x_root - self._resize_ox
+            new_w = max(MIN_W, min(self._resize_ow + dw, area_w - self.x))
         new_h = max(MIN_H, min(self._resize_oh + dh, area_h - self.y))
         self.width, self.height = new_w, new_h
         self._place()
@@ -229,9 +241,15 @@ class MdiChild(tk.Frame):
             return
         if not self._maximized:
             self._restore_geom = (self.x, self.y, self.width, self.height)
-            self.x, self.y = 0, 0
-            self.width = self.area.winfo_width()
+            self.y = 0
             self.height = self.area.winfo_height()
+            if self.fixed_width_:
+                # Vertical-only maximize -- grow to full height in place,
+                # width and x stay exactly as they were.
+                pass
+            else:
+                self.x = 0
+                self.width = self.area.winfo_width()
             self._maximized = True
             self._max_btn.config(text="❒")
         else:
@@ -270,10 +288,11 @@ class MdiArea(tk.Frame):
 
     def add_child(self, title, x=20, y=20, width=320, height=220,
                   resizable=True, closable=True, maximizable=True,
-                  on_close=None) -> MdiChild:
+                  fixed_width=False, on_close=None) -> MdiChild:
         child = MdiChild(self, title, x, y, width, height,
                           resizable=resizable, closable=closable,
-                          maximizable=maximizable, on_close=on_close)
+                          maximizable=maximizable, fixed_width=fixed_width,
+                          on_close=on_close)
         self._children.append(child)
         return child
 
@@ -306,6 +325,7 @@ class PanelSpec:
     resizable: bool = True
     closable: bool = True
     maximizable: bool = True
+    fixed_width: bool = False
 
 
 def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
@@ -334,7 +354,8 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in specs:
             c = area.add_child(s.title, x=x, y=margin, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable, maximizable=s.maximizable)
+                                closable=s.closable, maximizable=s.maximizable,
+                                fixed_width=s.fixed_width)
             children.append(c)
             x += s.width + margin
         return children
@@ -352,7 +373,8 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in row1:
             c = area.add_child(s.title, x=x, y=margin, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable, maximizable=s.maximizable)
+                                closable=s.closable, maximizable=s.maximizable,
+                                fixed_width=s.fixed_width)
             children.append(c)
             x += s.width + margin
         x = margin
@@ -360,7 +382,8 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         for s in row2:
             c = area.add_child(s.title, x=x, y=y2, width=s.width,
                                 height=s.height, resizable=s.resizable,
-                                closable=s.closable, maximizable=s.maximizable)
+                                closable=s.closable, maximizable=s.maximizable,
+                                fixed_width=s.fixed_width)
             children.append(c)
             x += s.width + margin
         return children
@@ -373,7 +396,7 @@ def tile_children(area: MdiArea, specs: list[PanelSpec], margin: int = 8):
         w = min(s.width, avail_w - margin * 2)
         c = area.add_child(s.title, x=margin, y=y, width=w, height=each_h,
                             resizable=s.resizable, closable=s.closable,
-                            maximizable=s.maximizable)
+                            maximizable=s.maximizable, fixed_width=s.fixed_width)
         children.append(c)
         y += each_h + margin
     return children

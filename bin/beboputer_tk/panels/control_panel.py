@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from .workbench import ToggleSwitch
+
 try:
     from beboputer_v7.styles import C
 except ImportError:  # pragma: no cover
@@ -47,7 +49,7 @@ class ControlPanel(tk.Frame):
         self.on_step = on_step
         self.on_halt = on_halt
         self.on_reset = on_reset
-        self.switches: list[tk.BooleanVar] = []
+        self.switches: list[ToggleSwitch] = []
         self._build()
 
     def _build(self):
@@ -85,6 +87,10 @@ class ControlPanel(tk.Frame):
         self._set_readonly(self.data_disp, "$00")
         self.data_disp.grid(row=1, column=1, sticky="w", padx=6, pady=(2, 0))
 
+        # Same lever-style ToggleSwitch used by Workbench's SwitchBank,
+        # replacing the plain square tk.Checkbutton boxes this used to
+        # have -- visually consistent with the other switch-input panel
+        # in the app instead of looking like an unrelated widget style.
         sw_box = tk.LabelFrame(
             layout, text="Data Switches  (manual input)", bg="#c0c0c0",
             font=("Arial", 12, "bold"), padx=6, pady=6,
@@ -92,10 +98,13 @@ class ControlPanel(tk.Frame):
         sw_box.pack(fill="x", pady=(0, 6))
         self.switches = []
         for i in range(7, -1, -1):
-            var = tk.BooleanVar(value=False)
-            cb = tk.Checkbutton(sw_box, text=str(i), variable=var, bg="#c0c0c0")
-            cb.grid(row=0, column=7 - i, padx=2)
-            self.switches.insert(0, var)
+            col = 7 - i
+            cell = tk.Frame(sw_box, bg="#c0c0c0")
+            cell.grid(row=0, column=col, padx=3)
+            tk.Label(cell, text=str(i), bg="#c0c0c0", font=("Arial", 10)).pack()
+            sw = ToggleSwitch(cell)
+            sw.pack()
+            self.switches.insert(0, sw)
 
         enter_row = tk.Frame(layout, bg="#c0c0c0")
         enter_row.pack(fill="x")
@@ -122,8 +131,8 @@ class ControlPanel(tk.Frame):
 
     def get_switch_value(self) -> int:
         val = 0
-        for i, var in enumerate(self.switches):
-            if var.get():
+        for i, sw in enumerate(self.switches):
+            if sw.is_on:
                 val |= (1 << i)
         return val
 
