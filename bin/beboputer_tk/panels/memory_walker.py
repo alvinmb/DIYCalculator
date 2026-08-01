@@ -118,7 +118,7 @@ class MemoryWalker(tk.Frame):
         BTN_BG = "#d4d0c8"
 
         nav = tk.Frame(self, bg="#c0c0c0")
-        nav.pack(fill="x", padx=8, pady=(8, 2))
+        nav.pack(fill="x", padx=8, pady=(8, 10))
 
         tk.Label(nav, text="Address:", bg="#c0c0c0", font=("Arial", 15)).pack(side="left")
         self.addr_var = tk.StringVar(value="0000")
