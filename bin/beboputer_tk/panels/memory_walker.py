@@ -120,15 +120,15 @@ class MemoryWalker(tk.Frame):
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._go,
         ).pack(side="left", padx=2)
-        tk.Button(
-            nav, text="Go to PC", font=BTN_FONT,
-            padx=BTN_PADX, pady=BTN_PADY,
-            command=self._goto_pc,
-        ).pack(side="left", padx=2)
 
         nav2 = tk.Frame(self, bg="#c0c0c0")
         nav2.pack(fill="x", padx=8, pady=2)
 
+        tk.Button(
+            nav2, text="Go to PC", font=BTN_FONT,
+            padx=BTN_PADX, pady=BTN_PADY,
+            command=self._goto_pc,
+        ).pack(side="left", padx=(0, 2))
         self.run_bp_btn = tk.Button(
             nav2, text="RUN to BP", font=BTN_FONT,
             fg=C["red"], bg=C.get("btn_bg", "#d4d0c8"),
@@ -148,9 +148,15 @@ class MemoryWalker(tk.Frame):
         )
         self.walk_btn.pack(side="left", padx=4)
 
+        # The static instructional sentence this used to open with
+        # ("Click STEP column...") was also the single widest row in
+        # the whole panel, forcing the window wider than the actual
+        # controls needed -- removed. The label stays (real-time
+        # feedback like "BP set at $xxxx" / step results is still
+        # useful), it just starts blank instead of pre-loaded with
+        # help text.
         self.status_lbl = tk.Label(
-            self,
-            text="Click STEP column to single-step  |  Click BP column to toggle breakpoint",
+            self, text="",
             fg=C["grey"], bg="#c0c0c0", font=("Arial", 14, "italic"), anchor="w",
         )
         self.status_lbl.pack(fill="x", padx=8, pady=(2, 4))
