@@ -109,8 +109,8 @@ class MemoryGrid(tk.Frame):
         col_total = COL_BP_W + COL_STEP_W + COL_ADDR_W + COL_DATA_W
 
         header = tk.Label(
-            self, text=f"{'BP':<{COL_BP_W}}{'ST':<{COL_STEP_W}}"
-                       f"{'ADDR':<{COL_ADDR_W}}{'DATA':<{COL_DATA_W}}",
+            self, text=f"{'BP':^{COL_BP_W}}{'ST':^{COL_STEP_W}}"
+                       f"{'ADDR':^{COL_ADDR_W}}{'DATA':^{COL_DATA_W}}",
             font=("Courier New", 20, "bold"), anchor="w", bg="#dcdcdc",
         )
         header.pack(fill="x")
@@ -172,10 +172,9 @@ class MemoryGrid(tk.Frame):
             addr_str = f"${addr:04X}"
             data_str = f"{b:02X}" if touched else "XX"
 
-            # BP/STEP glyphs are centered (^) in their column; ADDR/DATA
-            # stay left-justified (<) as before.
+            # All four columns center-justified (^) to match the header.
             line = (f"{bp_char:^{COL_BP_W}}{step_char:^{COL_STEP_W}}"
-                    f"{addr_str:<{COL_ADDR_W}}{data_str:<{COL_DATA_W}}\n")
+                    f"{addr_str:^{COL_ADDR_W}}{data_str:^{COL_DATA_W}}\n")
             line_start = f"{row + 1}.0"
             self.text.insert("end", line)
 
