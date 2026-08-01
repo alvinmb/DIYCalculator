@@ -126,6 +126,25 @@ def _center_offset(width: int) -> int:
 BP_GLYPH_COL = BP_START + _center_offset(COL_BP_W)
 STEP_GLYPH_COL = STEP_START + _center_offset(COL_STEP_W)
 
+# Exact character span of the ADDR/DATA *value* text within its
+# (wider, centered) field -- e.g. "$0005" (5 chars) inside a 7-char
+# ADDR field, "05" (2 chars) inside a 6-char DATA field. Both value
+# strings are fixed-length ("$" + 4 hex digits; 2 hex digits), so their
+# centered offset is computable the same way _center_offset() derives
+# a single glyph's column, just generalised to a >1-char string: Python's
+# `:^width` centering puts the extra padding character on the right
+# when width-len is odd, i.e. left padding is (width - len) // 2.
+# Used below (see the "rowline" comment in refresh()) to keep the grey
+# grid-line's colour from being overridden by addr_normal/data_normal's
+# green/black -- the line is only drawn across the padding, not across
+# the coloured value text itself.
+_ADDR_VAL_LEN = 5  # "$FFFF"
+_DATA_VAL_LEN = 2  # "FF"
+ADDR_VAL_START = ADDR_START + (COL_ADDR_W - _ADDR_VAL_LEN) // 2
+ADDR_VAL_END = ADDR_VAL_START + _ADDR_VAL_LEN
+DATA_VAL_START = DATA_START + (COL_DATA_W - _DATA_VAL_LEN) // 2
+DATA_VAL_END = DATA_VAL_START + _DATA_VAL_LEN
+
 
 class MemoryGrid(tk.Frame):
     """Scrollable 256-row memory dump: BP | STEP | ADDRESS | DATA.
@@ -220,12 +239,26 @@ class MemoryGrid(tk.Frame):
 
         # Grid lines: "sep" colours the literal "|" column-separator
         # characters inserted between fields (see the SEP_W/SEP*_COL
-        # comment above); "rowline" underlines each full row to form a
-        # horizontal rule beneath it. Neither sets foreground/background
-        # itself, so both compose cleanly with the colour tags above
-        # regardless of tag priority/order.
+        # comment above); "rowline" underlines each row to form a
+        # horizontal rule beneath it, in a muted dark grey.
+        #
+        # "rowline" DOES set its own foreground (unlike a first attempt
+        # that left it unset) -- Tk's Text tag underline colour is tied
+        # to whichever tag actually supplies -foreground for a given
+        # character, same priority-cascade as the text colour itself
+        # (confirmed by prototyping: giving "rowline" a foreground and a
+        # higher priority than addr_normal repainted the ADDR text itself
+        # grey, not just its underline -- there's no way to set an
+        # underline-only colour independent of text colour in tk.Text).
+        # So instead of covering the whole row, refresh() applies
+        # "rowline" only across the padding/separator characters
+        # (ADDR_VAL_START/END and DATA_VAL_START/END, plus the BP/STEP
+        # glyph columns, are deliberately excluded) -- the grey line runs
+        # continuously under BP/STEP's padding and the "|" separators,
+        # with small gaps exactly where the coloured ADDR/DATA value text
+        # and BP/STEP glyphs sit, so those keep their own colour.
         self.text.tag_configure("sep", foreground="#a0a0a0")
-        self.text.tag_configure("rowline", underline=True)
+        self.text.tag_configure("rowline", underline=True, foreground="#555555")
 
         self.text.bind("<Button-1>", self._on_click)
 
@@ -288,7 +321,21 @@ class MemoryGrid(tk.Frame):
                 s, e = span(sep_col, sep_col + 1)
                 self.text.tag_add("sep", s, e)
 
-            self.text.tag_add("rowline", line_start, f"{row + 1}.{DATA_END}")
+            # "rowline" (muted dark grey underline) is applied only in
+            # the gaps between the coloured glyph/value spans above, not
+            # across them -- see the tag_configure comment for why a
+            # single foreground can't be independent per-underline vs.
+            # per-glyph in tk.Text (setting it across the whole row would
+            # repaint the green ADDR / black-or-amber DATA text grey too).
+            for s_col, e_col in (
+                (0, BP_GLYPH_COL),
+                (BP_GLYPH_COL + 1, STEP_GLYPH_COL),
+                (STEP_GLYPH_COL + 1, ADDR_VAL_START),
+                (ADDR_VAL_END, DATA_VAL_START),
+                (DATA_VAL_END, DATA_END),
+            ):
+                s, e = span(s_col, e_col)
+                self.text.tag_add("rowline", s, e)
 
         self.text.configure(state="disabled")
 
