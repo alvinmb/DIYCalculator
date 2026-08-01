@@ -633,15 +633,29 @@ their Qt equivalents being fully real, working features (not
 placeholders) -- worth calling out since it would've been easy to
 assume "stub" meant "nothing to port" without actually checking:
 
-- **New/Save/Save As Project, Save RAM** -- Qt's versions really do
-  clear all RAM + reset the CPU (New), and really do write a full
-  64KB `.rom` dump of `cpu.ram` to a chosen file (Save/Save As/Save
-  RAM are all the same handler in Qt too). Ported faithfully,
-  including a quirk worth knowing about: New Project resets
-  `cpu.ram` to a fresh all-zero `bytearray` but does *not* reset
-  `ram_touched`, so Memory Walker can briefly show stale "touched"
-  flags against the new zeroed data -- Qt's real behavior, kept as-is
-  rather than "fixed" mid-port.
+- **New/Open/Save/Save As Project** -- initially ported faithfully as
+  Qt has them: Save/Save As/Save RAM were all literally the same
+  raw-`.rom`-dump handler (Open Project = Load RAM too), so "Project"
+  was really just RAM save/load wearing a different menu label, in
+  both versions. Later upgraded to a real, separate concept: a Project
+  now captures the whole session -- which panels are open and their
+  position/size, the calculator's power state, the simulated clock
+  speed, and RAM/`ram_touched` -- as one JSON `*.prj` file
+  (`_capture_project_state()`/`_apply_project_state()` in
+  `main_window.py`). Load/Save RAM (still `.rom`, still just
+  `cpu.ram`) stay a separate, independent pair of commands lower in
+  the File menu, unchanged. Panels whose size is autosize-locked
+  (Calculator, CPU Registers, Port Map, Keyboard, Workbench, Control
+  Panel) only have their position restored, not their saved
+  width/height -- restoring a stale size for those would fight the
+  autosize logic and risks reintroducing clipping on a machine with
+  different font metrics than whichever machine saved the project.
+  Memory Walker (fixed-width) restores height only; every other panel
+  restores both. Calculator power state is applied *before* the RAM
+  restore, since turning power on runs a random-RAM-fill side effect
+  that would otherwise clobber the just-restored bytes. Save vs. Save
+  As now genuinely differ too: Save reuses the last Open/Save path
+  silently once one exists; Save As always prompts.
 - **Purge RAM** -- really zeroes all 64KB and marks it all "known"
   (distinct from New Project, which leaves `ram_touched` alone).
 - **Find Address** -- removed from the Memory menu; Memory Walker's
@@ -662,12 +676,20 @@ program) -- with blocking dialogs (file pickers, `messagebox`, the
 System Clock modal) neutered so the sweep runs unattended; every
 handler completed with no exception. Followed by targeted checks
 *not* covered by the blanket sweep (since it mocks dialog return
-values to empty/None): Save Project writes a real, correctly-sized
-RAM dump with the right byte at the right offset, and New Project
+values to empty/None): Save RAM writes a real, correctly-sized RAM
+dump with the right byte at the right offset, and New Project
 actually zeroes `cpu.ram`. `test_harness.py`'s full 47-test suite
 still passes unchanged. (Find Address was later removed from the
 Memory menu -- see note above -- so it's no longer part of this
-sweep.)
+sweep.) Project save/open (the real, later JSON-based version) was
+verified separately: round-tripped RAM contents, `ram_touched`,
+clock speed, calculator power state, and every open panel's saved
+position (plus size, for the panels whose size isn't autosize-locked)
+through a real save-close-everything-reopen cycle; confirmed a plain
+Save reuses the existing project path without prompting, only Save
+As always prompts; confirmed New Project closes every open panel and
+reopens exactly the default three (Calculator, Memory Walker, Message
+Display).
 
 Remaining `_not_yet()` fallbacks (Load/Save Button File, Restore
 Defaults) are defensive-only: they delegate to the Calculator

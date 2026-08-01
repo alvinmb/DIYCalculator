@@ -61,6 +61,8 @@ port, called out as such in the Tools menu label.
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 import random
 import tkinter as tk
@@ -135,6 +137,7 @@ class BebopMain:
         self._instr_msgs = InstructionMessages()
         self._clock_hz = 100          # simulated Hz (ticks/sec), same default
         self._run_after_id = None     # tkinter's .after() handle for the run loop
+        self._project_path = None     # last Open/Save Project path -- Save reuses it
         self.msg_display: MessageDisplay | None = None
         self.port_mon: PortMonitor | None = None
         self.control_panel: ControlPanel | None = None
@@ -858,14 +861,170 @@ class BebopMain:
 
     # -- File / Setup ---------------------------------------------------------
 
+    # A project is the whole session, not just the RAM image: which
+    # panels (Calculator, Memory Walker, CPU Registers, ...) are open,
+    # where they're positioned/sized, the calculator's power state, the
+    # simulated clock speed, and the RAM/ram_touched contents. Saved as
+    # one JSON *.prj file. This is a real, separate concept from
+    # Load/Save RAM below (which only ever touch cpu.ram, no layout) --
+    # they used to just alias to a raw-ROM-dump save/load, which wasn't
+    # really a "project" at all.
+
+    # Panels whose on-screen size is locked to their own content and
+    # re-derived every time they're opened (_autosize_fixed_panel(),
+    # called from each one's _populate_<key>()) -- restoring a saved
+    # width/height for these would fight that autosize logic and risks
+    # reintroducing clipping on a machine with different font metrics/
+    # DPI than whatever machine the project was saved on. Only their
+    # position (x, y) is restored; size is left for the panel to
+    # recompute itself, exactly as a fresh Tools/Display-menu open does.
+    _PROJECT_SIZE_LOCKED = {"calculator", "cpu", "ports", "keyboard", "workbench", "control"}
+    # Locked width (from the same autosize logic) but free-resizing
+    # height -- only height is restored.
+    _PROJECT_FIXED_WIDTH = {"mem_walker"}
+    # Every other open-able panel (msg_display, terminal, disassembler,
+    # compiler) is fully user-resizable, so both width and height are
+    # restored along with position.
+
+    def _capture_project_state(self) -> dict:
+        panels = {
+            key: {"x": child.x, "y": child.y, "width": child.width, "height": child.height}
+            for key, child in self._panels.items()
+        }
+        return {
+            "format": "beboputer-project",
+            "version": 1,
+            "clock_hz": self._clock_hz,
+            "calculator_powered": bool(self.calculator.powered) if self.calculator is not None else False,
+            "ram": base64.b64encode(bytes(self.cpu.ram)).decode("ascii"),
+            "ram_touched": base64.b64encode(bytes(self.cpu.ram_touched)).decode("ascii"),
+            "panels": panels,
+        }
+
+    def _apply_project_state(self, data: dict):
+        # 1. A project restores an exact arrangement, not a merge with
+        #    whatever happens to already be open -- close everything first.
+        for child in list(self._panels.values()):
+            child.close()
+        self._panels.clear()
+
+        # 2. Reopen exactly the panels the project had open, each via its
+        #    normal _show_<key>() so every panel's usual flags/autosize
+        #    logic runs exactly as it does for a manual menu open. One
+        #    key doesn't follow the _show_<key> naming pattern (Control
+        #    Panel's method is _show_control_panel, not _show_control).
+        show_method_names = {"control": "_show_control_panel"}
+        saved_panels = data.get("panels", {})
+        for key in saved_panels:
+            method_name = show_method_names.get(key, f"_show_{key}")
+            show = getattr(self, method_name, None)
+            if callable(show):
+                show()
+
+        # 3. Calculator power state must be set *before* the RAM restore
+        #    below -- Calculator.control("On/Off") turning power ON runs
+        #    _do_random_fill_ram() + a reset as a side effect (real-
+        #    hardware "garbage RAM at power-on" behaviour, see
+        #    _on_power_changed()), which would immediately clobber the
+        #    saved RAM if it ran afterward instead.
+        want_powered = bool(data.get("calculator_powered", False))
+        if self.calculator is not None and self.calculator.powered != want_powered:
+            self.calculator.control("On/Off")
+
+        # 4. Now restore RAM/clock, overwriting any power-on random fill.
+        try:
+            raw = base64.b64decode(data.get("ram", ""))
+            if len(raw) == self.cpu.RAM_SIZE:
+                self.cpu.ram = bytearray(raw)
+            raw_t = base64.b64decode(data.get("ram_touched", ""))
+            if len(raw_t) == self.cpu.RAM_SIZE:
+                self.cpu.ram_touched = bytearray(raw_t)
+        except (ValueError, TypeError):
+            pass  # corrupt/foreign base64 -- leave whatever RAM state we already have
+        self._clock_hz = int(data.get("clock_hz", self._clock_hz))
+        self._do_reset(clear_calc_display=False)
+
+        # 5. Finally, snap every reopened panel to its saved position
+        #    (and, for panels whose size isn't autosize-locked, its
+        #    saved size too -- see _PROJECT_* sets above).
+        for key, geo in saved_panels.items():
+            child = self._panels.get(key)
+            if child is None:
+                continue
+            child.x = geo.get("x", child.x)
+            child.y = geo.get("y", child.y)
+            if key not in self._PROJECT_SIZE_LOCKED:
+                child.height = geo.get("height", child.height)
+                if key not in self._PROJECT_FIXED_WIDTH:
+                    child.width = geo.get("width", child.width)
+            child._place()
+
+        self._refresh_all()
+
+    def _write_project_file(self, path: str):
+        try:
+            data = self._capture_project_state()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            self._project_path = path
+            if self.msg_display is not None:
+                self.msg_display.message(f"Project saved: {os.path.basename(path)}")
+            self.set_status(f"Project saved: {path}")
+        except Exception as e:
+            messagebox.showerror("Save Project failed", str(e))
+
     def _new_project(self):
-        if messagebox.askyesno("New Project", "Clear all RAM and reset CPU?"):
+        if messagebox.askyesno(
+            "New Project",
+            "Clear all RAM, reset the CPU, and close all panels back to "
+            "the default layout?",
+        ):
             self.cpu.ram = bytearray(self.cpu.RAM_SIZE)
+            self.cpu.ram_touched = bytearray(self.cpu.RAM_SIZE)
+            for child in list(self._panels.values()):
+                child.close()
+            self._panels.clear()
+            self._project_path = None
+            self._open_startup_panels()
             self._do_reset()
 
-    def _open_project(self):       self._load_ram()
+    def _open_project(self):
+        path = filedialog.askopenfilename(
+            title="Open Project",
+            filetypes=[("Beboputer Project", "*.prj"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("format") != "beboputer-project":
+                raise ValueError("Not a Beboputer project file.")
+        except Exception as e:
+            messagebox.showerror("Open Project failed", str(e))
+            return
+        self._apply_project_state(data)
+        self._project_path = path
+        if self.msg_display is not None:
+            self.msg_display.message(f"Project opened: {os.path.basename(path)}")
+        self.set_status(f"Project opened: {path}")
 
     def _save_project(self):
+        if self._project_path:
+            self._write_project_file(self._project_path)
+        else:
+            self._save_project_as()
+
+    def _save_project_as(self):
+        path = filedialog.asksaveasfilename(
+            title="Save Project As", defaultextension=".prj",
+            filetypes=[("Beboputer Project", "*.prj"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        self._write_project_file(path)
+
+    def _save_ram(self):
         path = filedialog.asksaveasfilename(
             title="Save ROM", defaultextension=".rom",
             filetypes=[("ROM Files", "*.rom"), ("All Files", "*.*")],
@@ -880,9 +1039,6 @@ class BebopMain:
             self.set_status(f"Saved: {path}")
         except Exception as e:
             messagebox.showerror("Save failed", str(e))
-
-    def _save_project_as(self):    self._save_project()
-    def _save_ram(self):           self._save_project()
 
     def _purge_ram(self):
         if messagebox.askyesno("Purge RAM", "Zero all 64KB of RAM?"):
