@@ -48,12 +48,12 @@ ADDR_BUTTONS = 0xF011
 
 def _value_box(parent, title):
     box = tk.LabelFrame(
-        parent, text=title, fg=C["blue"], font=("Arial", 11, "bold"),
+        parent, text=title, fg=C["blue"], font=("Arial", 13, "bold"),
         bg="#c0c0c0", bd=2, relief="groove", padx=5, pady=4,
     )
     lbl = tk.Label(
         box, text="---", bg=C["lcd_bg"], fg="#000000",
-        font=("Courier New", 16, "bold"), relief="sunken", bd=2,
+        font=("Courier New", 18, "bold"), relief="sunken", bd=2,
         width=8, anchor="center",
     )
     lbl.pack(fill="x")
@@ -63,7 +63,7 @@ def _value_box(parent, title):
 def _addr_label(parent, text):
     return tk.Label(
         parent, text=text, fg=C["blue"], bg="#c0c0c0",
-        font=("Arial", 11, "bold"),
+        font=("Arial", 13, "bold"),
     )
 
 
@@ -95,17 +95,17 @@ class PortMonitor(tk.Frame):
 
         bracket = tk.Label(
             outer, text="$F011", fg=C["blue"], bg="#c0c0c0",
-            font=("Arial", 11, "bold"),
+            font=("Arial", 13, "bold"),
             highlightbackground=C["blue"], highlightthickness=1,
         )
         bracket.grid(row=2, column=0, rowspan=2, padx=(0, 4), sticky="ns")
 
         cur_box = tk.LabelFrame(
-            outer, text="I/P from Buttons", fg=C["blue"], font=("Arial", 11, "bold"),
+            outer, text="I/P from Buttons", fg=C["blue"], font=("Arial", 13, "bold"),
             bg="#c0c0c0", bd=2, relief="groove", padx=5, pady=4,
         )
         self.btn_edit = tk.Entry(
-            cur_box, justify="center", font=("Courier New", 16, "bold"),
+            cur_box, justify="center", font=("Courier New", 18, "bold"),
             bg=C["lcd_bg"], fg="#000000", relief="sunken", bd=2, width=8,
         )
         self.btn_edit.insert(0, "$00")

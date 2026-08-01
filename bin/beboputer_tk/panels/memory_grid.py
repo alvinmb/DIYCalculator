@@ -85,9 +85,15 @@ DATA_START, DATA_END = ADDR_END, ADDR_END + COL_DATA_W
 # character-cell width tracks the header's 20pt-based math almost
 # exactly (residual: one character's worth of 23pt-vs-20pt width
 # difference per field, not the whole field's).
+# Bold: header and data body share this exact tuple (see the class's
+# tk.Label/tk.Text construction below) so the "make headers bold"
+# request can't reopen the header/data-drift bug above -- a bold vs.
+# regular weight split is the previously-fixed root cause, so both
+# widgets are kept on the identical bold tuple rather than only
+# bolding the header.
 _BASE_FONT_SIZE = 20
-BASE_FONT = ("Courier New", _BASE_FONT_SIZE)
-SYMBOL_FONT = ("Courier New", _BASE_FONT_SIZE + 3)
+BASE_FONT = ("Courier New", _BASE_FONT_SIZE, "bold")
+SYMBOL_FONT = ("Courier New", _BASE_FONT_SIZE + 3, "bold")
 
 
 def _center_offset(width: int) -> int:
@@ -140,13 +146,14 @@ class MemoryGrid(tk.Frame):
         # just shading of the same reserved 1px border, not extra width.
         HDR_TXT_BD, HDR_TXT_PADX, HDR_TXT_PADY = 1, 1, 1
 
-        # Header uses the exact same (non-bold) font tuple as the data
-        # body -- a bold weight of a nominally-"monospace" font isn't
-        # guaranteed to share the regular weight's character advance
-        # width on every platform, which (like the field-width issue
-        # above) would drift the header sideways relative to the data
-        # columns beneath it, worse for later columns as the
-        # per-character difference accumulates.
+        # Header uses the exact same font tuple as the data body
+        # (BASE_FONT, now bold per the "make headers bold" request) --
+        # a weight split between the two isn't guaranteed to share
+        # identical character advance width on every platform, which
+        # would drift the header sideways relative to the data columns
+        # beneath it, worse for later columns as the per-character
+        # difference accumulates. So the body is bolded too instead of
+        # only the header.
         header = tk.Label(
             self, text=f"{'BP':^{COL_BP_W}}{'STEP':^{COL_STEP_W}}"
                        f"{'ADDR':^{COL_ADDR_W}}{'DATA':^{COL_DATA_W}}",
