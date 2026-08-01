@@ -138,17 +138,6 @@ class KeyboardPanel(tk.Frame):
         root = tk.Frame(self, bg="#c0c0c0")
         root.pack(padx=6, pady=6)
 
-        # Fixed-pixel-size wrapper, same trick _make_btn() uses for keys
-        # (see its docstring) -- a plain tk.Label's width= is character
-        # units, not pixels, so it can't be sized to match KH directly.
-        hex_cell = tk.Frame(root, width=HEX_W, height=KH, bg="#c0c0c0")
-        hex_cell.pack_propagate(False)
-        self._hex = tk.Label(
-            hex_cell, text="$--", bg="#000000", fg="#ffffff",
-            font=HEX_FONT, relief="sunken", bd=2,
-        )
-        self._hex.pack(fill="both", expand=True)
-
         rows = _rows()
 
         # Rows 0-4 build normally. Le's left-edge x is captured via
@@ -166,7 +155,24 @@ class KeyboardPanel(tk.Frame):
             hbox.grid(row=r, column=0, sticky="w", pady=(0, SP))
             for item in rows[r]:
                 if item is None:
-                    hex_cell.pack(side="left", padx=(0, SP), in_=hbox)
+                    # Hex "last key sent" display -- built directly as a
+                    # child of *this* row's frame (not pack(in_=hbox)'d
+                    # in from elsewhere -- a widget whose real Tk parent
+                    # differs from its packing-geometry parent is a
+                    # legitimate but easy-to-get-subtly-wrong construct,
+                    # and building it in place removes that risk
+                    # entirely). Fixed-pixel-size wrapper, same trick
+                    # _make_btn() uses for keys: a plain tk.Label's
+                    # width= is character units, not pixels, so it can't
+                    # be sized to match KH directly.
+                    hex_cell = tk.Frame(hbox, width=HEX_W, height=KH, bg="#c0c0c0")
+                    hex_cell.pack_propagate(False)
+                    self._hex = tk.Label(
+                        hex_cell, text="$--", bg="#000000", fg="#ffffff",
+                        font=HEX_FONT, relief="sunken", bd=2,
+                    )
+                    self._hex.pack(fill="both", expand=True)
+                    hex_cell.pack(side="left", padx=(0, SP))
                     continue
                 label, val, mult = item
                 if label == "Le":

@@ -614,7 +614,9 @@ class BebopMain:
     def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
     def _show_cpu(self):
         self._open_panel("cpu", resizable=False, maximizable=False)
-    def _show_terminal(self):      self._open_panel("terminal")
+    def _show_terminal(self):
+        # 50% larger than the previous default open size (360x280 -> 540x420).
+        self._open_panel("terminal", 540, 420)
     def _show_ports(self):
         self._open_panel("ports", 420, 340, resizable=False, maximizable=False)
     def _show_disassembler(self):  self._open_panel("disassembler", 480, 360)
