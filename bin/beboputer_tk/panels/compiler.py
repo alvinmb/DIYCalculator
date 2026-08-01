@@ -181,17 +181,31 @@ class CompilerPanel(tk.Frame):
         bar = tk.Frame(self, bg="#c0c0c0")
         bar.pack(fill="x", padx=6, pady=4)
 
-        self.compile_button = tk.Button(
-            bar, text="Assemble", font=("Arial", 12, "bold"),
-            command=self.on_compile,
-        )
-        self.compile_button.pack(side="right", padx=2)
+        # Bigger font + real padding, matching the BTN_FONT/BTN_PADX/
+        # BTN_PADY convention used elsewhere (System Clock dialog,
+        # Memory Walker) instead of these two buttons' previous smaller
+        # font with no padding at all.
+        BTN_FONT = ("Arial", 14, "bold")
+        BTN_PADX, BTN_PADY = 14, 8
 
+        # Packed in workflow order (Assemble first, then Load -> CPU) --
+        # both use side="right", so the *first* one packed ends up
+        # rightmost; packing Load -> CPU first now puts it to the right
+        # of Assemble, reversing the previous [Load -> CPU][Assemble]
+        # visual order to [Assemble][Load -> CPU].
         self.load_into_cpu_button = tk.Button(
-            bar, text="Load -> CPU", font=("Arial", 12, "bold"),
+            bar, text="Load -> CPU", font=BTN_FONT,
+            padx=BTN_PADX, pady=BTN_PADY,
             command=self.on_load_into_cpu, state="disabled",
         )
         self.load_into_cpu_button.pack(side="right", padx=2)
+
+        self.compile_button = tk.Button(
+            bar, text="Assemble", font=BTN_FONT,
+            padx=BTN_PADX, pady=BTN_PADY,
+            command=self.on_compile,
+        )
+        self.compile_button.pack(side="right", padx=2)
 
     # -------------------------------------------------------------- editor --
 
