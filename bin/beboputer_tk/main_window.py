@@ -298,11 +298,18 @@ class BebopMain:
     def _open_startup_panels(self):
         """Calculator, Memory Walker, Message Display -- the same three
         panels beboputer_v7.main_window opens by default, tiled the
-        same non-overlapping way via tile_children(). Message Display
-        gets real content immediately; Calculator/Memory Walker are
-        still placeholders (later Phase 2 slices)."""
+        same non-overlapping way via tile_children(). All three get
+        real content immediately. Calculator's startup size here is
+        deliberately smaller than _show_calculator()'s -- the keypad is
+        now one unified 12-column uniform grid (see
+        panels/calculator.py's _button_grid()), so it compresses
+        gracefully and evenly if given less room; there's no need to
+        force tile_children() into its cramped Tier-3 stacked fallback
+        just to give the calculator its full natural size at startup.
+        Re-opening it via Tools > Calculator... uses the larger,
+        uncompressed size instead."""
         specs = [
-            PanelSpec(self.PANEL_TITLES["calculator"], 340, 460),
+            PanelSpec(self.PANEL_TITLES["calculator"], 750, 380),
             PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460),
             PanelSpec(self.PANEL_TITLES["msg_display"], 380, 220),
         ]
@@ -370,8 +377,55 @@ class BebopMain:
         self.port_mon.refresh()
 
     def _populate_calculator(self, child):
-        self.calculator = Calculator(child.content, host_main=self)
-        self.calculator.pack(fill="both", expand=True)
+        # The calculator's button grid has a real minimum size (driven by
+        # its labels' text at the current font) that this code can't
+        # know in advance on every machine -- font metrics and DPI
+        # scaling vary enough across Windows/Linux/Mac (and monitor
+        # scaling settings) that no single fixed MdiChild width/height
+        # reliably avoids clipping on every screen. Rather than keep
+        # guessing pixel constants, the calculator now lives inside a
+        # scrolling Canvas: when the MdiChild window is roomy enough,
+        # the calculator stretches to fill it exactly like before
+        # (buttons expand via their uniform grid weighting); when the
+        # window is smaller than the calculator's natural size,
+        # scrollbars appear instead of anything being cut off and
+        # unreachable.
+        container = tk.Frame(child.content, bg="#c0c0c0")
+        container.pack(fill="both", expand=True)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(container, bg="#c0c0c0", highlightthickness=0)
+        vbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        hbar = tk.Scrollbar(container, orient="horizontal", command=canvas.xview)
+        canvas.configure(yscrollcommand=vbar.set, xscrollcommand=hbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="ew")
+
+        self.calculator = Calculator(canvas, host_main=self)
+        win_id = canvas.create_window((0, 0), window=self.calculator, anchor="nw")
+
+        def _sync_scrollregion(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        self.calculator.bind("<Configure>", _sync_scrollregion)
+
+        def _sync_canvas_size(event):
+            min_w = self.calculator.winfo_reqwidth()
+            min_h = self.calculator.winfo_reqheight()
+            canvas.itemconfigure(
+                win_id,
+                width=max(event.width, min_w),
+                height=max(event.height, min_h),
+            )
+        canvas.bind("<Configure>", _sync_canvas_size)
+
+        def _mousewheel(event):
+            canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+        for w in (canvas, self.calculator):
+            w.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _mousewheel))
+            w.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
         # Same two write hooks as beboputer_v7.main_window: $F031 (display)
         # and $F032 (LEDs) are driven purely by whatever a running program
         # writes to those ports -- the calculator has no built-in expression
@@ -449,7 +503,7 @@ class BebopMain:
 
     # ---------------------------------------------------- menu handlers --
 
-    def _show_calculator(self):    self._open_panel("calculator", 340, 460)
+    def _show_calculator(self):    self._open_panel("calculator", 1120, 560)
     def _show_mem_walker(self):    self._open_panel("mem_walker", 420, 460)
     def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
     def _show_cpu(self):           self._open_panel("cpu")

@@ -128,6 +128,48 @@ _LED_OFF, _LED_ON = "#3a0000", "#ff1a1a"
 _POWER_ON_BG, _POWER_OFF_BG = "#7ed07e", "#d4d0c8"
 
 
+class _RoundLED(tk.Canvas):
+    """A round LED indicator.
+
+    tkinter has no built-in circular widget -- tk.Label can only ever
+    render as a rectangle, which is what made the original top-row LEDs
+    square. This draws a filled oval on a small Canvas instead.
+
+    Exposes a `configure(bg=...)` / `config(bg=...)` that repaints the
+    oval's fill color, so the existing on/off toggle call sites
+    (`led.configure(bg=_LED_ON)`, scattered through write_leds() etc.)
+    keep working unchanged -- they don't know or care that "bg" is now
+    simulated rather than a real Label background.
+    """
+
+    def __init__(self, parent, diameter=20, color=_LED_OFF, bg="#c0c0c0"):
+        super().__init__(
+            parent, width=diameter, height=diameter,
+            highlightthickness=0, bg=bg, bd=0,
+        )
+        self._oval = self.create_oval(
+            1, 1, diameter - 1, diameter - 1,
+            fill=color, outline="#202020", width=1,
+        )
+
+    def configure(self, cnf=None, **kwargs):
+        merged = dict(cnf or {}, **kwargs)
+        if "bg" in merged and set(merged) <= {"bg"}:
+            self.itemconfigure(self._oval, fill=merged["bg"])
+            return
+        if "bg" in merged:
+            merged["fill"] = merged.pop("bg")
+            self.itemconfigure(self._oval, fill=merged.pop("fill"))
+        super().configure(**merged)
+
+    config = configure
+
+    def cget(self, key):
+        if key == "bg":
+            return self.itemcget(self._oval, "fill")
+        return super().cget(key)
+
+
 class Calculator(tk.Frame):
     """Classic-style scientific calculator with Bin/Dec/Hex base switching."""
 
@@ -284,13 +326,18 @@ class Calculator(tk.Frame):
     # -- display --------------------------------------------------------------
 
     def _build_display(self):
+        # A plain tk.Entry with no explicit height renders as a thin
+        # single-line strip, not the rectangular LCD-style display bar
+        # the Qt version has (QLineEdit with setMinimumHeight(51)).
+        # ipady pads the widget's own requested height so it reads as a
+        # proper rectangle instead of a sliver, independent of font size.
         self.display = tk.Entry(
             self, justify="right", state="readonly",
-            font=("Courier New", 21, "bold"),
+            font=("Courier New", 24, "bold"),
             readonlybackground=_DISPLAY_ON_BG, fg=_DISPLAY_ON_FG,
             relief="sunken", bd=3,
         )
-        self.display.pack(fill="x", padx=6, pady=(6, 4))
+        self.display.pack(fill="x", padx=6, pady=(6, 4), ipady=14)
         self._set_display_text("0")
 
     def _set_display_text(self, text):
@@ -306,58 +353,93 @@ class Calculator(tk.Frame):
 
         kbd = tk.Frame(self, bg="#c0c0c0")
         kbd.pack(fill="both", expand=True, padx=6, pady=2)
-        left = tk.Frame(kbd, bg="#c0c0c0")
-        left.pack(side="left", padx=(0, 6))
-        right = tk.Frame(kbd, bg="#c0c0c0")
-        right.pack(side="left")
-
-        self._left_panel(left)
-        self._right_panel(right)
+        self._button_grid(kbd)
 
     def _top_led_row(self):
         """6 LED+button pairs in one strip, port $F032 driven.
 
         Bit 5 = leftmost LED, bit 0 = rightmost.
+
+        Previously packed left-to-right with mismatched padx between the
+        LED and its button (padx=2 vs padx=(0,6)), so pairs visibly
+        drifted out of alignment. Rebuilt on a 6-column grid with a
+        shared `uniform` group: every column is forced to the same
+        width regardless of its content's natural size, and each LED /
+        button is centered/stretched within its own equal-width cell.
         """
         row = tk.Frame(self, bg="#c0c0c0")
-        row.pack(fill="x", padx=6, pady=(0, 2))
+        row.pack(fill="x", padx=6, pady=(0, 4))
 
         labels = ["", "", "", "Bin", "Dec", "Hex"]
-        for lbl in labels:
-            led = tk.Label(
-                row, bg=_LED_OFF, width=2, height=1,
-                relief="sunken", bd=1,
-            )
-            led.pack(side="left", padx=2)
+        for i in range(len(labels)):
+            row.grid_columnconfigure(i, weight=1, uniform="topcol")
+
+        for i, lbl in enumerate(labels):
+            cell = tk.Frame(row, bg="#c0c0c0")
+            cell.grid(row=0, column=i, sticky="nsew", padx=3, pady=2)
+            cell.grid_columnconfigure(0, weight=1)
+
+            led = _RoundLED(cell, diameter=20, color=_LED_OFF, bg="#c0c0c0")
+            led.grid(row=0, column=0, pady=(0, 3))
             self.leds.append(led)
 
             if lbl in ("Bin", "Dec", "Hex"):
-                b = self._diy(row, lbl, color="#cc0000", bold=True)
+                b = self._diy(cell, lbl, color="#cc0000", bold=True)
             else:
-                b = self._diy(row, "")
-            b.pack(side="left", padx=(0, 6))
+                b = self._diy(cell, "")
+            b.grid(row=1, column=0, sticky="ew")
 
-    def _left_panel(self, parent):
+    def _button_grid(self, parent):
+        """The whole main keypad (trig/hex-op keys + digit/hex-digit
+        keys) as ONE 12-column x 5-row grid, instead of two separate
+        packed Frames (formerly _left_panel/_right_panel).
+
+        The old two-Frame version used pack(side="left") to place the
+        two grids next to each other -- when the container was too
+        narrow for both grids' natural size, tkinter's packer starved
+        whichever Frame packed second (the right/digit grid), squeezing
+        its buttons down to a different, smaller size than the left
+        grid's buttons. Same-container buttons were internally uniform
+        (via a `uniform` group) but the two halves were uniform with
+        *each other's* full natural size only if there happened to be
+        enough width -- otherwise they visibly mismatched.
+
+        A single grid with one shared `uniform` column/row group across
+        all 12 columns has no such failure mode: every button, in every
+        column, is forced to the exact same pixel size no matter how
+        much (or little) width the container actually has -- the whole
+        keypad compresses or expands together, never just one half of
+        it relative to the other.
+        """
+        # min_h=24 keeps DIYButton's char-unit height (min_h // 20) at 1
+        # text line rather than 2 -- min_h=40 rendered buttons almost as
+        # tall as they are wide (near-square), not the flat, clearly
+        # rectangular calculator-key shape.
         grid = tk.Frame(parent, bg="#c0c0c0")
-        grid.pack()
+        grid.pack(fill="both", expand=True)
 
+        for c in range(12):
+            grid.grid_columnconfigure(c, weight=1, uniform="kbdcol")
+        for r in range(5):
+            grid.grid_rowconfigure(r, weight=1, uniform="kbdrow")
+
+        # -- left half: blank digit keys (cols 0-3) + trig/hex-op keys
+        #    (cols 4-5) --
         for r in range(5):
             for c in range(4):
-                btn = self._diy(grid, "", min_w=36, min_h=36)
-                btn.grid(row=r, column=c, padx=2, pady=2)
+                btn = self._diy(grid, "", min_w=35, min_h=24)
+                btn.grid(row=r, column=c, padx=2, pady=2, sticky="nsew")
 
         for r, lbl in enumerate(["Sin", "Cos", "Tan", "Log", "n!"]):
-            btn = self._diy(grid, lbl, color="#cc00cc", min_w=46, min_h=36)
-            btn.grid(row=r, column=4, padx=2, pady=2)
+            btn = self._diy(grid, lbl, color="#cc00cc", min_w=35, min_h=24)
+            btn.grid(row=r, column=4, padx=2, pady=2, sticky="nsew")
 
         for r, lbl in enumerate(["x^y", "x^3", "x^2", "Rx", "1/x"]):
-            btn = self._diy(grid, lbl, color="#cc00cc", min_w=46, min_h=36)
-            btn.grid(row=r, column=5, padx=2, pady=2)
+            btn = self._diy(grid, lbl, color="#cc00cc", min_w=35, min_h=24)
+            btn.grid(row=r, column=5, padx=2, pady=2, sticky="nsew")
 
-    def _right_panel(self, parent):
-        grid = tk.Frame(parent, bg="#c0c0c0")
-        grid.pack()
-
+        # -- right half: digit/hex-digit pad (cols 6-11) --
+        right_col0 = 6
         rows = [
             ["7", "8", "9", "/", "Mod", "Exp"],
             ["4", "5", "6", "*", "Pi", "F-S"],
@@ -365,20 +447,31 @@ class Calculator(tk.Frame):
         ]
         for r, row in enumerate(rows):
             for c, lbl in enumerate(row):
-                btn = self._diy(grid, lbl, color="#000000", min_w=52, min_h=36)
-                btn.grid(row=r, column=c, padx=2, pady=2)
+                btn = self._diy(grid, lbl, color="#000000", min_w=35, min_h=24)
+                btn.grid(row=r, column=right_col0 + c, padx=2, pady=2, sticky="nsew")
 
         for c, lbl in enumerate(["0", "+/-", ".", "+", "="]):
-            btn = self._diy(grid, lbl, min_w=52, min_h=36)
-            btn.grid(row=3, column=c, padx=2, pady=2)
+            btn = self._diy(grid, lbl, min_w=35, min_h=24)
+            btn.grid(row=3, column=right_col0 + c, padx=2, pady=2, sticky="nsew")
 
         for c, lbl in enumerate(list("ABCDEF")):
-            btn = self._diy(grid, lbl, min_w=52, min_h=36)
-            btn.grid(row=4, column=c, padx=2, pady=2)
+            btn = self._diy(grid, lbl, min_w=35, min_h=24)
+            btn.grid(row=4, column=right_col0 + c, padx=2, pady=2, sticky="nsew")
 
     # -- bottom bar ---------------------------------------------------------
 
     def _build_bottom_bar(self):
+        # One grid across the whole row instead of a chain of pack()'d
+        # Frames -- nesting a second pack()'d Frame (e.g. a small "CE
+        # button" sub-Frame) inside a width-constrained bar reintroduces
+        # the same failure the keypad had: if the outer Frame doesn't
+        # fit, pack() can zero it out entirely rather than shrinking it
+        # (observed: the whole Clear/CE/Back/Enter group collapsed to
+        # 1x1 at the compact startup panel width). A single grid, with
+        # the control buttons and DIY buttons as plain columns and one
+        # expanding spacer column between them, has no such collapse
+        # point -- every column (down to Enter) always gets a real,
+        # evenly-computed share of the bar's actual width.
         bar = tk.Frame(self, bg="#c0c0c0")
         bar.pack(fill="x", padx=6, pady=(2, 6))
 
@@ -388,13 +481,14 @@ class Calculator(tk.Frame):
             "Step": "Execute a single CPU instruction",
             "Run": "Run the CPU until it HALTs or hits a breakpoint",
         }
-        for lbl in ["On/Off", "Reset", "Step", "Run"]:
+        control_labels = ["On/Off", "Reset", "Step", "Run"]
+        for c, lbl in enumerate(control_labels):
             b = tk.Button(
-                bar, text=lbl, font=("Arial", 13, "bold"),
-                bg=_POWER_OFF_BG, relief="raised", bd=2, width=8, height=2,
+                bar, text=lbl, font=("Arial", 16, "bold"),
+                bg=_POWER_OFF_BG, relief="raised", bd=2, width=8, height=1,
                 command=lambda l=lbl: self.control(l),
             )
-            b.pack(side="left", padx=2)
+            b.grid(row=0, column=c, padx=2, sticky="w")
             if lbl in ("Reset", "Step", "Run"):
                 b.configure(state="disabled")
                 self._power_controlled.append(b)
@@ -402,12 +496,16 @@ class Calculator(tk.Frame):
                 self.power_btn = b
             self._add_tooltip(b, tooltips[lbl])
 
-        spacer = tk.Frame(bar, bg="#c0c0c0")
-        spacer.pack(side="left", fill="x", expand=True)
+        spacer_col = len(control_labels)
+        bar.grid_columnconfigure(spacer_col, weight=1)
 
-        for lbl in ["Clear", "CE", "Back", "Enter"]:
-            btn = self._diy(bar, lbl, color="#cc0000", min_w=77, min_h=40, bold=True)
-            btn.pack(side="left", padx=2)
+        ce_labels = ["Clear", "CE", "Back", "Enter"]
+        ce_col0 = spacer_col + 1
+        for c in range(len(ce_labels)):
+            bar.grid_columnconfigure(ce_col0 + c, weight=0, uniform="cebtn")
+        for c, lbl in enumerate(ce_labels):
+            btn = self._diy(bar, lbl, color="#cc0000", min_w=77, min_h=24, bold=True)
+            btn.grid(row=0, column=ce_col0 + c, padx=2, sticky="e")
 
     @staticmethod
     def _add_tooltip(widget, text):
@@ -424,7 +522,7 @@ class Calculator(tk.Frame):
             win.wm_geometry(f"+{x}+{y}")
             tk.Label(
                 win, text=text, bg="#ffffcc", fg="#000000",
-                relief="solid", bd=1, font=("Arial", 11), padx=4, pady=2,
+                relief="solid", bd=1, font=("Arial", 14), padx=4, pady=2,
             ).pack()
             tip["win"] = win
 

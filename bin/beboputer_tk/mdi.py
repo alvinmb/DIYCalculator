@@ -58,7 +58,7 @@ from dataclasses import dataclass, field
 TITLE_BG        = "#2E74B5"
 TITLE_BG_INACT  = "#8FA8BE"
 TITLE_FG        = "#FFFFFF"
-TITLE_H         = 26
+TITLE_H         = 32
 GRIP_SIZE       = 14
 MIN_W, MIN_H    = 160, 100
 DESKTOP_BG      = "#B9C7D6"
@@ -107,14 +107,14 @@ class MdiChild(tk.Frame):
 
         self.title_lbl = tk.Label(
             self.titlebar, text=title, bg=TITLE_BG, fg=TITLE_FG,
-            font=("Segoe UI", 12, "bold"), anchor="w",
+            font=("Segoe UI", 15, "bold"), anchor="w",
         )
         self.title_lbl.pack(side="left", fill="both", expand=True, padx=(8, 0))
 
         if closable:
             close_btn = tk.Label(
                 self.titlebar, text="✕", bg=TITLE_BG, fg=TITLE_FG,
-                font=("Segoe UI", 13, "bold"), width=3, cursor="hand2",
+                font=("Segoe UI", 16, "bold"), width=3, cursor="hand2",
             )
             close_btn.pack(side="right", fill="y")
             close_btn.bind("<Button-1>", lambda e: self.close())
@@ -123,7 +123,7 @@ class MdiChild(tk.Frame):
 
         max_btn = tk.Label(
             self.titlebar, text="□", bg=TITLE_BG, fg=TITLE_FG,
-            font=("Segoe UI", 13, "bold"), width=3, cursor="hand2",
+            font=("Segoe UI", 16, "bold"), width=3, cursor="hand2",
         )
         max_btn.pack(side="right", fill="y")
         max_btn.bind("<Button-1>", lambda e: self.toggle_maximize())
