@@ -130,28 +130,33 @@ class MemoryWalker(tk.Frame):
         nav2 = tk.Frame(self, bg="#c0c0c0")
         nav2.pack(fill="x", padx=8, pady=2)
 
+        # Equal gap after every button (was inconsistent -- "Go to PC"
+        # and "RUN to BP" nearly touched while "Clear BPs"/"Walk 64K"
+        # had a visible gap -- now all four use the same BTN_GAP).
+        BTN_GAP = 8
+
         tk.Button(
             nav2, text="Go to PC", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._goto_pc,
-        ).pack(side="left", padx=(0, 2))
+        ).pack(side="left", padx=(0, BTN_GAP))
         self.run_bp_btn = tk.Button(
             nav2, text="RUN to BP", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self.run_to_breakpoint,
         )
-        self.run_bp_btn.pack(side="left")
+        self.run_bp_btn.pack(side="left", padx=(0, BTN_GAP))
         tk.Button(
             nav2, text="Clear BPs", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._clear_all_breakpoints,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=(0, BTN_GAP))
         self.walk_btn = tk.Button(
             nav2, text="Walk 64K", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self._toggle_walk,
         )
-        self.walk_btn.pack(side="left", padx=4)
+        self.walk_btn.pack(side="left", padx=(0, BTN_GAP))
 
         # The static instructional sentence this used to open with
         # ("Click STEP column...") was also the single widest row in
