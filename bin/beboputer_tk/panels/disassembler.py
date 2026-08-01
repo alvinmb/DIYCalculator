@@ -46,7 +46,7 @@ class DisassemblerPanel(tk.Frame):
         self.addr_var = tk.StringVar(value="0000")
         addr_entry = tk.Entry(
             nav, textvariable=self.addr_var, width=8,
-            font=("Courier New", 14, "bold"),
+            font=("Courier New", 18, "bold"),
         )
         addr_entry.pack(side="left", padx=4)
         addr_entry.bind("<Return>", lambda e: self._disassemble())
