@@ -95,6 +95,11 @@ except ImportError:  # pragma: no cover
 from beboputer_v7.cpu import CPU
 from beboputer_v7.instruction_messages import InstructionMessages
 
+try:
+    from beboputer_v7.constants import FLAG_I
+except ImportError:  # pragma: no cover
+    FLAG_I = 16
+
 
 PLACEHOLDER_NOTE = (
     "This panel is a Phase 1 placeholder.\n\n"
@@ -240,6 +245,11 @@ class BebopMain:
         # ── Setup ────────────────────────────────────────────────────────
         sm = _menu("Setup")
         sm.add_command(label="System Clock...",   command=self._set_clock)
+        sm.add_separator()
+        # Interrupt -- a standalone "⚡ Interrupt" toolbar button in the Qt
+        # version (main_window.py's _build_toolbar()/_do_interrupt()); this
+        # tkinter build has no toolbar, so it lives here in Setup instead.
+        sm.add_command(label="Interrupt",           command=self._do_interrupt)
         sm.add_separator()
         sm.add_command(label="Load Button File...", command=self._load_button_file)
         sm.add_command(label="Save Button File...", command=self._save_button_file)
@@ -650,6 +660,28 @@ class BebopMain:
         if self.cpu.halted:
             self.set_status("HALT instruction executed.")
             self.msg_display.message("--- HALT ---")
+
+    def _do_interrupt(self):
+        """Manually assert the interrupt mask bit (flag I) -- ported from
+        Qt's toolbar '⚡ Interrupt' button / _do_interrupt(). Same effect
+        as the CPU executing a SETIM instruction, but triggered from the
+        UI rather than from a running program -- lets you test
+        interrupt-mask-dependent code paths without having to assemble a
+        SETIM into the program itself.
+
+        Only takes effect while the calculator is switched on -- with
+        the calculator off there's no powered board to interrupt, same
+        reasoning as the Qt version's "must be ON" gate.
+        """
+        if self.calculator is None or not self.calculator.powered:
+            self.msg_display.message("Interrupt ignored -- calculator is off.")
+            self.set_status("Interrupt ignored -- calculator is off.")
+            return
+        self.cpu.flags |= FLAG_I
+        self.cpu.flags_touched |= FLAG_I
+        self._refresh_all()
+        self.msg_display.message("⚡ Interrupt: mask bit (I) set.")
+        self.set_status("Interrupt mask bit (I) set.")
 
     def _do_reset(self, clear_calc_display=True):
         if self._run_after_id is not None:
