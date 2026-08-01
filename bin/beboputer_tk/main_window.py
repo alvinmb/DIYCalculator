@@ -329,7 +329,8 @@ class BebopMain:
             PanelSpec(self.PANEL_TITLES["calculator"], 750, 380,
                       resizable=False, maximizable=False),
             PanelSpec(self.PANEL_TITLES["mem_walker"], 420, 460, fixed_width=True),
-            PanelSpec(self.PANEL_TITLES["msg_display"], 380, 220),
+            # 25% bigger than the previous default (380x220 -> 475x275).
+            PanelSpec(self.PANEL_TITLES["msg_display"], 475, 275),
         ]
         self.mdi.update_idletasks()
         children = tile_children(self.mdi, specs)
@@ -611,7 +612,9 @@ class BebopMain:
     def _show_mem_walker(self):
         self._open_panel("mem_walker", 420, 460,
                           maximizable=True, fixed_width=True)
-    def _show_msg_display(self):   self._open_panel("msg_display", 380, 220)
+    def _show_msg_display(self):
+        # 25% bigger than the previous default (380x220 -> 475x275).
+        self._open_panel("msg_display", 475, 275)
     def _show_cpu(self):
         self._open_panel("cpu", resizable=False, maximizable=False)
     def _show_terminal(self):
