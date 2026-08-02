@@ -45,11 +45,6 @@ from PyQt5.QtWidgets import (
     QFileDialog, QMessageBox, QStatusBar,
 )
 
-# compiler_core + das.py live two levels up in bin/
-_BIN_DIR = Path(__file__).resolve().parent.parent.parent
-if str(_BIN_DIR) not in sys.path:
-    sys.path.insert(0, str(_BIN_DIR))
-
 # ── Cross-platform file-dialog directories ───────────────────────────────────
 # default_open_dir()/default_save_dir() (see ../paths.py) point at Data/
 # WorkInProgress when running from source, and at a single writable
@@ -67,100 +62,13 @@ except Exception:
         user_dir.mkdir(exist_ok=True)
         return str(user_dir)
 
-try:
-    from compiler_core import Compiler as _AsmCompiler
-    _COMPILER_AVAILABLE = True
-    _COMPILER_IMPORT_ERROR = None
-except Exception as _exc:
-    _AsmCompiler = None
-    _COMPILER_AVAILABLE = False
-    _COMPILER_IMPORT_ERROR = str(_exc)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AssemblerRunner — pure logic, no Qt
-# ─────────────────────────────────────────────────────────────────────────────
-
-class AssemblerRunner:
-    """Compile assembly source, write RAM images, and load into a CPU.
-
-    This class holds no Qt state and can be used (and tested) without a
-    display.  The :class:`CompilerWindow` owns one instance and delegates
-    all compile/load operations to it.
-    """
-
-    LOAD_ADDR = 0x4000
-    RAM_SIZE  = 0x10000
-
-    def __init__(self):
-        self._compiler = _AsmCompiler() if _COMPILER_AVAILABLE else None
-        self.available = _COMPILER_AVAILABLE
-        self.import_error = _COMPILER_IMPORT_ERROR
-
-    # ------------------------------------------------------------------
-
-    def compile(self, source: str):
-        """Assemble *source* and return the :class:`compiler_core.CompileResult`.
-
-        Returns ``None`` if the back-end is not available.
-        """
-        if self._compiler is None:
-            return None
-        return self._compiler.compile_source(source)
-
-    def generate_listing(self, source: str, source_path=None):
-        """Assemble *source* and return the :class:`compiler_core.ListingResult`
-        containing the formatted .lst text. Returns ``None`` if the
-        back-end is not available.
-        """
-        if self._compiler is None:
-            return None
-        return self._compiler.generate_listing(source, source_path=source_path)
-
-    def build_image(self, bytecode: bytes) -> bytes:
-        """Return the raw assembled *bytecode*, trimmed to fit in RAM.
-
-        Previously this padded the bytecode out to a full 64KB image
-        starting at LOAD_ADDR. That made every compiled .ram file a
-        65536-byte blob, which in turn made _load_file() treat the
-        *entire* file as "known" -- Memory Walker showed $00 for every
-        address the program never touched, instead of the undefined
-        placeholder ($XX). A compact file (just the real bytes) lets
-        _load_file()'s existing chunked-copy path mark only the actual
-        program bytes as touched, which is what we want.
-        """
-        max_bytes = self.RAM_SIZE - self.LOAD_ADDR
-        return bytes(bytecode[:max_bytes])
-
-    def write_ram(self, bytecode: bytes, out_path: Path) -> None:
-        """Write the compact assembled bytecode to *out_path* (.ram file).
-
-        The file holds only the real program bytes (loaded at LOAD_ADDR
-        on read-back) -- not a padded 64KB image. See build_image().
-        """
-        out_path.write_bytes(self.build_image(bytecode))
-
-    def load_into_cpu(self, bytecode: bytes, cpu) -> int:
-        """Load *bytecode* into *cpu* RAM at LOAD_ADDR.
-
-        Writes in-place so MemoryWalker and other holders of cpu.ram keep
-        their reference to the same bytearray object.
-        Returns the number of bytes loaded.
-        """
-        max_bytes = cpu.RAM_SIZE - self.LOAD_ADDR
-        data = bytecode[:max_bytes]
-        cpu.ram[self.LOAD_ADDR : self.LOAD_ADDR + len(data)] = data
-        # Mark only the actual program bytes as known -- NOT the whole
-        # $4000-$FFFF range. Previously this zeroed and marked the
-        # entire remaining RAM as "touched", so Memory Walker showed
-        # $00 everywhere past the program instead of the undefined
-        # placeholder ($XX). Same bookkeeping as _load_file()/
-        # EpromBurner._load_rom(), which only mark the bytes they
-        # actually supply.
-        if hasattr(cpu, "ram_touched"):
-            cpu.ram_touched[self.LOAD_ADDR : self.LOAD_ADDR + len(data)] = \
-                b"\x01" * len(data)
-        return len(data)
+# AssemblerRunner moved to assembler_runner.py (2026-08-02) -- that module
+# has no PyQt5 import, so beboputer_tk can import it without dragging PyQt5
+# into PyInstaller's dependency graph for the tkinter build. Re-exported
+# here unchanged so CompilerWindow (below) and any existing
+# ``from .compiler import AssemblerRunner`` keep working without edits --
+# see assembler_runner.py's module docstring for the full story.
+from .assembler_runner import AssemblerRunner  # noqa: F401
 
 
 # ─────────────────────────────────────────────────────────────────────────────

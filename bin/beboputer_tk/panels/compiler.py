@@ -51,7 +51,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 
-from beboputer_v7.tools.compiler import AssemblerRunner
+from beboputer_v7.tools.assembler_runner import AssemblerRunner
 
 try:
     from beboputer_v7.paths import default_open_dir as _default_open_dir, \

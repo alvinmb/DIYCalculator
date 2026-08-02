@@ -53,10 +53,6 @@ Color is stored as the palette index (0-6).
 Code is the hex byte written to port $F011 on click.
 """
 
-import configparser
-from datetime import datetime
-from pathlib import Path
-
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
@@ -64,189 +60,18 @@ from PyQt5.QtWidgets import (
     QComboBox, QVBoxLayout, QHBoxLayout,
 )
 
-# Port is fixed -- not editable by the user.
-_FIXED_PORT = 0xF011
-
-# Writable user-data directory -- %APPDATA%\PY-DIYCALCULATOR\
-# Using APPDATA ensures writes succeed whether installed to Program Files or not.
-import os as _os
-_USER_DATA_DIR = Path(_os.environ.get("APPDATA", Path.home())) / "PY-DIYCALCULATOR"
-_CONFIG_DIR    = _USER_DATA_DIR / "Config"
-_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-_DEFBUTTONS_PATH = _CONFIG_DIR / "defbuttons.ini"
-
-# Buttons directory (user-writable)
-_BUTTONS_DIR = _USER_DATA_DIR / "buttons"
-_BUTTONS_DIR.mkdir(parents=True, exist_ok=True)
-
-# -- Colour palette -----------------------------------------------------------
-# Each entry: (display_name, hex_color)
-COLORS = [
-    ("Black",   "#000000"),
-    ("Red",     "#cc0000"),
-    ("Green",   "#00aa00"),
-    ("Yellow",  "#aaaa00"),
-    ("Blue",    "#0000cc"),
-    ("Magenta", "#cc00cc"),
-    ("Cyan",    "#00cccc"),
-]
-
-
-def _color_hex(index: int) -> str:
-    if 0 <= index < len(COLORS):
-        return COLORS[index][1]
-    return COLORS[0][1]
-
-
-def _color_index(value: str) -> int:
-    """Map a color hex string or color *name* to its palette index.
-
-    ``load_defbuttons_file()`` falls back to this when the ``Color=``
-    value isn't a plain digit (e.g. not "5"). Without a name match, a
-    hand-edited file using a name from the file's own documented
-    convention -- "#COLOR 5 = MAGENTA" -- (e.g. ``Color= Magenta``)
-    would silently fall through to Black instead of the intended color,
-    since only hex strings like "#cc00cc" used to be recognised here.
-    """
-    v = value.strip()
-    for i, (name, h) in enumerate(COLORS):
-        if v.lower() == h.lower() or v.lower() == name.lower():
-            return i
-    return 0
-
-
-def _parse_code(raw: str) -> int:
-    """Parse Code value: '$XX' or plain hex digits or decimal."""
-    raw = raw.strip()
-    if raw.startswith('$'):
-        try:
-            return int(raw[1:], 16) & 0xFF
-        except ValueError:
-            pass
-    try:
-        return int(raw, 16) & 0xFF
-    except ValueError:
-        pass
-    try:
-        return int(raw) & 0xFF
-    except ValueError:
-        return 0
-
-
-# -- defbuttons.ini helpers ---------------------------------------------------
-
-_FILE_HEADER = (
-    "#FILE TYPE:DIY Calculator Buttons (*.ini) File\n"
-    "#GENERATOR:Beboputer v7\n"
-    "#DATE-TIME:{dt}\n"
-    "#SOURCEWAS:N/A\n"
-    "\n"
-    "#COLOR CODES USED\n"
-    "#COLOR 0 = BLACK\n"
-    "#COLOR 1 = RED\n"
-    "#COLOR 2 = GREEN\n"
-    "#COLOR 3 = YELLOW\n"
-    "#COLOR 4 = BLUE\n"
-    "#COLOR 5 = MAGENTA\n"
-    "#COLOR 6 = CYAN\n"
-    "\n"
+# ButtonDef + defbuttons.ini helpers moved to button_defs.py (2026-08-02) --
+# that module is plain Python with no PyQt5 import, so beboputer_tk can
+# import the data/config pieces without dragging PyQt5 into PyInstaller's
+# dependency graph for the tkinter build. Re-exported here unchanged so
+# every existing `from .diy_button import ButtonDef, ...` in beboputer_v7
+# keeps working without edits -- see button_defs.py's module docstring for
+# the full story.
+from .button_defs import (  # noqa: F401
+    _FIXED_PORT, _USER_DATA_DIR, _CONFIG_DIR, _DEFBUTTONS_PATH, _BUTTONS_DIR,
+    COLORS, _color_hex, _color_index, _parse_code,
+    load_defbuttons_file, save_defbuttons_file, ButtonDef,
 )
-
-
-def load_defbuttons_file(path=None) -> dict:
-    """Load all [Button N] sections from defbuttons.ini (or *path*).
-
-    Returns {index: ButtonDef}.  Returns an empty dict if the file does
-    not exist or contains no valid button sections.
-    """
-    p = Path(path) if path else _DEFBUTTONS_PATH
-    if not p.exists():
-        return {}
-
-    cfg = configparser.ConfigParser(
-        comment_prefixes=('#', ';', "'"),
-        inline_comment_prefixes=None,
-        strict=False,
-    )
-    cfg.read(str(p), encoding="utf-8")
-
-    result = {}
-    for section in cfg.sections():
-        parts = section.split()
-        if len(parts) == 2 and parts[0].lower() == 'button':
-            try:
-                idx = int(parts[1])
-                if idx <= 0:
-                    continue
-                sec = cfg[section]
-                d = ButtonDef()
-                d.label = sec.get('annotation', '').strip().strip('"')
-                d.value = _parse_code(sec.get('code', '00'))
-                raw_color = sec.get('color', '0').strip()
-                try:
-                    d.color_index = int(raw_color)
-                except ValueError:
-                    d.color_index = _color_index(raw_color)
-                d.description = sec.get('description', 'Unassigned').strip().strip('"')
-                result[idx] = d
-            except ValueError:
-                pass
-
-    return result
-
-
-def save_defbuttons_file(buttons: dict, path=None):
-    """Write all buttons to defbuttons.ini (or *path*).
-
-    Parameters
-    ----------
-    buttons : dict
-        {index: ButtonDef} mapping -- all buttons to persist.
-    path : str or Path, optional
-        Override destination; defaults to _DEFBUTTONS_PATH.
-    """
-    p = Path(path) if path else _DEFBUTTONS_PATH
-    dt = datetime.now().strftime("%b %d %H:%M:%S %Y")
-    with open(str(p), "w", encoding="utf-8") as fh:
-        fh.write(_FILE_HEADER.format(dt=dt))
-        for idx in sorted(buttons):
-            d = buttons[idx]
-            fh.write(f"\n[Button {idx}]\n")
-            fh.write(f"Code= ${d.value:02X}\n")
-            fh.write(f"Annotation={d.label}\n")
-            fh.write(f"Color= {d.color_index}\n")
-            fh.write(f"Description={d.description}\n")
-
-
-# -- ButtonDef ----------------------------------------------------------------
-
-class ButtonDef:
-    """Visual + action properties for one DIY button."""
-
-    def __init__(self):
-        self.label       = ""
-        self.color_index = 0
-        self.bg_color    = "#d4d0c8"    # fixed; not user-editable
-        self.bold        = False
-        self.port        = _FIXED_PORT
-        self.value       = 0
-        self.description = "Unassigned"
-
-    @property
-    def color(self) -> str:
-        return _color_hex(self.color_index)
-
-    def save(self, path: str, button_num: int = 1):
-        """Write this button to a standalone .ini file."""
-        save_defbuttons_file({button_num: self}, path)
-
-    @classmethod
-    def load(cls, path: str):
-        """Load the first [Button N] from a .ini file."""
-        result = load_defbuttons_file(path)
-        if result:
-            return next(iter(result.values()))
-        return cls()
 
 
 # -- ConfigureButtonAttributes ------------------------------------------------

@@ -39,7 +39,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from beboputer_v7.tools.diy_button import (
+from beboputer_v7.tools.button_defs import (
     ButtonDef, COLORS, _color_index, _parse_code,
     load_defbuttons_file, save_defbuttons_file,
     _DEFBUTTONS_PATH, _BUTTONS_DIR,
