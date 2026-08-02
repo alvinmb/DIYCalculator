@@ -44,7 +44,7 @@ if errorlevel 1 (
 
 echo.
 echo ============================================================
-echo  Step 2: Inno Setup -- creating BeboputerSetup.exe
+echo  Step 2: Inno Setup -- creating BeboputerTkSetup.exe
 echo ============================================================
 "C:\Program Files (x86)\Inno Setup 6\iscc.exe" bin\beboputer_tk\beboputer_tk_setup.iss
 if errorlevel 1 (
@@ -57,6 +57,6 @@ if errorlevel 1 (
 echo.
 echo ============================================================
 echo  Done!  Installer is at:
-echo  dist\BeboputerSetup.exe
+echo  dist\BeboputerTkSetup.exe
 echo ============================================================
 pause

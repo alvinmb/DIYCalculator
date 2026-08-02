@@ -8,7 +8,14 @@
 ;   3. Open this file in Inno Setup and click Build -> Compile
 ;      (or run from command line:  iscc beboputer_tk_setup.iss)
 ;
-; Output: dist\BeboputerSetup.exe
+; Output: dist\BeboputerTkSetup.exe
+; NOTE: deliberately a DIFFERENT OutputBaseFilename than beboputer_v7's
+; installer (which produces dist\BeboputerSetup.exe). Both scripts used
+; to write to the exact same dist\BeboputerSetup.exe -- whichever one
+; you built *last* silently clobbered the other's installer on disk, so
+; running "the Tk installer" could actually launch the Qt build if the
+; Qt build_installer.bat had been run more recently. Keep these output
+; filenames distinct.
 ; ─────────────────────────────────────────────────────────────────────────────
 #define AppName      "PY-DIYCALCULATOR"
 #define AppExeName   "Beboputer.exe"
@@ -51,7 +58,7 @@ AppUpdatesURL={#AppURL}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir={#ProjectRoot}dist
-OutputBaseFilename=BeboputerSetup
+OutputBaseFilename=BeboputerTkSetup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
