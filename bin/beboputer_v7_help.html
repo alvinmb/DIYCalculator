@@ -153,6 +153,7 @@
   <a href="#overview">Overview</a>
   <div class="section-head">Menu Bar</div>
   <a href="#menu-file">File Menu</a>
+  <a href="#menu-setup">Setup Menu</a>
   <a href="#menu-memory">Memory Menu</a>
   <a href="#menu-display">Display Menu</a>
   <a href="#menu-tools">Tools Menu</a>
@@ -211,18 +212,42 @@ hardware peripherals accessible through memory-mapped I/O.</p>
 
 <!-- ══════════════════════════════════════════════ MENU BAR -->
 <h2 id="menu-file">File Menu</h2>
+<div class="panel-intro">A <strong>Project</strong> is the whole session — which panels are open and where,
+the calculator's power state, the simulated clock speed, and the RAM contents — saved as one
+<code>.prj</code> file. <strong>Load RAM / Save RAM</strong> are a separate, narrower pair that only ever
+touch the raw RAM image as a <code>.rom</code>/<code>.ram</code> binary, with no session/layout information.</div>
 <table>
   <tr><th>Item</th><th>Action</th></tr>
-  <tr><td>New Project…</td><td>Clears all 64 KB of RAM and resets the CPU. Asks for confirmation first.</td></tr>
-  <tr><td>Open Project…</td><td>Loads a <code>.rom</code> or <code>.ram</code> binary file into RAM.
-    <strong>The calculator must be switched ON</strong> before loading.
-    <code>.rom</code> files load at <code>$0000</code>; <code>.ram</code> files load at <code>$4000</code>.</td></tr>
-  <tr><td>Save Project…</td><td>Saves the entire 64 KB RAM image as a <code>.rom</code> file.</td></tr>
-  <tr><td>Save Project As…</td><td>Same as Save Project — prompts for a new filename.</td></tr>
-  <tr><td>Load RAM…</td><td>Alias for Open Project.</td></tr>
-  <tr><td>Save RAM…</td><td>Alias for Save Project.</td></tr>
+  <tr><td>New Project…</td><td>Clears all 64 KB of RAM, resets the CPU, and closes every panel back to the
+    default startup layout. Asks for confirmation first.</td></tr>
+  <tr><td>Open Project…</td><td>Loads a <code>.prj</code> session file: panel layout, calculator power state,
+    clock speed, and the full RAM image.</td></tr>
+  <tr><td>Save Project…</td><td>Saves the current session to its <code>.prj</code> file. Prompts for a filename
+    the first time (same as Save Project As), then reuses it.</td></tr>
+  <tr><td>Save Project As…</td><td>Same as Save Project — always prompts for a new filename.</td></tr>
+  <tr><td>Load RAM…</td><td>Loads a <code>.rom</code> or <code>.ram</code> binary straight into RAM (no panel/session
+    state). <code>.rom</code> files load at <code>$0000</code>; <code>.ram</code> files (and anything else) load at
+    <code>$4000</code>. A file exactly 64 KB is treated as a full RAM image loaded at <code>$0000</code>.</td></tr>
+  <tr><td>Save RAM…</td><td>Saves the entire 64 KB RAM image as a raw <code>.rom</code> file — RAM contents only,
+    no session/layout information.</td></tr>
   <tr><td>Purge RAM…</td><td>Zeros every byte of RAM without resetting the CPU. The Memory Walker updates immediately. Asks for confirmation.</td></tr>
   <tr><td>Exit</td><td>Closes the application.</td></tr>
+</table>
+
+<h2 id="menu-setup">Setup Menu</h2>
+<table>
+  <tr><th>Item</th><th>Action</th></tr>
+  <tr><td>System Clock…</td><td>Sets the simulated clock speed in Hz (1–10 000). Affects how fast RUN mode
+    executes instructions. Default is 100 Hz.</td></tr>
+  <tr><td>Interrupt</td><td>Manually asserts the interrupt mask bit (flag I) — the same effect as the CPU
+    executing a <code>SETIM</code> instruction, but triggered from the UI. Only takes effect while the
+    calculator is switched ON. (Also available as the <span class="key">⚡ Interrupt</span> toolbar button —
+    see <a href="#toolbar">Toolbar</a>.)</td></tr>
+  <tr><td>Load Button File…</td><td>Loads a calculator button-definition <code>.ini</code> file (same format as
+    <code>Config/defbuttons.ini</code>) and applies it to every button on the Calculator panel.</td></tr>
+  <tr><td>Save Button File…</td><td>Saves the current calculator button definitions (labels, codes, colors) to
+    a <code>.ini</code> file.</td></tr>
+  <tr><td>Restore Defaults</td><td>Resets every calculator button back to its bundled default definition.</td></tr>
 </table>
 
 <h2 id="menu-memory">Memory Menu</h2>
@@ -246,8 +271,6 @@ hardware peripherals accessible through memory-mapped I/O.</p>
 <h2 id="menu-tools">Tools Menu</h2>
 <table>
   <tr><th>Item</th><th>Action</th></tr>
-  <tr><td>System Clock…</td><td>Sets the simulated clock speed in Hz (1–10 000). Affects how fast RUN mode
-    executes instructions. Default is 100 Hz.</td></tr>
   <tr><td>EPROM Burner</td><td>Opens the EPROM Burner dialog for dumping or loading RAM ranges.</td></tr>
   <tr><td>Calculator…</td><td>Opens or focuses the Calculator window.</td></tr>
   <tr><td>Keyboard…</td><td>Opens or focuses the on-screen Keyboard.</td></tr>
@@ -554,7 +577,6 @@ readable and easy to update if port addresses change.</div>
   <tr><td>Available System EPROMs</td><td>Lists <code>.rom</code> files already present in the system ROM folder.</td></tr>
 </table>
 
-<hr>
 
 <!-- ══════════════════════════════════════════════ PERIPHERALS -->
 <h2 id="peripherals">Peripherals &amp; I/O Map</h2>

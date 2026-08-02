@@ -30,8 +30,7 @@ DIYButton grid, defbuttons.ini load/save, power on/off with
 random-RAM-fill matching real SRAM power-up behaviour), Memory Walker
 (256-row scrollable grid, single step, breakpoints, RUN to BP, Walk
 64K), CPU Registers, Terminal, Disassembler, Assembler/Editor,
-Workbench 1, Keyboard, EPROM Burner, System Clock, About, and (new,
-see below) Control Panel.
+Workbench 1, Keyboard, EPROM Burner, System Clock, and About.
 
 Every File/Setup/Display/Memory/Tools/Help menu item is now wired to
 real behaviour. The only remaining _not_yet() fallbacks are defensive
@@ -50,13 +49,14 @@ The CPU engine, assembler, defbuttons.ini format, and resource_path()
 are all reused unchanged -- see TKINTER_MIGRATION.md sec. 1.
 
 Note on Control Panel: beboputer_v7/panels/control_panel.py (RUN /
-STEP / HALT / RESET + bus display + switches) is actually DEAD CODE in
-the current Qt app -- it exists but main_window.py never instantiates
-it (see REFACTORING_NOTES.md sec. 2, which flags this as an open
-"wire it in, or delete" decision the Qt codebase hasn't made). Control
-Panel is wired in here as a clearly-labeled NEW addition (implementing
-REFACTORING_NOTES.md's "Option A") -- new capability, not a parity
-port, called out as such in the Tools menu label.
+STEP / HALT / RESET + bus display + switches) is DEAD CODE in the
+current Qt app -- it exists but main_window.py never instantiates it
+(see REFACTORING_NOTES.md sec. 2). An earlier revision of this
+tkinter build wired it in as a new addition (REFACTORING_NOTES.md's
+"Option A"), but it was removed (2026-08-02) as unneeded -- RUN/STEP/
+HALT/RESET are already reachable via the Calculator's own Step/Run
+buttons and Memory Walker's RUN to BP / STEP controls, so the extra
+panel was redundant.
 """
 
 from __future__ import annotations
@@ -71,7 +71,6 @@ from tkinter import messagebox, filedialog
 from .mdi import MdiArea, MdiChild, PanelSpec, tile_children, retile_children, TITLE_H
 from .panels.message_display import MessageDisplay
 from .panels.port_monitor import PortMonitor
-from .panels.control_panel import ControlPanel
 from .panels.calculator import Calculator
 from .panels.memory_walker import MemoryWalker
 from .panels.cpu_panel import CPUPanel
@@ -125,7 +124,6 @@ class BebopMain:
         "keyboard":      "Keyboard",
         "workbench":     "Workbench 1",
         "compiler":      "Assembler / Editor",
-        "control":       "Control Panel  [new]",
     }
 
     def __init__(self, root: tk.Tk):
@@ -140,7 +138,6 @@ class BebopMain:
         self._project_path = None     # last Open/Save Project path -- Save reuses it
         self.msg_display: MessageDisplay | None = None
         self.port_mon: PortMonitor | None = None
-        self.control_panel: ControlPanel | None = None
         self.calculator: Calculator | None = None
         self.mem_walker: MemoryWalker | None = None
         self.cpu_panel: CPUPanel | None = None
@@ -166,9 +163,40 @@ class BebopMain:
         self.msg_display.message(
             f"RAM: {self.cpu.RAM_SIZE // 1024}KB  |  Clock: {self._clock_hz}Hz (simulated)"
         )
-        self.msg_display.message("tkinter build -- Load RAM..., then Control Panel to Run/Step.")
+        self.msg_display.message("tkinter build -- Load RAM..., then Memory Walker or the Calculator's Step/Run buttons.")
 
         self.set_status("Ready")
+
+        # Some Linux window managers (seen on a Raspberry Pi 5 running
+        # Raspberry Pi OS's default compositor) accept the "zoomed" request
+        # above without raising a TclError, but never actually resize the
+        # window to fill the screen -- and because the WM still considers
+        # it "maximized" regardless, it also refuses to let the user drag
+        # it. The window is left stuck at its un-zoomed 1200x800 size,
+        # usually centred on screen, with no way to move it. Checked and
+        # fixed via root.after() below -- scheduled to run once the normal
+        # event loop is already pumping and every widget above is already
+        # built and mapped, instead of forcing a synchronous root.update()
+        # here mid-construction (before the menu bar/MDI area/panels exist),
+        # which risks the WM/compositor realizing the toplevel in a
+        # half-built state -- that was found to be the cause of a follow-on
+        # bug where the custom Menubutton dropdowns stopped posting at all.
+        root.after(150, self._ensure_window_not_stuck_centered)
+
+    def _ensure_window_not_stuck_centered(self):
+        """See the root.after() call in __init__ for the why. If "zoomed"
+        didn't actually resize the window to the screen, drop back to
+        "normal" state and size it manually instead -- a plain draggable/
+        resizable window rather than one the WM has wedged into an
+        unmovable "maximized" state."""
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        if self.root.winfo_width() < sw - 40 or self.root.winfo_height() < sh - 80:
+            try:
+                self.root.state("normal")
+            except tk.TclError:
+                pass
+            self.root.geometry(f"{sw}x{sh}+0+0")
 
     # ------------------------------------------------------ keypad hooks --
 
@@ -222,14 +250,44 @@ class BebopMain:
 
         def _menu(label):
             """Add one top-level Menubutton to the bar and return its
-            (empty) dropdown Menu for the caller to populate."""
+            (empty) dropdown Menu for the caller to populate.
+
+            Deliberately NOT using tk.Menubutton's built-in automatic
+            posting (the ``menu=submenu`` option) -- on a Raspberry Pi 5
+            that left only the FIRST menu in the bar (File) responding to
+            a click at all; every one built after it (Setup, Display,
+            Memory, Tools, Help) never posted. Two follow-up attempts made
+            it progressively worse:
+              1. Force-releasing the grab on <Unmap> -- NO menu responded
+                 afterward, including File.
+              2. Posting manually via tk_popup() with an explicit
+                 menu.grab_release() in a try/finally (the commonly-cited
+                 tkinter FAQ idiom) -- worked at first, but once a second
+                 menu bar elsewhere in the app (the Assembler/Editor
+                 panel's own File/Edit/Insert row, built the same way) was
+                 also exercised, the WHOLE app locked up -- not just
+                 menus, every button anywhere stopped responding. tk_popup
+                 already manages its own grab/ungrab internally (the same
+                 underlying Tk library mechanism the automatic Menubutton
+                 path also uses); our extra manual grab_release() call
+                 fired essentially immediately (tk_popup doesn't block)
+                 and raced Tk's own internal release, corrupting its grab
+                 bookkeeping until eventually nothing could grab the
+                 pointer at all.
+            Fix: call tk_popup() alone and let Tk's own internal dismiss
+            handling release the grab itself, same as it already does for
+            the plain Menubutton case -- no manual grab management here. """
             mbut = tk.Menubutton(
                 bar, text=label, font=MENU_FONT, bg="#d4d0c8",
                 activebackground="#c0bdb5", relief="flat", padx=10, pady=3,
             )
-            submenu = tk.Menu(mbut, tearoff=0, font=MENU_FONT)
-            mbut.configure(menu=submenu)
+            submenu = tk.Menu(bar, tearoff=0, font=MENU_FONT)
             mbut.pack(side="left")
+
+            def _post(event):
+                submenu.tk_popup(mbut.winfo_rootx(),
+                                  mbut.winfo_rooty() + mbut.winfo_height())
+            mbut.bind("<Button-1>", _post)
             return submenu
 
         # ── File ─────────────────────────────────────────────────────────
@@ -277,9 +335,6 @@ class BebopMain:
         tm.add_command(label="Keyboard...",          command=self._show_keyboard)
         tm.add_command(label="Workbench 1...",       command=self._show_workbench)
         tm.add_command(label="Assembler / Editor...", command=self._show_compiler)
-        tm.add_separator()
-        tm.add_command(label="Control Panel  [new -- see About]",
-                        command=self._show_control_panel)
 
         # ── Help ─────────────────────────────────────────────────────────
         hm = _menu("Help")
@@ -349,8 +404,6 @@ class BebopMain:
                 self.msg_display = None
             elif key == "ports":
                 self.port_mon = None
-            elif key == "control":
-                self.control_panel = None
             elif key == "calculator":
                 self.calculator = None
             elif key == "mem_walker":
@@ -407,25 +460,27 @@ class BebopMain:
         # scaling vary enough across Windows/Linux/Mac (and monitor
         # scaling settings) that no single fixed MdiChild width/height
         # reliably avoids clipping on every screen. Rather than keep
-        # guessing pixel constants, the calculator now lives inside a
+        # guessing pixel constants, the calculator lives inside a
         # scrolling Canvas: when the MdiChild window is roomy enough,
         # the calculator stretches to fill it exactly like before
         # (buttons expand via their uniform grid weighting); when the
-        # window is smaller than the calculator's natural size,
-        # scrollbars appear instead of anything being cut off and
-        # unreachable.
+        # window is smaller than the calculator's natural size, the
+        # mouse wheel still scrolls it into view instead of anything
+        # being cut off and unreachable.
+        #
+        # No visible Scrollbar widgets, by request -- _autosize_fixed_panel()
+        # below snaps the MdiChild to the calculator's exact built size
+        # immediately after creation, so there's normally nothing to scroll;
+        # the always-on scrollbar track was just clutter around a panel that
+        # never actually needed to move. The canvas/scrollregion machinery
+        # (and the mouse-wheel binding) stays in place as an invisible
+        # fallback for the rare case a window manager can't honor the full
+        # requested size (e.g. a screen too small to fit it).
         container = tk.Frame(child.content, bg="#c0c0c0")
         container.pack(fill="both", expand=True)
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
 
         canvas = tk.Canvas(container, bg="#c0c0c0", highlightthickness=0)
-        vbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        hbar = tk.Scrollbar(container, orient="horizontal", command=canvas.xview)
-        canvas.configure(yscrollcommand=vbar.set, xscrollcommand=hbar.set)
-        canvas.grid(row=0, column=0, sticky="nsew")
-        vbar.grid(row=0, column=1, sticky="ns")
-        hbar.grid(row=1, column=0, sticky="ew")
+        canvas.pack(fill="both", expand=True)
 
         self.calculator = Calculator(canvas, host_main=self)
 
@@ -530,19 +585,6 @@ class BebopMain:
         # this panel with resizable=False, maximizable=False.
         self._autosize_fixed_panel(child, panel)
 
-    def _populate_control(self, child):
-        self.control_panel = ControlPanel(
-            child.content,
-            on_run=self._do_run, on_step=self._do_step,
-            on_halt=self._do_halt, on_reset=self._do_reset,
-        )
-        self.control_panel.pack(fill="both", expand=True)
-        self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
-        # Same fixed-size-to-real-content treatment as the calculator --
-        # see _autosize_fixed_panel()'s docstring. _show_control_panel()
-        # opens this panel with resizable=False, maximizable=False.
-        self._autosize_fixed_panel(child, self.control_panel)
-
     def _open_panel(self, key, width=360, height=280,
                      resizable=True, maximizable=True, fixed_width=False):
         """Open (or re-raise, if already open) the MdiChild for *key*,
@@ -636,8 +678,6 @@ class BebopMain:
     def _show_workbench(self):
         self._open_panel("workbench", 420, 260, resizable=False, maximizable=False)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
-    def _show_control_panel(self):
-        self._open_panel("control", 340, 320, resizable=False, maximizable=False)
 
     # -------------------------------------------------------- CPU ops --
 
@@ -814,8 +854,6 @@ class BebopMain:
             self.cpu_panel.refresh()
         if self.port_mon is not None:
             self.port_mon.refresh()
-        if self.control_panel is not None:
-            self.control_panel.set_bus(self.cpu.pc, self.cpu.ram[self.cpu.pc])
         if self.mem_walker is not None:
             self.mem_walker.highlight_pc(self.cpu.pc)
         if self.disassembler is not None:
@@ -883,7 +921,7 @@ class BebopMain:
     # DPI than whatever machine the project was saved on. Only their
     # position (x, y) is restored; size is left for the panel to
     # recompute itself, exactly as a fresh Tools/Display-menu open does.
-    _PROJECT_SIZE_LOCKED = {"calculator", "cpu", "ports", "keyboard", "workbench", "control"}
+    _PROJECT_SIZE_LOCKED = {"calculator", "cpu", "ports", "keyboard", "workbench"}
     # Locked width (from the same autosize logic) but free-resizing
     # height -- only height is restored.
     _PROJECT_FIXED_WIDTH = {"mem_walker"}
@@ -915,14 +953,14 @@ class BebopMain:
 
         # 2. Reopen exactly the panels the project had open, each via its
         #    normal _show_<key>() so every panel's usual flags/autosize
-        #    logic runs exactly as it does for a manual menu open. One
-        #    key doesn't follow the _show_<key> naming pattern (Control
-        #    Panel's method is _show_control_panel, not _show_control).
-        show_method_names = {"control": "_show_control_panel"}
+        #    logic runs exactly as it does for a manual menu open. A
+        #    project file saved before Control Panel was removed
+        #    (2026-08-02) may still have a "control" entry -- there's no
+        #    _show_control method (getattr's default) so it's silently
+        #    skipped rather than reopening a panel that no longer exists.
         saved_panels = data.get("panels", {})
         for key in saved_panels:
-            method_name = show_method_names.get(key, f"_show_{key}")
-            show = getattr(self, method_name, None)
+            show = getattr(self, f"_show_{key}", None)
             if callable(show):
                 show()
 

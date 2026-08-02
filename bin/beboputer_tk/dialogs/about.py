@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import os
 import tkinter as tk
 
 try:
@@ -35,22 +34,6 @@ try:
 except ImportError:  # pragma: no cover
     C = {"blue": "#000080", "green_mid": "#004d00"}
 
-# splash_about.png is a pre-scaled (200x200, dev-time PIL conversion --
-# same reasoning as workbench.py's pre-converted BITMAPS PNGs: no
-# runtime Pillow dependency, tk.PhotoImage loads PNG natively) copy of
-# bin/splash.png (the Qt build's QSplashScreen image, 570x394 native).
-# Lives directly in bin/ next to splash.png, NOT under BITMAPS/ or
-# resolved via paths.resource_path() -- resource_path()'s project-root
-# base would look one directory too high (splash.png/splash_about.png
-# sit in bin/ itself, matching Qt app.py's own
-# `Path(__file__).resolve().parent.parent / 'splash.png'` lookup from
-# bin/beboputer_v7/app.py), so the path here is computed the same way,
-# just from dialogs/about.py's own location (bin/beboputer_tk/dialogs/
-# -> up two levels -> bin/).
-_SPLASH_PATH = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "splash_about.png",
-))
-
 
 class AboutDialog(tk.Toplevel):
     def __init__(self, parent):
@@ -58,7 +41,6 @@ class AboutDialog(tk.Toplevel):
         self.title("About PY-DIYCALCULATOR")
         self.resizable(False, False)
         self.configure(bg="#c0c0c0")
-        self._splash_img = None  # kept alive -- PhotoImage is GC'd otherwise
         self._build()
         self.transient(parent)
         self.grab_set()
@@ -67,29 +49,15 @@ class AboutDialog(tk.Toplevel):
         root = tk.Frame(self, bg="#c0c0c0", padx=24, pady=20)
         root.pack(fill="both", expand=True)
 
-        # Top row: splash image top-left, title/version stacked beside it.
-        top = tk.Frame(root, bg="#c0c0c0")
-        top.pack(fill="x", anchor="w")
-
-        try:
-            self._splash_img = tk.PhotoImage(file=_SPLASH_PATH)
-        except tk.TclError:
-            self._splash_img = None
-        if self._splash_img is not None:
-            tk.Label(top, image=self._splash_img, bg="#c0c0c0").pack(
-                side="left", anchor="nw", padx=(0, 16)
-            )
-
-        text_col = tk.Frame(top, bg="#c0c0c0")
-        text_col.pack(side="left", anchor="w", fill="both", expand=True)
-
+        # Splash image removed (2026-08-02) -- title/version now sit alone
+        # at the top instead of beside it.
         tk.Label(
-            text_col, text="PY-DIYCALCULATOR", fg=C["blue"], bg="#c0c0c0",
+            root, text="PY-DIYCALCULATOR", fg=C["blue"], bg="#c0c0c0",
             font=("Arial", 20, "bold"), justify="left", anchor="w",
         ).pack(fill="x", pady=(0, 6))
 
         tk.Label(
-            text_col, text=f"tkinter Edition  —  v{__version__}",
+            root, text=f"tkinter Edition  —  v{__version__}",
             fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 15),
             justify="left", anchor="w",
         ).pack(fill="x")
