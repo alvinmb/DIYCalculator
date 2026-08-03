@@ -66,6 +66,11 @@ except Exception:  # pragma: no cover
         return str(d)
 
 
+# Same "on" background as the Calculator's own LCD (panels/calculator.py's
+# _DISPLAY_ON_BG) -- used for the source editor and messages text areas so
+# this panel's text background matches the Calculator's display.
+LCD_BG = "#c8f0c8"
+
 _DIRECTIVE_SNIPPETS = [
     (".ORG <integer>",            "        .ORG    $4000               # start address\n"),
     ("<Label>: .BYTE <integer>",  "LABEL:  .BYTE   $00                 # reserve 1 byte\n"),
@@ -214,11 +219,14 @@ class CompilerPanel(tk.Frame):
         bar.pack(fill="x", padx=6, pady=4)
 
         # Bigger font + real padding, matching the BTN_FONT/BTN_PADX/
-        # BTN_PADY convention used elsewhere (System Clock dialog,
+        # BTN_PADY/BTN_BG convention used elsewhere (System Clock dialog,
         # Memory Walker) instead of these two buttons' previous smaller
-        # font with no padding at all.
+        # font with no padding -- and no bg -- at all (which left them
+        # showing tkinter's default white button face instead of the
+        # app's standard grey).
         BTN_FONT = ("Arial", 14, "bold")
         BTN_PADX, BTN_PADY = 14, 8
+        BTN_BG = "#d4d0c8"
 
         # Packed in workflow order (Assemble first, then Load -> CPU) --
         # both use side="right", so the *first* one packed ends up
@@ -226,14 +234,14 @@ class CompilerPanel(tk.Frame):
         # of Assemble, reversing the previous [Load -> CPU][Assemble]
         # visual order to [Assemble][Load -> CPU].
         self.load_into_cpu_button = tk.Button(
-            bar, text="Load -> CPU", font=BTN_FONT,
+            bar, text="Load -> CPU", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self.on_load_into_cpu, state="disabled",
         )
         self.load_into_cpu_button.pack(side="right", padx=2)
 
         self.compile_button = tk.Button(
-            bar, text="Assemble", font=BTN_FONT,
+            bar, text="Assemble", font=BTN_FONT, bg=BTN_BG,
             padx=BTN_PADX, pady=BTN_PADY,
             command=self.on_compile,
         )
@@ -251,6 +259,7 @@ class CompilerPanel(tk.Frame):
         ed_frame.pack(fill="both", expand=True)
         self.editor = tk.Text(
             ed_frame, font=("Courier New", 15), wrap="none", undo=True,
+            bg=LCD_BG,
         )
         ed_vsb = tk.Scrollbar(ed_frame, orient="vertical", command=self.editor.yview)
         ed_hsb = tk.Scrollbar(ed_frame, orient="horizontal", command=self.editor.xview)
@@ -264,11 +273,16 @@ class CompilerPanel(tk.Frame):
 
         msg_box = tk.Frame(pane, bg="#c0c0c0")
         tk.Label(msg_box, text="Messages", bg="#c0c0c0", font=MENU_FONT).pack(anchor="w")
+        msg_frame = tk.Frame(msg_box)
+        msg_frame.pack(fill="both", expand=True)
+        msg_vsb = tk.Scrollbar(msg_frame, orient="vertical")
+        msg_vsb.pack(side="right", fill="y")
         self.messages = tk.Text(
-            msg_box, font=("Courier New", 14), height=8, state="disabled",
-            bg="#f5f5f0",
+            msg_frame, font=("Courier New", 14), height=8, state="disabled",
+            bg=LCD_BG, yscrollcommand=msg_vsb.set,
         )
-        self.messages.pack(fill="both", expand=True)
+        self.messages.pack(side="left", fill="both", expand=True)
+        msg_vsb.configure(command=self.messages.yview)
         pane.add(msg_box, stretch="always", height=110)
 
         self._bind_accelerators()
