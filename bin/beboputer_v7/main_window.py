@@ -1046,17 +1046,19 @@ class BebopMain(QMainWindow):
     def _show_help(self):
         """Open the HTML help file in the system default browser.
 
-        Source layout : bin/beboputer_v7_help.html  (one level above this pkg)
-        Bundle layout : sys._MEIPASS/beboputer_v7_help.html  (bundle root)
+        Source layout : help/beboputer_v7_help.html  (two levels above this pkg)
+        Bundle layout : sys._MEIPASS/help/beboputer_v7_help.html
         """
         import sys as _sys
         if getattr(_sys, 'frozen', False):
-            # PyInstaller bundle — spec copies the file to the bundle root.
-            help_path = resource_path('beboputer_v7_help.html')
+            # PyInstaller bundle — spec copies the whole help/ folder in,
+            # same relative depth as source/deb layouts so the help file's
+            # own links (e.g. to databook/index.html) resolve consistently.
+            help_path = resource_path('help', 'beboputer_v7_help.html')
         else:
-            # Running from source — file lives in bin/, one level above package.
+            # Running from source — file lives in help/, two levels above package.
             help_path = os.path.normpath(
-                os.path.join(os.path.dirname(__file__), '..', 'beboputer_v7_help.html')
+                os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'beboputer_v7_help.html')
             )
         webbrowser.open(f"file:///{help_path.replace(os.sep, '/')}")
 

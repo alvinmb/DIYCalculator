@@ -56,11 +56,23 @@ class DisassemblerPanel(tk.Frame):
             command=self._disassemble,
         ).pack(side="left", padx=2)
 
+        # Text + vertical Scrollbar, standard side-by-side pack -- disassemble_at()
+        # returns 32 lines at a time, easily more than fit in the panel's
+        # default height, and unlike the wrap="none" text itself there was
+        # previously no way to scroll down to see the rest.
+        text_frame = tk.Frame(self, bg="#c0c0c0")
+        text_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+        vbar = tk.Scrollbar(text_frame, orient="vertical")
+        vbar.pack(side="right", fill="y")
+
         self.output = tk.Text(
-            self, font=("Courier New", 20), bg="#ffffff",
+            text_frame, font=("Courier New", 20), bg="#ffffff",
             state="disabled", wrap="none",
+            yscrollcommand=vbar.set,
         )
-        self.output.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.output.pack(side="left", fill="both", expand=True)
+        vbar.configure(command=self.output.yview)
 
         self._disassemble()
 

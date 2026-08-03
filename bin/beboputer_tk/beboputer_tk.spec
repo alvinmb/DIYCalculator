@@ -45,6 +45,29 @@ import os
 # checked out.
 _root = os.path.normpath(os.path.join(SPECPATH, '..', '..'))
 
+# The original Data Book PDF is superseded by help/databook/ (an HTML
+# conversion) and is no longer shipped in any packaged build. It may still
+# be sitting in Data/ on disk (left there rather than deleted -- see
+# project notes), so it's filtered out here rather than relying on the
+# source tree being clean.
+_EXCLUDE_DATA_FILES = {'The Official DIY Calculator Data Book.pdf'}
+
+
+def _dir_datas(src_dir, dest_dir, exclude_basenames=()):
+    """Like a single (src_dir, dest_dir) PyInstaller datas tuple, but
+    skips any file whose basename is in exclude_basenames."""
+    out = []
+    for dirpath, _dirnames, filenames in os.walk(src_dir):
+        rel = os.path.relpath(dirpath, src_dir)
+        for fn in filenames:
+            if fn in exclude_basenames:
+                continue
+            src = os.path.join(dirpath, fn)
+            dest = dest_dir if rel == '.' else os.path.join(dest_dir, rel)
+            out.append((src, dest))
+    return out
+
+
 a = Analysis(
     # ── entry point ──────────────────────────────────────────────────
     [os.path.join(_root, 'bin', 'run_beboputer_tk.py')],
@@ -63,20 +86,27 @@ a = Analysis(
     # those modules read from disk at runtime:
     #   BITMAPS/    -- workbench 7-seg PNGs, port/LED art, app icon
     #   Config/     -- DIYCALC.INI, defbuttons.ini
-    #   Data/       -- bundled sample .asm programs
+    #   Data/       -- bundled sample .asm programs (the superseded PDF
+    #                   Data Book is excluded below -- see _EXCLUDE_DATA_FILES)
     #   WorkInProgress/ -- default Save location when running from source
     #   tutorial/   -- tutorial walkthrough .asm files
-    #   bin/beboputer_v7_help.html -- Help menu target (main_window.py)
+    #   help/       -- beboputer_v7_help.html + databook/ (the HTML edition
+    #                   of the Data Book). Bundled as a whole folder at the
+    #                   same relative depth as the source checkout and the
+    #                   .deb install, so the help file's own relative links
+    #                   (e.g. to databook/index.html) resolve identically in
+    #                   every run context. See main_window._show_help() and
+    #                   dialogs/about.py's "Beboputer Databook" button.
     #   bin/splash.png       -- startup splash (app.py)
     #   bin/splash_about.png -- About dialog image, pre-scaled 200x200
     #                            (dialogs/about.py)
     datas=[
         (os.path.join(_root, 'BITMAPS'),                        'BITMAPS'),
         (os.path.join(_root, 'Config'),                         'Config'),
-        (os.path.join(_root, 'Data'),                           'Data'),
+        *_dir_datas(os.path.join(_root, 'Data'), 'Data', _EXCLUDE_DATA_FILES),
         (os.path.join(_root, 'WorkInProgress'),                 'WorkInProgress'),
         (os.path.join(_root, 'tutorial'),                       'tutorial'),
-        (os.path.join(_root, 'bin', 'beboputer_v7_help.html'),  '.'),
+        (os.path.join(_root, 'help'),                           'help'),
         (os.path.join(_root, 'bin', 'splash.png'),              '.'),
         (os.path.join(_root, 'bin', 'splash_about.png'),        '.'),
     ],

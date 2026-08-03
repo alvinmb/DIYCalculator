@@ -75,16 +75,16 @@ mkdir -p "$APP_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$DEBIAN_DIR"
 # paths.py resolves project root as 2 levels above its own directory:
 #   dirname(paths.py) = /usr/share/beboputer/bin/beboputer_v7
 #   ../..             = /usr/share/beboputer        ← APP_DIR
-# (beboputer_tk's own splash.png/splash_about.png/help-html lookups in
-# app.py/about.py/main_window.py use the same bin/-relative math, so
-# they resolve correctly too.)
+# (beboputer_tk's own splash.png/splash_about.png lookups in app.py/
+# about.py use the same bin/-relative math, so they resolve correctly too.)
 #
-# So BITMAPS/, Config/, Data/, etc. must sit directly inside APP_DIR
+# So BITMAPS/, Config/, Data/, help/, etc. must sit directly inside APP_DIR
 # (/usr/share/beboputer/), NOT inside bin/.
 # bin/ holds the Python source (both beboputer_v7/ and beboputer_tk/)
 # and sits one level deeper -- copying the whole bin/ tree brings
-# bin/splash.png, bin/splash_about.png and bin/beboputer_v7_help.html
-# along with it automatically, same as the Qt build's script.
+# bin/splash.png and bin/splash_about.png along with it automatically,
+# same as the Qt build's script. help/ (beboputer_v7_help.html +
+# databook/) is copied separately below, same relative depth as Data/.
 echo "==> Copying application files..."
 cp -r "$PROJECT_ROOT/bin"             "$APP_DIR/"
 cp -r "$PROJECT_ROOT/BITMAPS"         "$APP_DIR/"
@@ -92,6 +92,15 @@ cp -r "$PROJECT_ROOT/Config"          "$APP_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$APP_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$APP_DIR/"
 cp -r "$PROJECT_ROOT/tutorial"        "$APP_DIR/"
+cp -r "$PROJECT_ROOT/help"            "$APP_DIR/"
+
+# The original Data Book PDF is superseded by help/databook/ (an HTML
+# conversion, opened from the About dialog's "Beboputer Databook" button)
+# and is no longer shipped. It may still be sitting in Data/ in the repo
+# (left there rather than deleted), so strip it from the staged copy here
+# -- this runs in /tmp (native Linux FS), so no permission issues even if
+# the source-tree copy itself couldn't be removed.
+rm -f "$APP_DIR/Data/The Official DIY Calculator Data Book.pdf"
 
 # Strip stale bytecode caches -- they bloat the package and can shadow
 # the .py sources with a different Python version on the target machine.

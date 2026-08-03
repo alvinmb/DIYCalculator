@@ -101,6 +101,25 @@ try:
 except ImportError:  # pragma: no cover
     FLAG_I = 16
 
+# Same Open/Save default-directory convention already used by
+# panels/compiler.py's Open/Save Assembly Source and panels/calculator.py's
+# Load/Save Button File -- a single writable "workspace" folder in a
+# packaged build (the app's own install folder isn't reliably writable:
+# Program Files needs admin, the Pi .deb's /usr/share/beboputer is
+# root-owned), or Data//WorkInProgress when running from source. Project
+# (.prj) and RAM (.rom/.ram) files previously had no initialdir at all, so
+# these dialogs opened wherever the OS/Tk happened to default to instead
+# of wherever the user's other Beboputer files actually live.
+try:
+    from beboputer_v7.paths import default_open_dir as _default_open_dir, \
+        default_save_dir as _default_save_dir
+except ImportError:  # pragma: no cover
+    def _default_open_dir() -> str:
+        return os.path.expanduser("~")
+
+    def _default_save_dir() -> str:
+        return os.path.expanduser("~")
+
 
 PLACEHOLDER_NOTE = (
     "This panel is a Phase 1 placeholder.\n\n"
@@ -876,7 +895,7 @@ class BebopMain:
 
     def _load_ram(self):
         path = filedialog.askopenfilename(
-            title="Load RAM",
+            title="Load RAM", initialdir=_default_open_dir(),
             filetypes=[("RAM/ROM files", "*.ram *.rom"), ("All files", "*.*")],
         )
         if not path:
@@ -1045,8 +1064,12 @@ class BebopMain:
             self._do_reset()
 
     def _open_project(self):
+        initialdir = (
+            os.path.dirname(self._project_path) if self._project_path
+            else _default_open_dir()
+        )
         path = filedialog.askopenfilename(
-            title="Open Project",
+            title="Open Project", initialdir=initialdir,
             filetypes=[("Beboputer Project", "*.prj"), ("All files", "*.*")],
         )
         if not path:
@@ -1072,8 +1095,12 @@ class BebopMain:
             self._save_project_as()
 
     def _save_project_as(self):
+        initialdir = (
+            os.path.dirname(self._project_path) if self._project_path
+            else _default_save_dir()
+        )
         path = filedialog.asksaveasfilename(
-            title="Save Project As", defaultextension=".prj",
+            title="Save Project As", defaultextension=".prj", initialdir=initialdir,
             filetypes=[("Beboputer Project", "*.prj"), ("All files", "*.*")],
         )
         if not path:
@@ -1082,7 +1109,7 @@ class BebopMain:
 
     def _save_ram(self):
         path = filedialog.asksaveasfilename(
-            title="Save ROM", defaultextension=".rom",
+            title="Save ROM", defaultextension=".rom", initialdir=_default_save_dir(),
             filetypes=[("ROM Files", "*.rom"), ("All Files", "*.*")],
         )
         if not path:
@@ -1097,8 +1124,51 @@ class BebopMain:
             messagebox.showerror("Save failed", str(e))
 
     def _purge_ram(self):
-        if messagebox.askyesno("Purge RAM", "Zero all 64KB of RAM?"):
+        if self._confirm_dialog("Purge RAM", "Zero all 64KB of RAM?"):
             self._do_purge_ram()
+
+    def _confirm_dialog(self, title: str, message: str) -> bool:
+        """Yes/No confirmation dialog with a larger (2x) font than the
+        stock tk.messagebox default, sized to match. Used where the
+        default messagebox reads too small (e.g. Purge RAM)."""
+        result = {"ok": False}
+        dlg = tk.Toplevel(self.root)
+        dlg.title(title)
+        dlg.configure(bg="#c0c0c0")
+        dlg.transient(self.root)
+        dlg.resizable(False, False)
+
+        tk.Label(
+            dlg, text=message, bg="#c0c0c0", font=("Arial", 20),
+            wraplength=520, justify="center",
+        ).pack(padx=40, pady=(36, 24))
+
+        btn_row = tk.Frame(dlg, bg="#c0c0c0")
+        btn_row.pack(pady=(0, 28))
+
+        def _yes():
+            result["ok"] = True
+            dlg.destroy()
+
+        def _no():
+            dlg.destroy()
+
+        tk.Button(
+            btn_row, text="Yes", font=("Arial", 16, "bold"), width=8, command=_yes,
+        ).pack(side="left", padx=14)
+        tk.Button(
+            btn_row, text="No", font=("Arial", 16, "bold"), width=8, command=_no,
+        ).pack(side="left", padx=14)
+
+        dlg.protocol("WM_DELETE_WINDOW", _no)
+        dlg.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - dlg.winfo_width()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - dlg.winfo_height()) // 2
+        dlg.geometry(f"+{x}+{y}")
+
+        dlg.grab_set()
+        dlg.wait_window()
+        return result["ok"]
 
     def _do_purge_ram(self):
         """Zero all RAM in-place and restore I/O sentinels. Every byte is
@@ -1152,12 +1222,18 @@ class BebopMain:
         if getattr(_sys, "frozen", False):
             try:
                 from beboputer_v7.paths import resource_path
-                help_path = resource_path("beboputer_v7_help.html")
+                # Bundled at help/beboputer_v7_help.html (see beboputer_tk.spec),
+                # matching the source-checkout and .deb layouts exactly, so the
+                # help file's own relative links (e.g. to databook/index.html)
+                # resolve the same way in every run context.
+                help_path = resource_path("help", "beboputer_v7_help.html")
             except ImportError:
-                help_path = os.path.join(os.path.dirname(__file__), "..", "beboputer_v7_help.html")
+                help_path = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "help", "beboputer_v7_help.html"
+                )
         else:
             help_path = os.path.normpath(
-                os.path.join(os.path.dirname(__file__), "..", "beboputer_v7_help.html")
+                os.path.join(os.path.dirname(__file__), "..", "..", "help", "beboputer_v7_help.html")
             )
         if os.path.exists(help_path):
             webbrowser.open(f"file:///{help_path.replace(os.sep, '/')}")

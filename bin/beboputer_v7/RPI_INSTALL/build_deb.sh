@@ -68,7 +68,7 @@ mkdir -p "$APP_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$DEBIAN_DIR"
 #   dirname(paths.py) = /usr/share/beboputer/bin/beboputer_v7
 #   ../..             = /usr/share/beboputer        ← APP_DIR
 #
-# So BITMAPS/, Config/, Data/, etc. must sit directly inside APP_DIR
+# So BITMAPS/, Config/, Data/, help/, etc. must sit directly inside APP_DIR
 # (/usr/share/beboputer/), NOT inside bin/.
 # bin/ holds the Python source and sits one level deeper.
 echo "==> Copying application files..."
@@ -78,6 +78,14 @@ cp -r "$PROJECT_ROOT/Config"          "$APP_DIR/"
 cp -r "$PROJECT_ROOT/Data"            "$APP_DIR/"
 cp -r "$PROJECT_ROOT/WorkInProgress"  "$APP_DIR/"
 cp -r "$PROJECT_ROOT/tutorial"        "$APP_DIR/"
+cp -r "$PROJECT_ROOT/help"            "$APP_DIR/"
+
+# The original Data Book PDF is superseded by help/databook/ (an HTML
+# conversion) and is no longer shipped. It may still be sitting in Data/
+# in the repo (left there rather than deleted), so strip it from the
+# staged copy here -- this runs in /tmp (native Linux FS), so no
+# permission issues even if the source-tree copy itself couldn't be removed.
+rm -f "$APP_DIR/Data/The Official DIY Calculator Data Book.pdf"
 
 # Strip stale bytecode caches -- they bloat the package and can shadow
 # the .py sources with a different Python version on the target machine.

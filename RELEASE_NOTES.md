@@ -1,5 +1,37 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v10.0.3 — 2026-08-03
+
+### Added
+
+- **File dialogs default to the app's workspace directory.** Open
+  Project, Save Project As, Load RAM, and Save RAM previously opened
+  wherever the OS felt like (often the install folder, which isn't
+  writable once packaged). Now use the same cross-platform
+  `default_open_dir()` / `default_save_dir()` convention already used by
+  the compiler and calculator panels.
+- **"Beboputer Databook" launch point in the About dialog**, plus an
+  HTML edition of *The Official DIY Calculator Data Book* to open
+  (`help/databook/`, converted from the original PDF with `pdftohtml` --
+  one background image per page so the original schematics/pinout
+  diagrams render exactly as before).
+- **`help/` directory** — `beboputer_v7_help.html` and `databook/` now
+  live together here (moved out of `bin/` and `Data/` respectively),
+  bundled as a single folder in every build (source, `.deb`, and the
+  frozen Windows/macOS PyInstaller build) so the help file's own
+  relative links resolve identically everywhere.
+
+### Changed
+
+- **The Official DIY Calculator Data Book.pdf is no longer shipped** in
+  any packaged build (Windows installer, `.deb`, macOS `.app`) -- fully
+  superseded by the HTML edition above. `beboputer_v7_help.html`'s
+  "detailed instruction description" link now points at the HTML
+  edition instead of the PDF.
+- **Purge RAM confirmation dialog** replaced the tiny stock
+  `messagebox.askyesno` with a custom dialog at ~2x font size, sized to
+  match, so it's actually legible.
+
 ## v10.0.2 — 2026-08-03
 
 ### Added

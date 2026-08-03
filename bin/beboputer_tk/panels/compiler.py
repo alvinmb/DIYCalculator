@@ -125,21 +125,43 @@ class CompilerPanel(tk.Frame):
         bar = tk.Frame(self, bg="#d4d0c8", bd=1, relief="raised")
         bar.pack(fill="x")
 
+        # Menus are posted manually via tk_popup() rather than via
+        # Menubutton's built-in ``menu=`` auto-post option -- see
+        # main_window.py's _build_menu()._menu() for the full story: on a
+        # Raspberry Pi 5, the automatic mechanism left only the first menu
+        # in a bar responding to clicks at all. This panel's own
+        # File/Edit/Insert row hit the exact same bug.
+        #
+        # Deliberately NOT pairing tk_popup() with an explicit
+        # menu.grab_release() (an earlier fix here did, following the
+        # commonly-cited tkinter FAQ idiom) -- that combination is what
+        # locked up the ENTIRE app (every button anywhere, not just
+        # menus): tk_popup() already manages its own grab/ungrab
+        # internally, and our extra manual release fired essentially
+        # immediately (tk_popup doesn't block) and raced Tk's own
+        # internal release, corrupting its grab bookkeeping. tk_popup()
+        # alone, same as main_window.py now does, lets Tk release the
+        # grab itself when the menu is actually dismissed.
+        def _wire_menubutton(mbut, menu):
+            def _post(event):
+                menu.tk_popup(mbut.winfo_rootx(), mbut.winfo_rooty() + mbut.winfo_height())
+            mbut.bind("<Button-1>", _post)
+
         file_mb = tk.Menubutton(bar, text="File", bg="#d4d0c8", relief="flat",
                                  font=MENU_FONT, padx=8)
-        file_menu = tk.Menu(file_mb, tearoff=0, font=MENU_FONT)
+        file_menu = tk.Menu(bar, tearoff=0, font=MENU_FONT)
         file_menu.add_command(label="New", command=self.on_new, accelerator="Ctrl+N")
         file_menu.add_command(label="Open...", command=self.on_open, accelerator="Ctrl+O")
         file_menu.add_command(label="Save", command=self.on_save, accelerator="Ctrl+S")
         file_menu.add_command(label="Save As...", command=self.on_save_as)
         file_menu.add_separator()
         file_menu.add_command(label="Assemble", command=self.on_compile, accelerator="F5")
-        file_mb.configure(menu=file_menu)
+        _wire_menubutton(file_mb, file_menu)
         file_mb.pack(side="left")
 
         edit_mb = tk.Menubutton(bar, text="Edit", bg="#d4d0c8", relief="flat",
                                  font=MENU_FONT, padx=8)
-        edit_menu = tk.Menu(edit_mb, tearoff=0, font=MENU_FONT)
+        edit_menu = tk.Menu(bar, tearoff=0, font=MENU_FONT)
         edit_menu.add_command(label="Cut", command=lambda: self.editor.event_generate("<<Cut>>"))
         edit_menu.add_command(label="Copy", command=lambda: self.editor.event_generate("<<Copy>>"))
         edit_menu.add_command(label="Paste", command=lambda: self.editor.event_generate("<<Paste>>"))
@@ -147,12 +169,12 @@ class CompilerPanel(tk.Frame):
         edit_menu.add_command(label="Find...", command=self.on_find, accelerator="Ctrl+F")
         edit_menu.add_command(label="Find Next", command=self.on_find_next, accelerator="F3")
         edit_menu.add_command(label="Go to Line...", command=self.on_goto_line, accelerator="Ctrl+G")
-        edit_mb.configure(menu=edit_menu)
+        _wire_menubutton(edit_mb, edit_menu)
         edit_mb.pack(side="left")
 
         insert_mb = tk.Menubutton(bar, text="Insert", bg="#d4d0c8", relief="flat",
                                    font=MENU_FONT, padx=8)
-        insert_menu = tk.Menu(insert_mb, tearoff=0, font=MENU_FONT)
+        insert_menu = tk.Menu(bar, tearoff=0, font=MENU_FONT)
         directive_menu = tk.Menu(insert_menu, tearoff=0, font=MENU_FONT)
         for label, snippet in _DIRECTIVE_SNIPPETS:
             directive_menu.add_command(label=label, command=lambda s=snippet: self._insert_text(s))
@@ -164,7 +186,7 @@ class CompilerPanel(tk.Frame):
         insert_menu.add_separator()
         insert_menu.add_command(label="Insert String...", command=self.on_insert_string)
         insert_menu.add_command(label="Insert File...", command=self.on_insert_file)
-        insert_mb.configure(menu=insert_menu)
+        _wire_menubutton(insert_mb, insert_menu)
         insert_mb.pack(side="left")
 
         # keyboard accelerators

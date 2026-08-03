@@ -33,4 +33,4 @@ or via the wrapper script ``run_beboputer_v7.py`` placed alongside
 this package.
 """
 
-__version__ = "10.0.2"
+__version__ = "10.0.3"

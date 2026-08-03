@@ -29,6 +29,28 @@ _root   = os.path.normpath(os.path.join(_here, '..', '..', '..'))
 sys.path.insert(0, os.path.join(_root, 'bin'))
 from beboputer_v7 import __version__ as _app_version
 
+# The original Data Book PDF is superseded by help/databook/ (an HTML
+# conversion) and is no longer shipped in any packaged build. It may still
+# be sitting in Data/ on disk (left there rather than deleted), so it's
+# filtered out here rather than relying on the source tree being clean.
+_EXCLUDE_DATA_FILES = {'The Official DIY Calculator Data Book.pdf'}
+
+
+def _dir_datas(src_dir, dest_dir, exclude_basenames=()):
+    """Like a single (src_dir, dest_dir) PyInstaller datas tuple, but
+    skips any file whose basename is in exclude_basenames."""
+    out = []
+    for dirpath, _dirnames, filenames in os.walk(src_dir):
+        rel = os.path.relpath(dirpath, src_dir)
+        for fn in filenames:
+            if fn in exclude_basenames:
+                continue
+            src = os.path.join(dirpath, fn)
+            dest = dest_dir if rel == '.' else os.path.join(dest_dir, rel)
+            out.append((src, dest))
+    return out
+
+
 a = Analysis(
     [os.path.join(_root, 'bin', 'run_beboputer_v7.py')],
 
@@ -39,11 +61,10 @@ a = Analysis(
     datas=[
         (os.path.join(_root, 'BITMAPS'),                       'BITMAPS'),
         (os.path.join(_root, 'Config'),                        'Config'),
-        (os.path.join(_root, 'Data'),                          'Data'),
+        *_dir_datas(os.path.join(_root, 'Data'), 'Data', _EXCLUDE_DATA_FILES),
         (os.path.join(_root, 'WorkInProgress'),                'WorkInProgress'),
         (os.path.join(_root, 'tutorial'),                      'tutorial'),
-        (os.path.join(_root, 'bin', 'beboputer_v7_help.html'), '.'),
-        (os.path.join(_root, 'bin', 'The Official DIY Calculator Data Book.pdf'), '.'),
+        (os.path.join(_root, 'help'),                          'help'),
     ],
 
     hiddenimports=[
