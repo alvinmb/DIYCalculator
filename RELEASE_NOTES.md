@@ -1,5 +1,96 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v10.0.2 — 2026-08-03
+
+### Added
+
+- **`tests/test_gui_smoke.py`** — a visual regression smoke test for the
+  tkinter build. Every existing test (`test_cpu.py`,
+  `test_compiler_core.py`, `test_asm_regression.py`, ...) exercises the
+  CPU/assembler directly and never touches a single widget, so nothing
+  in this repo previously caught a panel or dialog silently rendering
+  blank, zero-sized, or raising on open. Drives every menu command that
+  opens a panel/dialog (Calculator, Memory Walker, Message Display, CPU
+  Registers, Terminal, Port Map Status, Disassembler, Keyboard,
+  Workbench 1, Assembler/Editor, EPROM Burner, About, System Clock,
+  Credits) and asserts each one actually renders; also writes best-effort
+  screenshots to `tests/gui_screenshots/` (gitignored) for manual visual
+  review. Requires a real or virtual (Xvfb) display -- skips cleanly if
+  none is available.
+
+### Fixed
+
+- **`SevenSeg._cache` (Workbench 7-segment displays) held `PhotoImage`
+  objects in a class-level dict shared across every instance**, but a
+  `PhotoImage` belongs to whichever Tcl interpreter created it. A single
+  real run of the app only ever has one `tk.Tk()` root for its whole
+  lifetime, so this never affected actual usage -- it surfaced when the
+  new GUI smoke test suite (above) created more than one root in the
+  same process, reusing a cached image from a since-destroyed
+  interpreter and raising `"image ... doesn't exist"`. Now validates a
+  cached image is still alive before trusting it.
+- **Startup panel layout could measure the window before the OS had
+  actually resized it**, also caught by the new test suite (Message
+  Display rendering at 1x100): `BebopMain.__init__` requested
+  `zoomed`/`1200x800` and immediately built the menu bar and MDI area
+  without giving the window manager's response a chance to land first,
+  so `tile_children()`'s measurement of the MDI area's width could still
+  reflect the pre-request size. Added one `root.update()` right after
+  the geometry/state request.
+
+## v10.0.1 — 2026-08-02
+
+### Fixed
+
+- **Tkinter Windows installer was bundling all of PyQt5/Qt5** despite
+  `beboputer_tk` never importing it -- two panel modules
+  (`panels/compiler.py`, `panels/diy_button.py`) imported "pure logic"
+  pieces (`AssemblerRunner`, `ButtonDef` and the `defbuttons.ini`
+  helpers) from `beboputer_v7` files that also had unconditional
+  top-level `PyQt5` imports for unrelated Qt UI classes living in the
+  same file, so PyInstaller's dependency analysis pulled in the whole
+  Qt5 runtime. Split the Qt-free logic out into two new modules with
+  no PyQt5 import (`beboputer_v7/tools/button_defs.py`,
+  `beboputer_v7/tools/assembler_runner.py`); the Qt build's own files
+  re-export the same names unchanged.
+- **Main window opened stuck at its default size, centered on screen,
+  and couldn't be dragged** on a Raspberry Pi 5 -- some Linux window
+  managers accept the startup `root.state("zoomed")` request without
+  error but never actually resize the window, and treat it as
+  "maximized" regardless, refusing to let it move. Now verified after
+  the window is fully built and falls back to sizing it to the screen
+  manually if "zoomed" didn't really take effect.
+- **Top-level menu dropdowns (File/Setup/Display/Memory/Tools/Help, and
+  the Assembler/Editor panel's own File/Edit/Insert row) stopped
+  responding to clicks** on the same Pi -- `tk.Menubutton`'s built-in
+  auto-post mechanism only ever posted the first menu in a bar.
+  Switched to posting each menu manually via `tk_popup()`, letting Tk
+  manage its own grab/ungrab internally rather than pairing it with an
+  extra manual `grab_release()` (an earlier attempt at this fix, which
+  caused the entire app -- not just menus -- to stop responding to any
+  click at all).
+- Removed the always-visible scrollbar track around the Calculator
+  panel -- the panel auto-sizes to its exact content on open, so the
+  scrollbars never actually had anything to scroll; the canvas/mouse
+  wheel fallback stays in place invisibly for the rare case a window
+  manager can't honor the full requested size.
+
+### Changed
+
+- Removed the Control Panel tool (RUN/STEP/HALT/RESET + bus readout +
+  manual switches) from the tkinter build -- redundant with controls
+  already available on the Calculator (Step/Run buttons) and Memory
+  Walker (RUN to BP / STEP), so it added a panel without adding any
+  capability.
+- New splash artwork (`bin/splash.png`, `bin/splash_about.png`) with a
+  red "PYTHON / VERSION" banner; the previous artwork is kept at
+  `bin/oldsplash.png`.
+- `bin/beboputer_v7_help.html` (the in-app Help document, shared by
+  both builds) now documents the Setup menu (System Clock, Interrupt,
+  Load/Save Button File, Restore Defaults) and corrects the File Menu
+  section, which had Project (`.prj`, the whole session) and Load/Save
+  RAM (`.rom`/`.ram`, RAM only) backwards.
+
 ## v10.0.0 — 2026-08-01
 
 ### Changed
