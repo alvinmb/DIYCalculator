@@ -153,6 +153,19 @@ class BebopMain:
         except tk.TclError:
             pass  # some WMs (notably certain macOS Tk builds) don't support "zoomed"
 
+        # Force the window manager's response to the geometry/state request
+        # above to actually land before anything below measures the
+        # window. _open_startup_panels() (via tile_children()) reads
+        # self.mdi.winfo_width()/height() to decide how to lay out the
+        # Calculator/Memory Walker/Message Display trio -- update_idletasks()
+        # alone only flushes Tk's own internal geometry-manager queue, not
+        # a real WM configure round-trip for the toplevel's own size, so
+        # without this the MDI area can still measure its pre-request
+        # (effectively unset) size at that point, starving whichever panel
+        # tile_children() lays out last. A full update() processes that
+        # pending WM event too.
+        root.update()
+
         self._build_menu()
         self._build_statusbar()
         self._build_mdi()

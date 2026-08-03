@@ -258,6 +258,24 @@ class SevenSeg(tk.Label):
     def _render(self):
         name = self._asset_name()
         img = self._cache.get(name)
+        if img is not None:
+            # _cache is a CLASS-level dict, shared by every SevenSeg
+            # instance -- but a tk.PhotoImage belongs to whichever Tcl
+            # interpreter (tk.Tk() root) was current when it was created.
+            # A single real run of the app only ever has one root for its
+            # whole lifetime, so this is normally a non-issue -- but
+            # anything that creates more than one root in the same
+            # process (e.g. a test suite building a fresh BebopMain per
+            # test) can leave a stale PhotoImage in the cache pointing at
+            # an interpreter that's since been destroyed; reusing it then
+            # raises "image ... doesn't exist" instead of rendering.
+            # Touching .width() is a cheap way to confirm the underlying
+            # Tcl image is still alive before trusting the cache.
+            try:
+                img.width()
+            except tk.TclError:
+                img = None
+                self._cache.pop(name, None)
         if name not in self._cache:
             try:
                 img = tk.PhotoImage(file=resource_path("BITMAPS", f"{name}.png"))
