@@ -1,5 +1,49 @@
 # PY-DIYCALCULATOR — Release Notes
 
+## v10.1.4 — 2026-08-04
+
+### Added
+
+- **Code Coverage tool** (`beboputer_tk`, Tools > Code Coverage...)
+  -- revives the Code Coverage utility pitched in
+  `Educators/more-tools-code-coverage.ppt`. Load a `.asm` source, then
+  either Run Program (fast headless burst) or Track Live (records real
+  Step/Run/Memory Walker activity), and see which source lines actually
+  executed vs. never ran, highlighted green/red, with a percentage
+  summary and a saveable text report. Hits accumulate across runs until
+  Reset Coverage is pressed. Also available headless via
+  `bin/beboputer_tk/tools/coverage_cli.py`.
+- **Code Profiler tool** (`beboputer_tk`, Tools > Code Profiler...)
+  -- revives the Code Profiler utility pitched in
+  `Educators/more-tools-code-profiler.ppt` (the 80:20 rule). Same
+  Load Source / Run Program / Track Live workflow as Code Coverage,
+  ranking source lines by share of total execution with a per-line
+  ASCII bar chart and a 4-tier heat-map highlight, plus a "Hot Spots"
+  summary of the busiest lines. Also available headless via
+  `bin/beboputer_tk/tools/profiler_cli.py`.
+
+## v10.0.4 — 2026-08-04
+
+### Added
+
+- **Vertical scrollbar on the Assembler's Messages panel** (`beboputer_tk`)
+  -- previously only the Source editor had scrollbars; long compile output
+  had no way to scroll.
+
+### Changed
+
+- **Assembler/Disassembler text backgrounds** now match the Calculator's
+  own LCD color instead of plain white/grey.
+- **Assembler "Assemble" / "Load -> CPU" buttons** are grey again, matching
+  every other button in the app (they were rendering white).
+- **Assembler Messages panel is now cleared on File > New and File > Open**
+  -- previously only New cleared it, so opening a different source file
+  left the prior file's stale compile messages on screen.
+- **Tutorial 14 (Hex/Bin Conversion)**: the display is now cleared before
+  the first digit/bit is echoed when starting a Hex or Bin entry, so the
+  leftover boot-placeholder dashes no longer show up mixed in with the
+  first conversion's result.
+
 ## v10.0.3 — 2026-08-03
 
 ### Added

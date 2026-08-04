@@ -77,6 +77,8 @@ from .panels.cpu_panel import CPUPanel
 from .panels.terminal import Terminal
 from .panels.disassembler import DisassemblerPanel
 from .panels.compiler import CompilerPanel
+from .panels.coverage import CoveragePanel
+from .panels.profiler import ProfilerPanel
 from .panels.workbench import WorkbenchPanel
 from .panels.keyboard import KeyboardPanel
 from .dialogs.eprom_burner import EpromBurner
@@ -143,6 +145,8 @@ class BebopMain:
         "keyboard":      "Keyboard",
         "workbench":     "Workbench 1",
         "compiler":      "Assembler / Editor",
+        "coverage":      "Code Coverage",
+        "profiler":      "Code Profiler",
     }
 
     def __init__(self, root: tk.Tk):
@@ -163,6 +167,8 @@ class BebopMain:
         self.terminal: Terminal | None = None
         self.disassembler: DisassemblerPanel | None = None
         self.workbench: WorkbenchPanel | None = None
+        self.coverage: CoveragePanel | None = None
+        self.profiler: ProfilerPanel | None = None
 
         root.title(f"PY-DIYCALCULATOR  v{__version__}  (tkinter)")
         root.configure(bg=C.get("bg", "#c0c0c0"))
@@ -367,10 +373,13 @@ class BebopMain:
         tm.add_command(label="Keyboard...",          command=self._show_keyboard)
         tm.add_command(label="Workbench 1...",       command=self._show_workbench)
         tm.add_command(label="Assembler / Editor...", command=self._show_compiler)
+        tm.add_command(label="Code Coverage...",      command=self._show_coverage)
+        tm.add_command(label="Code Profiler...",      command=self._show_profiler)
 
         # ── Help ─────────────────────────────────────────────────────────
         hm = _menu("Help")
         hm.add_command(label="Help...", command=self._show_help)
+        hm.add_command(label="Beboputer Databook...", command=self._show_databook)
         hm.add_command(label="DIY Calculator on the web", command=self._show_web)
         hm.add_separator()
         hm.add_command(label="About...",   command=self._show_about)
@@ -448,6 +457,20 @@ class BebopMain:
                 self.disassembler = None
             elif key == "workbench":
                 self.workbench = None
+            elif key == "coverage":
+                # Undo any Track Live attach() before dropping the panel --
+                # otherwise the CPU's step() would stay wrapped forever,
+                # recording into a CoverageSession nothing can display
+                # anymore. See CoveragePanel.shutdown()'s docstring.
+                if self.coverage is not None:
+                    self.coverage.shutdown()
+                self.coverage = None
+            elif key == "profiler":
+                # Same reasoning as "coverage" above -- undo any Track
+                # Live attach() before dropping the panel.
+                if self.profiler is not None:
+                    self.profiler.shutdown()
+                self.profiler = None
         return _on_close
 
     def _populate(self, child, key):
@@ -594,6 +617,14 @@ class BebopMain:
         panel = CompilerPanel(child.content, host_main=self)
         panel.pack(fill="both", expand=True)
 
+    def _populate_coverage(self, child):
+        self.coverage = CoveragePanel(child.content, host_main=self)
+        self.coverage.pack(fill="both", expand=True)
+
+    def _populate_profiler(self, child):
+        self.profiler = ProfilerPanel(child.content, host_main=self)
+        self.profiler.pack(fill="both", expand=True)
+
     def _populate_workbench(self, child):
         self.workbench = WorkbenchPanel(child.content, self.cpu)
         self.workbench.pack(fill="both", expand=True)
@@ -710,6 +741,8 @@ class BebopMain:
     def _show_workbench(self):
         self._open_panel("workbench", 420, 260, resizable=False, maximizable=False)
     def _show_compiler(self):      self._open_panel("compiler", 640, 480)
+    def _show_coverage(self):      self._open_panel("coverage", 700, 560)
+    def _show_profiler(self):      self._open_panel("profiler", 760, 620)
 
     # -------------------------------------------------------- CPU ops --
 
@@ -1239,6 +1272,29 @@ class BebopMain:
             webbrowser.open(f"file:///{help_path.replace(os.sep, '/')}")
         else:
             messagebox.showinfo("Help", f"Help file not found:\n{help_path}")
+
+    def _show_databook(self):
+        """Open the HTML edition of The Official DIY Calculator Data Book
+        in the system default browser. Same source/bundle path logic as
+        _show_help() -- lives right alongside it in help/databook/."""
+        import sys as _sys
+        import webbrowser
+        if getattr(_sys, "frozen", False):
+            try:
+                from beboputer_v7.paths import resource_path
+                databook_path = resource_path("help", "databook", "index.html")
+            except ImportError:
+                databook_path = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "help", "databook", "index.html"
+                )
+        else:
+            databook_path = os.path.normpath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "help", "databook", "index.html")
+            )
+        if os.path.exists(databook_path):
+            webbrowser.open(f"file:///{databook_path.replace(os.sep, '/')}")
+        else:
+            messagebox.showinfo("Beboputer Databook", f"Databook not found:\n{databook_path}")
 
     def _show_web(self):
         import webbrowser

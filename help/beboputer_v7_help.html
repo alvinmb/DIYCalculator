@@ -171,6 +171,8 @@
   <a href="#keyboard">On-Screen Keyboard</a>
   <a href="#workbench">Workbench 1</a>
   <a href="#assembler">Assembler / Editor</a>
+  <a href="#coverage">Code Coverage</a>
+  <a href="#profiler">Code Profiler</a>
   <a href="#eprom">EPROM Burner</a>
   <div class="section-head">Reference</div>
   <a href="#peripherals">Peripherals &amp; I/O Map</a>
@@ -276,6 +278,8 @@ touch the raw RAM image as a <code>.rom</code>/<code>.ram</code> binary, with no
   <tr><td>Keyboard…</td><td>Opens or focuses the on-screen Keyboard.</td></tr>
   <tr><td>Workbench 1…</td><td>Opens or focuses Workbench 1. Requires the calculator to be switched ON.</td></tr>
   <tr><td>Assembler / Editor…</td><td>Opens the integrated assembler and code editor.</td></tr>
+  <tr><td>Code Coverage…</td><td>Opens the Code Coverage tool — see which source lines of a program actually executed.</td></tr>
+  <tr><td>Code Profiler…</td><td>Opens the Code Profiler tool — see which source lines accounted for the most execution time.</td></tr>
 </table>
 
 <h2 id="menu-help">Help Menu</h2>
@@ -560,6 +564,77 @@ can be loaded straight into the running emulator.</div>
 
 <div class="tip"><strong>Tip:</strong> Use <code>.EQU</code> constants for all port addresses to keep programs
 readable and easy to update if port addresses change.</div>
+
+<!-- ══════════════════════════════════════════════ CODE COVERAGE -->
+<h2 id="coverage">Code Coverage</h2>
+<div class="panel-intro">Load a program and find out which source lines actually executed and which
+didn't — so a bug hiding in a branch you never exercised during your own testing shows up as an
+uncovered line before you ship or demo the program, instead of after.</div>
+
+<h3>Controls</h3>
+<table>
+  <tr><th>Button / Control</th><th>Action</th></tr>
+  <tr><td>Load Source…</td><td>Assembles the chosen <code>.asm</code> file and builds a fresh coverage
+    session for it. Loading a new source clears any coverage gathered against the previous one.</td></tr>
+  <tr><td>Run Program</td><td>Loads the compiled program into RAM at <code>$4000</code>, resets the CPU,
+    and runs it to completion (HALT or a step-limit safety net) without stepping through the GUI —
+    fast, and enough for a program that doesn't wait on keypad input.</td></tr>
+  <tr><td>Track Live</td><td>While checked, records coverage from <em>any</em> execution driven from
+    elsewhere in the app — the Calculator's own Step/Run buttons, Memory Walker's Run to BP — not just
+    Run Program. Needed to cover code paths that only run after specific keys are pressed: play the
+    calculator normally with Track Live on, then check what you actually exercised.</td></tr>
+  <tr><td>Refresh</td><td>Redraws the source view from whatever has been recorded so far — Track Live
+    doesn't repaint after every single instruction, so press this after interacting with the
+    calculator to see the update.</td></tr>
+  <tr><td>Reset Coverage</td><td>Clears all recorded hits (does not reset the CPU). Coverage otherwise
+    accumulates across as many runs as you like — run the program several times with different inputs
+    and the covered-line set keeps growing until you press this.</td></tr>
+  <tr><td>Save Report…</td><td>Writes a text summary (coverage percentage + every uncovered line with
+    its source text) to a file.</td></tr>
+</table>
+
+<h3>Reading the Source View</h3>
+<table>
+  <tr><th>Highlight</th><th>Meaning</th></tr>
+  <tr><td>Green background</td><td>Line executed at least once.</td></tr>
+  <tr><td>Red/pink background</td><td>Line emits code but was never executed.</td></tr>
+  <tr><td>No highlight</td><td>Not an executable line — comment, blank line, bare label, or a
+    <code>.EQU</code>/<code>.ORG</code>/<code>.END</code> directive.</td></tr>
+</table>
+
+<div class="tip"><strong>Tip:</strong> Run Program requires the calculator to be switched ON (same as
+the Assembler/Editor's Load into CPU) and runs the CPU "blind" — no keypad input is simulated, so a
+<code>GETKEY</code>-style polling loop just idles rather than reaching the code that handles an actual
+key press. Use Track Live for coverage of anything gated on real key presses.</div>
+
+<!-- ══════════════════════════════════════════════ CODE PROFILER -->
+<h2 id="profiler">Code Profiler</h2>
+<div class="panel-intro">The 80:20 rule: a program typically spends 80% of its time in only 20% of its
+code. The Code Profiler ranks every source line by how large a share of total execution it accounted
+for, so you know exactly where a bit of "judicious tweaking" will actually speed things up.</div>
+
+<h3>Controls</h3>
+<div class="panel-intro">Load Source…, Run Program, Track Live, Refresh, and Save Report… all work the
+same way as the identically-named controls in <a href="#coverage">Code Coverage</a> — see that section
+for details. <strong>Reset Profile</strong> is the profiler's equivalent of Reset Coverage: it clears
+all recorded hit counts without touching the CPU.</div>
+
+<h3>Reading the Views</h3>
+<table>
+  <tr><th>Element</th><th>Description</th></tr>
+  <tr><td>Hot Spots box</td><td>The busiest lines at a glance — up to the top 8 lines by share of
+    total execution, each with its hit count, percentage, and a bar.</td></tr>
+  <tr><td>Source view bar chart</td><td>Every executable line is prefixed with its hit count,
+    percentage of total execution, and a proportional <code>#</code> bar.</td></tr>
+  <tr><td>Heat-map highlight</td><td>Lines are shaded from pale yellow to deep red based on their hit
+    count <em>relative to the single busiest line</em> in the current report — the true hot spot(s)
+    always read as the strongest colour, whatever the overall distribution looks like.</td></tr>
+</table>
+
+<div class="tip"><strong>Tip:</strong> Beboputer's CPU executes every instruction in exactly one
+"cycle" (see the CPU Flags/Instruction Summary reference — there's no variable instruction timing),
+so ranking by instructions executed <em>is</em> ranking by time spent, with nothing extra to account
+for.</div>
 
 <!-- ══════════════════════════════════════════════ EPROM -->
 <h2 id="eprom">EPROM Burner</h2>

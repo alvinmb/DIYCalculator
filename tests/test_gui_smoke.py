@@ -166,6 +166,8 @@ MDI_PANEL_COMMANDS = [
     ("keyboard",     "_show_keyboard",     "Keyboard"),
     ("workbench",    "_show_workbench",    "Workbench 1"),
     ("compiler",     "_show_compiler",     "Assembler / Editor"),
+    ("coverage",     "_show_coverage",     "Code Coverage"),
+    ("profiler",     "_show_profiler",     "Code Profiler"),
 ]
 
 EXPECTED_TOP_MENUS = ["File", "Setup", "Display", "Memory", "Tools", "Help"]
