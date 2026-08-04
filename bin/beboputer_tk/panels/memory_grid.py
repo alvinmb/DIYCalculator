@@ -257,8 +257,8 @@ class MemoryGrid(tk.Frame):
         # continuously under BP/STEP's padding and the "|" separators,
         # with small gaps exactly where the coloured ADDR/DATA value text
         # and BP/STEP glyphs sit, so those keep their own colour.
-        self.text.tag_configure("sep", foreground="#a0a0a0")
-        self.text.tag_configure("rowline", underline=True, foreground="#555555")
+        self.text.tag_configure("sep", foreground="#c8c8c8")
+        self.text.tag_configure("rowline", underline=True, foreground="#c8c8c8")
 
         self.text.bind("<Button-1>", self._on_click)
 
