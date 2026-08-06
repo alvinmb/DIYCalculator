@@ -30,17 +30,29 @@
 #     IFe1=e2THENn         jump to statement n if true
 #     IFe1>e2THENn
 #     GOTOn               jump to statement n
+#     POKEa=e             write e (0-255) to RAM address a
 #     END                 stop the program
 #
 #   An expression e is a single term, or two terms joined by + or -:
 #   TERM, TERM+TERM, or TERM-TERM. A term is either a 1-3 digit
 #   decimal number (0-255; values wrap past 255, there is no
-#   overflow check) or a single variable letter A-Z. There is no
-#   operator precedence to worry about because there is never more
-#   than one operator. No spaces are allowed anywhere in a
+#   overflow check), a single variable letter A-Z, or PEEKa (the
+#   byte currently stored at RAM address a). There is no operator
+#   precedence to worry about because there is never more than one
+#   operator -- PEEKa always binds to its own address argument
+#   first, so PEEKA+10 means "(the byte at address A) + 10", not
+#   "the byte at address A+10". No spaces are allowed anywhere in a
 #   statement -- this is a fixed-format mini-language, not a
 #   forgiving one. Up to 10 statements (0-9), each up to 24
 #   characters, fit in one program.
+#
+#   An address a (used by PEEK and POKE) is a 1-3 digit decimal
+#   number (0-255, reaches RAM page zero only), a $ followed by 1-4
+#   uppercase hex digits (0-65535, reaches anywhere -- including the
+#   memory-mapped I/O ports, e.g. PEEK$F011 reads the Keyboard latch
+#   and POKE$F031=72 writes to the Calculator's display port), or a
+#   single variable letter A-Z (its 0-255 value is used as a page-
+#   zero address).
 #
 # Example program
 # -----------------
@@ -58,6 +70,12 @@
 
 KEY:     .EQU    $F011
 TERM:    .EQU    $F028
+ZP:      .EQU    $0000    # base for PEEK/POKE's "[ZP,X]" trick --
+                            # IX is set to the FULL 16-bit target
+                            # address, so addr(ZP)+IX = the address
+                            # itself, giving PEEK/POKE arbitrary
+                            # 16-bit reach instead of the LINES/VARS
+                            # buffers' own base addresses.
 
 MAX_LINES: .EQU  10
 LINE_LEN:  .EQU  25
@@ -186,8 +204,8 @@ EXEC_LINE:
         LDA     [LINES,X]
         CMPA    $4C                # 'L' LET
         JZ      [EL_LET]
-        CMPA    $50                # 'P' PRINT
-        JZ      [EL_PRINT]
+        CMPA    $50                # 'P' PRINT / POKE
+        JZ      [EL_P]
         CMPA    $49                # 'I' IF / INPUT
         JZ      [EL_I]
         CMPA    $47                # 'G' GOTO
@@ -202,6 +220,28 @@ EL_I:
         CMPA    $46                 # 'F' -> IF ; else assume INPUT
         JZ      [EL_IF]
         JMP     [EL_INPUT]
+
+EL_P:
+        INCX
+        LDA     [LINES,X]
+        CMPA    $4F                 # 'O' -> POKE ; else assume PRINT
+        JZ      [EL_POKE]
+        JMP     [EL_PRINT]
+
+# ---- POKE a=expr --------------------------------------------------
+EL_POKE:
+        INCX
+        INCX
+        INCX                        # skip "OKE" (dispatcher above
+                                      # already consumed the leading 'P')
+        JSR     EVAL_ADDR
+        INCX                         # skip '='
+        JSR     EVAL_EXPR
+        STA     [POKEVAL]
+        BLDX    [PADDRHI]
+        LDA     [POKEVAL]
+        STA     [ZP,X]
+        RTS
 
 # ---- LET v=expr -------------------------------------------------
 EL_LET:
@@ -227,8 +267,8 @@ EL_PRINT:
         INCX
         INCX
         INCX
-        INCX
-        INCX                          # skip "PRINT"
+        INCX                          # skip "RINT" (EL_P above already
+                                        # consumed the leading 'P')
         LDA     [LINES,X]
         CMPA    $22                    # '"'
         JZ      [EL_PRINT_STR]
@@ -386,8 +426,12 @@ EVALTERM:
 T_CHECKHI:
         CMPA    $39                  # '9'
         JZ      [T_DIGIT]
-        JC      [T_LETTER]
+        JC      [T_CHECKP]
         JMP     [T_DIGIT]
+T_CHECKP:
+        CMPA    $50                   # 'P' -> PEEK ; else a plain variable
+        JZ      [T_PEEK]
+        JMP     [T_LETTER]
 T_DIGIT:
         JSR     PARSE_NUM
         RTS
@@ -403,6 +447,26 @@ T_LETTER:
         STA     [TVAL]
         BLDX    [PCURHI]
         INCX
+        LDA     [TVAL]
+        RTS
+
+# T_PEEK: parses "PEEKa" (a = an EVAL_ADDR address-spec) at [LINES,X];
+# returns RAM[a] in ACC; leaves IX just past what it consumed. Mirrors
+# T_LETTER's BSTX/BLDX-around-a-repurposed-IX trick: EVAL_ADDR itself
+# consumes/restores the parse cursor while resolving the address, then
+# this detours IX a second time -- to the resolved RAM address itself
+# -- for the actual read.
+T_PEEK:
+        INCX
+        INCX
+        INCX
+        INCX                        # skip "PEEK"
+        JSR     EVAL_ADDR
+        BSTX    [PCURHI]
+        BLDX    [PADDRHI]
+        LDA     [ZP,X]
+        STA     [TVAL]
+        BLDX    [PCURHI]
         LDA     [TVAL]
         RTS
 
@@ -440,6 +504,134 @@ PN_ISDIGIT:
         JMP     [PN_LOOP]
 PN_DONE:
         LDA     [PNRES]
+        RTS
+
+# EVAL_ADDR: parses an address-spec at [LINES,X] -- decimal (1-3
+# digits, 0-255), $ + 1-4 uppercase hex digits (0-65535), or a single
+# variable letter A-Z (its value used as a 0-255 address) -- into the
+# 16-bit PADDRHI:PADDRLO. Leaves IX just past what it consumed.
+EVAL_ADDR:
+        LDA     [LINES,X]
+        CMPA    $24                  # '$'
+        JZ      [EA_HEX]
+        CMPA    $30                  # '0'
+        JZ      [EA_DEC]
+        JC      [EA_DEC_HI]
+        JMP     [EA_VAR]
+EA_DEC_HI:
+        CMPA    $39                   # '9'
+        JZ      [EA_DEC]
+        JC      [EA_VAR]
+        JMP     [EA_DEC]
+EA_DEC:
+        JSR     PARSE_NUM              # 8-bit, 0-255 -- page zero only
+        STA     [PADDRLO]
+        LDA     $00
+        STA     [PADDRHI]
+        RTS
+EA_VAR:
+        LDA     [LINES,X]
+        SUB     $41
+        STA     [TVARIDX]
+        BSTX    [PCURHI]
+        LDA     [TVARIDX]
+        STA     [IXLO]
+        BLDX    [IXHI]
+        LDA     [VARS,X]
+        STA     [PADDRLO]
+        LDA     $00
+        STA     [PADDRHI]
+        BLDX    [PCURHI]
+        INCX
+        RTS
+EA_HEX:
+        INCX                           # skip '$'
+        LDA     $00
+        STA     [PHHI]
+        STA     [PHLO]
+EA_HEX_LOOP:
+        LDA     [LINES,X]
+        JSR     HEXVAL
+        CMPA    $FF                     # HEXVAL's "not a hex digit" sentinel
+        JZ      [EA_HEX_DONE]
+        STA     [PHDIGIT]
+        JSR     PH_SHL4
+        LDA     [PHLO]
+        OR      [PHDIGIT]
+        STA     [PHLO]
+        INCX
+        JMP     [EA_HEX_LOOP]
+EA_HEX_DONE:
+        LDA     [PHHI]
+        STA     [PADDRHI]
+        LDA     [PHLO]
+        STA     [PADDRLO]
+        RTS
+
+# HEXVAL: ACC (a char) in; returns its hex nibble value (0-15) in ACC
+# if ACC is '0'-'9' or uppercase 'A'-'F', else returns $FF. Same
+# three-way JZ-equal/JC-greater-than/fallthrough-less-than idiom used
+# throughout this file for CMPA (Carry is set iff ACC > operand, so
+# "ACC < operand" has to be the un-branched fallthrough case, not a
+# JC target -- an earlier draft of this routine got that backwards).
+HEXVAL:
+        CMPA    $30                    # '0'
+        JZ      [HV_ISDIGIT]
+        JC      [HV_CHECKHI9]
+        JMP     [HV_NOTHEX]              # ACC < '0'
+HV_CHECKHI9:
+        CMPA    $39                     # '9'
+        JZ      [HV_ISDIGIT]
+        JC      [HV_CHECKALPHA]
+        JMP     [HV_ISDIGIT]              # '0' < ACC < '9'
+HV_CHECKALPHA:
+        CMPA    $41                     # 'A'
+        JZ      [HV_ISALPHA]
+        JC      [HV_CHECKHIF]
+        JMP     [HV_NOTHEX]               # '9' < ACC < 'A'
+HV_CHECKHIF:
+        CMPA    $46                      # 'F'
+        JZ      [HV_ISALPHA]
+        JC      [HV_NOTHEX]                # ACC > 'F'
+        JMP     [HV_ISALPHA]                # 'A' < ACC < 'F'
+HV_ISDIGIT:
+        SUB     $30
+        RTS
+HV_ISALPHA:
+        SUB     $37                       # 'A'(0x41)-10 -> 'A' maps to 10
+        RTS
+HV_NOTHEX:
+        LDA     $FF
+        RTS
+
+# PH_SHL4: shifts the 16-bit pair PHHI:PHLO left by 4 bits (one hex
+# nibble) -- four single-bit shifts, carry chained from PHLO's SHL
+# into PHHI's ROLC each time.
+PH_SHL4:
+        LDA     [PHLO]
+        SHL
+        STA     [PHLO]
+        LDA     [PHHI]
+        ROLC
+        STA     [PHHI]
+        LDA     [PHLO]
+        SHL
+        STA     [PHLO]
+        LDA     [PHHI]
+        ROLC
+        STA     [PHHI]
+        LDA     [PHLO]
+        SHL
+        STA     [PHLO]
+        LDA     [PHHI]
+        ROLC
+        STA     [PHHI]
+        LDA     [PHLO]
+        SHL
+        STA     [PHLO]
+        LDA     [PHHI]
+        ROLC
+        STA     [PHHI]
         RTS
 
 # INPUT_NUM: blocks on the Keyboard, reading 1-3 decimal digits
@@ -623,5 +815,11 @@ LVARIDX:  .BYTE
 LSAVEACC: .BYTE
 TVARIDX:  .BYTE
 TVAL:     .BYTE
+PADDRHI:  .BYTE
+PADDRLO:  .BYTE
+PHHI:     .BYTE
+PHLO:     .BYTE
+PHDIGIT:  .BYTE
+POKEVAL:  .BYTE
 
         .END    $4000

@@ -179,6 +179,7 @@
   <a href="#io-map">Full Address Table</a>
   <a href="#cpu-flags">CPU Flags</a>
   <a href="#instruction-set">Instruction Summary</a>
+  <a href="#tinybasic">Tiny BASIC Interpreter</a>
 </div>
 
 <!-- ── Content ── -->
@@ -840,6 +841,41 @@ ACC <strong>&gt;</strong> operand (not &lt;). To test if a nibble is a hex lette
 <p style="margin-top:12px;font-size:13px;">Note: If you are looking for a more detailed description of each
 instruction, see
 <a href="databook/index.html">The Official DIY Calculator Data Book</a> (also reachable from the About dialog's "Beboputer Databook" button).</p>
+
+<!-- ══════════════════════════════════════════════ TINY BASIC -->
+<h2 id="tinybasic">Tiny BASIC Interpreter</h2>
+<div class="panel-intro">A small interactive BASIC-style interpreter, itself written entirely in DIY
+Calculator assembly language, driven by the On-Screen Keyboard and printing to the Terminal — Exercise
+19 in the tutorial series. Source: <code>tutorial/19_tiny_basic.asm</code>. Assemble it, Load into CPU,
+Run, then click into the Keyboard/Terminal to type (press CAPS first — only upper-case is understood).
+See <em>Tiny_BASIC_Interpreter_Tutorial.docx</em> for a full walkthrough.</div>
+
+<h3>Statements</h3>
+<table>
+  <tr><th>Statement</th><th>Effect</th></tr>
+  <tr><td><code>LETv=e</code></td><td>Set variable <code>v</code> (A–Z) to expression <code>e</code>.</td></tr>
+  <tr><td><code>PRINTe</code></td><td>Print a number/expression, then a newline.</td></tr>
+  <tr><td><code>PRINT"text"</code></td><td>Print a literal string, then a newline.</td></tr>
+  <tr><td><code>INPUTv</code></td><td>Prompt <code>?</code> and read a number into <code>v</code>.</td></tr>
+  <tr><td><code>IFe1&lt;e2THENn</code><br><code>IFe1=e2THENn</code><br><code>IFe1&gt;e2THENn</code></td><td>Compare <code>e1</code> to <code>e2</code>; jump to statement <code>n</code> if true.</td></tr>
+  <tr><td><code>GOTOn</code></td><td>Jump to statement <code>n</code>.</td></tr>
+  <tr><td><code>POKEa=e</code></td><td>Write <code>e</code> (0–255) to RAM address <code>a</code> — including the memory-mapped I/O ports.</td></tr>
+  <tr><td><code>END</code></td><td>Stop the program.</td></tr>
+</table>
+
+<h3>Expressions and Addresses</h3>
+<table>
+  <tr><th>Element</th><th>Form</th><th>Notes</th></tr>
+  <tr><td>Expression <code>e</code></td><td><code>TERM</code>, <code>TERM+TERM</code>, or <code>TERM-TERM</code></td><td>No operator precedence to worry about — never more than one operator.</td></tr>
+  <tr><td>Term</td><td>1–3 digit decimal (0–255), a variable letter A–Z, or <code>PEEKa</code></td><td>Values wrap past 255, no overflow check.</td></tr>
+  <tr><td><code>PEEKa</code></td><td>e.g. <code>PEEK200</code>, <code>PEEK$F011</code></td><td>The byte currently at address <code>a</code>. Binds to its own address first — <code>PEEKA+10</code> means "(byte at A) + 10".</td></tr>
+  <tr><td>Address <code>a</code> (PEEK/POKE)</td><td>1–3 decimal digits, <code>$</code>+1–4 hex digits, or a variable letter</td><td>Decimal and variable-letter addresses reach 0–255 (page zero) only. <code>$</code>-prefixed hex reaches the full 0–65535 range, including the I/O ports.</td></tr>
+</table>
+
+<div class="tip"><strong>Tip:</strong> Because PEEK/POKE addresses can be hex, the interpreter can touch
+hardware ports directly from a typed-in program — e.g. <code>PRINTPEEK$F011</code> reads the Keyboard
+latch, and <code>POKE$F031=72</code> writes to the Calculator's display port. See the
+<a href="#io-map">Full Address Table</a> for every port.</div>
 
 <p style="margin-top:32px;font-size:12px;color:#888;">Beboputer Virtual Computer — Help Document &nbsp;|&nbsp;
 Based on the DIY Calculator by Clive "Max" Maxfield &amp; Alvin Brown</p>
