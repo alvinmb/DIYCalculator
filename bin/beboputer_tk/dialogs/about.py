@@ -22,9 +22,7 @@
 
 from __future__ import annotations
 
-import os
 import tkinter as tk
-from tkinter import messagebox
 
 try:
     from beboputer_v7 import __version__
@@ -35,23 +33,6 @@ try:
     from beboputer_v7.styles import C
 except ImportError:  # pragma: no cover
     C = {"blue": "#000080", "green_mid": "#004d00"}
-
-try:
-    from beboputer_v7.paths import resource_path as _resource_path
-except ImportError:  # pragma: no cover
-    def _resource_path(*parts: str) -> str:
-        return os.path.normpath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", *parts)
-        )
-
-# HTML conversion of "The Official DIY Calculator Data Book.pdf" (pdftohtml,
-# one background PNG per page + an absolute-positioned text overlay so the
-# original schematics/pinout diagrams render exactly as in the PDF). Lives
-# under help/ alongside beboputer_v7_help.html (see beboputer_tk.spec's
-# datas list -- the whole help/ directory is shipped, so this travels with
-# it automatically in both the source checkout and the frozen/packaged
-# build). The original PDF is no longer bundled in any install.
-_DATA_BOOK_HTML = ("help", "databook", "index.html")
 
 
 class AboutDialog(tk.Toplevel):
@@ -92,26 +73,7 @@ class AboutDialog(tk.Toplevel):
             fg=C["green_mid"], bg="#c0c0c0", font=("Arial", 16), justify="center",
         ).pack(pady=(16, 16))
 
-        btn_row = tk.Frame(root, bg="#c0c0c0")
-        btn_row.pack(pady=(0, 0))
-
         tk.Button(
-            btn_row, text="Beboputer Databook", font=("Arial", 13, "bold"),
-            command=self._open_data_book,
-        ).pack(side="left", padx=(0, 8))
-
-        tk.Button(
-            btn_row, text="Dismiss", font=("Arial", 13, "bold"),
+            root, text="Dismiss", font=("Arial", 13, "bold"),
             command=self.destroy,
-        ).pack(side="left")
-
-    def _open_data_book(self):
-        """Open the HTML edition of the DIY Calculator Data Book in the
-        system's default browser. Same source/bundle path logic as
-        main_window._show_help()."""
-        import webbrowser
-        path = _resource_path(*_DATA_BOOK_HTML)
-        if os.path.exists(path):
-            webbrowser.open(f"file:///{path.replace(os.sep, '/')}")
-        else:
-            messagebox.showinfo("Beboputer Databook", f"Databook not found:\n{path}")
+        ).pack()

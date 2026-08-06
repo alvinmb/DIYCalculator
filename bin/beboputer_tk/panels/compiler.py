@@ -339,6 +339,9 @@ class CompilerPanel(tk.Frame):
             return
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", text)
+        self._clear_messages()
+        self._last_bytecode = None
+        self.load_into_cpu_button.configure(state="disabled")
         self.current_path = path
         self._update_title(path.name)
         self._set_status(f"Opened: {path}")

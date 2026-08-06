@@ -102,6 +102,16 @@ cp -r "$PROJECT_ROOT/help"            "$APP_DIR/"
 # the source-tree copy itself couldn't be removed.
 rm -f "$APP_DIR/Data/The Official DIY Calculator Data Book.pdf"
 
+# help/databook/ was regenerated as flat page images (page-NNN.png) after
+# the original pdftohtml "complex mode" conversion (databookNNN.png +
+# absolute-positioned text overlay) turned out to have font-substitution
+# bugs -- text drifting into diagrams when the viewing browser lacked a
+# font matching the PDF's internal font name. The old databookNNN.png
+# files may still be sitting alongside the new ones in the repo (same
+# can't-delete-from-source-tree situation as the PDF above), so strip
+# them from the staged copy too.
+rm -f "$APP_DIR"/help/databook/databook[0-9][0-9][0-9].png
+
 # Strip stale bytecode caches -- they bloat the package and can shadow
 # the .py sources with a different Python version on the target machine.
 # Glob also catches "__pycache___bak_*"-style backup dirs some editing

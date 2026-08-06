@@ -30,15 +30,24 @@ _root = os.path.normpath(os.path.join(SPECPATH, '..', '..'))
 # filtered out here rather than relying on the source tree being clean.
 _EXCLUDE_DATA_FILES = {'The Official DIY Calculator Data Book.pdf'}
 
+# help/databook/ was regenerated as flat page images (page-NNN.png); the
+# old databookNNN.png files (previous pdftohtml conversion attempt) may
+# still be sitting alongside them on disk, so exclude that glob too.
+import fnmatch
+_EXCLUDE_PATTERNS = ('databook[0-9][0-9][0-9].png',)
 
-def _dir_datas(src_dir, dest_dir, exclude_basenames=()):
+
+def _dir_datas(src_dir, dest_dir, exclude_basenames=(), exclude_patterns=()):
     """Like a single (src_dir, dest_dir) PyInstaller datas tuple, but
-    skips any file whose basename is in exclude_basenames."""
+    skips any file whose basename is in exclude_basenames or matches one
+    of exclude_patterns (fnmatch-style)."""
     out = []
     for dirpath, _dirnames, filenames in os.walk(src_dir):
         rel = os.path.relpath(dirpath, src_dir)
         for fn in filenames:
             if fn in exclude_basenames:
+                continue
+            if any(fnmatch.fnmatch(fn, pat) for pat in exclude_patterns):
                 continue
             src = os.path.join(dirpath, fn)
             dest = dest_dir if rel == '.' else os.path.join(dest_dir, rel)
@@ -68,7 +77,7 @@ a = Analysis(
         *_dir_datas(os.path.join(_root, 'Data'), 'Data', _EXCLUDE_DATA_FILES),
         (os.path.join(_root, 'WorkInProgress'),              'WorkInProgress'),
         (os.path.join(_root, 'tutorial'),                   'tutorial'),
-        (os.path.join(_root, 'help'),                       'help'),
+        *_dir_datas(os.path.join(_root, 'help'), 'help', exclude_patterns=_EXCLUDE_PATTERNS),
     ],
 
     hiddenimports=[

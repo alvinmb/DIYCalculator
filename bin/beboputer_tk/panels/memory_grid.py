@@ -54,6 +54,7 @@ except ImportError:  # pragma: no cover
     C = {
         "green": "#006400", "green_mid": "#004d00", "amber": "#8b6914",
         "red": "#cc0000", "grey": "#606060", "bg": "#f5f5f0",
+        "lcd_bg": "#c8f0c8",
     }
 
 ROWS = 256
@@ -208,7 +209,12 @@ class MemoryGrid(tk.Frame):
 
         self.text = tk.Text(
             text_frame, font=BASE_FONT, width=col_total, height=visible_rows,
-            bg=C.get("bg", "#f5f5f0"), cursor="arrow", wrap="none", state="disabled",
+            # Same mint LCD green as the Assembler/Editor and Disassembler
+            # windows (LCD_BG = "#c8f0c8" in those panels) -- was the
+            # generic system-grey "bg" colour before, which made Memory
+            # Walker's table look like an unrelated, plainer widget next
+            # to the other text-based panels.
+            bg=C.get("lcd_bg", "#c8f0c8"), cursor="arrow", wrap="none", state="disabled",
             highlightthickness=0, bd=HDR_TXT_BD, relief="sunken",
             padx=HDR_TXT_PADX, pady=HDR_TXT_PADY,
         )

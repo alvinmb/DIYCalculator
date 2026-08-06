@@ -16,4 +16,4 @@ the origional software was only made available on the windows platform. The soft
 
 ### Which build?
 
-`beboputer_tk` (tkinter) is the actively developed, primary build going forward — see the v10.0.0 entry in [RELEASE_NOTES.md](RELEASE_NOTES.md) for why. The original PyQt5 build, `beboputer_v7`, still lives in the repo for reference and can be run from source with `python -m beboputer_v7` (requires PyQt5) or built via `bin/beboputer_v7/build_installer.bat` / `bin/beboputer_v7/MAC_INSTALL/build_mac.sh`, but it no longer receives new installer or package releases.
+`beboputer_tk` (tkinter) is the actively developed, primary build going forward — see the v10.0.0 entry in [RELEASE_NOTES.md](RELEASE_NOTES.md) for why. The original PyQt5 build, `beboputer_v7`, is **discontinued** — it still lives in the repo for reference and can be run from source with `python -m beboputer_v7` (requires PyQt5) or built via `bin/beboputer_v7/build_installer.bat` / `bin/beboputer_v7/MAC_INSTALL/build_mac.sh`, but it receives no further updates of any kind (installer releases, packaging, or code changes) — all development happens on `beboputer_tk` only.

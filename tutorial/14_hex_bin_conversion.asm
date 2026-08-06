@@ -232,11 +232,15 @@ ST_IDLE:
         JMP     [WAIT]           # anything else is ignored
 
 START_HEX:
-        LDA     $01
+        LDA     $1B              # clear whatever's showing first -- the
+        STA     [DISP]           # boot dashes on the very first press, or
+        LDA     $01              # a stale answer ST_ANSWER didn't reach
         STA     [STAGE]
         JMP     [WAIT]
 
 START_BIN:
+        LDA     $1B              # same clear-first as START_HEX above
+        STA     [DISP]
         LDA     $00
         STA     [NIBBLE]
         LDA     $00

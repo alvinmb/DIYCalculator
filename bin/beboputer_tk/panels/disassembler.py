@@ -31,6 +31,11 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# Same "on" background as the Calculator's own LCD (panels/calculator.py's
+# _DISPLAY_ON_BG) -- used for the disassembly output text area so this
+# panel's text background matches the Calculator's display.
+LCD_BG = "#c8f0c8"
+
 
 class DisassemblerPanel(tk.Frame):
     def __init__(self, parent, cpu, **kwargs):
@@ -67,7 +72,7 @@ class DisassemblerPanel(tk.Frame):
         vbar.pack(side="right", fill="y")
 
         self.output = tk.Text(
-            text_frame, font=("Courier New", 20), bg="#ffffff",
+            text_frame, font=("Courier New", 20), bg=LCD_BG,
             state="disabled", wrap="none",
             yscrollcommand=vbar.set,
         )

@@ -87,6 +87,11 @@ cp -r "$PROJECT_ROOT/help"            "$APP_DIR/"
 # permission issues even if the source-tree copy itself couldn't be removed.
 rm -f "$APP_DIR/Data/The Official DIY Calculator Data Book.pdf"
 
+# help/databook/ was regenerated as flat page images (page-NNN.png); the
+# old databookNNN.png files (previous pdftohtml conversion attempt) may
+# still be sitting alongside them in the repo, so strip those too.
+rm -f "$APP_DIR"/help/databook/databook[0-9][0-9][0-9].png
+
 # Strip stale bytecode caches -- they bloat the package and can shadow
 # the .py sources with a different Python version on the target machine.
 # Glob also catches "__pycache___bak_*"-style backup dirs some editing
