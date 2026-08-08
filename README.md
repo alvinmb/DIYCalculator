@@ -1,6 +1,7 @@
 # Beboputer_python port
 
-**Current version: 10.0.0** — see [RELEASE_NOTES.md](RELEASE_NOTES.md) for what's changed, and [VERSIONING.md](VERSIONING.md) for how version numbers are managed and released.
+**Current version: 10.1.8
+** — see [RELEASE_NOTES.md](RELEASE_NOTES.md) for what's changed, and [VERSIONING.md](VERSIONING.md) for how version numbers are managed and released.
 
 Festooned with nuggets of information and tidbits of trivia, our book How Computers Do Math (ISBN: 0471732788) provides an incredibly fun and interesting introduction to the way in which computers perform their magic in general and how they do math in particular (check out the contents).
 
