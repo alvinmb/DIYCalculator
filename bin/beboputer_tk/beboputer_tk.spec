@@ -38,12 +38,21 @@
 block_cipher = None
 
 import os
+import sys
 
 # SPECPATH is injected by PyInstaller = the folder containing this .spec
 # file (bin/beboputer_tk/). Project root is two levels up. Resolving it
 # this way means the build works regardless of where the repo is
 # checked out.
 _root = os.path.normpath(os.path.join(SPECPATH, '..', '..'))
+
+# Version is the single source of truth in bin/beboputer_v7/__init__.py
+# (__version__) -- beboputer_tk re-exports it unchanged. __init__.py only
+# defines __version__ (no heavy imports), so this is a cheap, safe import
+# to do at spec-parse time. Previously the macOS BUNDLE step below had
+# this hardcoded to a stale '7.0', which never tracked real releases.
+sys.path.insert(0, os.path.join(_root, 'bin'))
+from beboputer_v7 import __version__ as _app_version
 
 # The original Data Book PDF is superseded by help/databook/ (an HTML
 # conversion) and is no longer shipped in any packaged build. It may still
@@ -170,7 +179,6 @@ coll = COLLECT(
 )
 
 # ── macOS: wrap everything in a .app bundle ───────────────────────────
-import sys
 if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
@@ -178,7 +186,10 @@ if sys.platform == 'darwin':
         # icon='assets/beboputer.icns',  # uncomment and supply an .icns file
         bundle_identifier='com.beboputer.app',
         info_plist={
-            'NSHighResolutionCapable': True,
-            'CFBundleShortVersionString': '7.0',
+            'CFBundleDisplayName':        'PY-DIYCALCULATOR',
+            'CFBundleShortVersionString': _app_version,
+            'CFBundleVersion':            _app_version,
+            'NSHighResolutionCapable':    True,
+            'NSHumanReadableCopyright':   'Copyright © 2026 Alvin Brown & Clive Maxfield',
         },
     )

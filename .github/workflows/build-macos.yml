@@ -1,0 +1,112 @@
+name: Build macOS package (tkinter)
+
+# Builds Beboputer.app + BeboputerInstaller.dmg by running
+# bin/beboputer_tk/MAC_INSTALL/build_mac.sh on real macOS runners --
+# PyInstaller does not cross-compile, so this can't happen on
+# Linux/Windows runners (see that script's own header comment).
+#
+# Two runners are used to cover both current Mac CPU families:
+#   macos-13  -> Intel   (x86_64)
+#   macos-14  -> Apple Silicon (arm64)   ("macos-latest" also currently
+#                                         resolves to this, but pinned
+#                                         explicitly here so the matrix
+#                                         labels stay meaningful even
+#                                         after GitHub moves the alias)
+# PyInstaller always builds for whatever architecture it's *running
+# on* (the spec's target_arch=None means "native"), so this produces
+# two separate, architecture-specific builds rather than one
+# universal2 binary.
+#
+# Trigger: manually (Actions tab -> Run workflow), or automatically
+# when a "v*" tag is pushed (e.g. v10.1.8) -- matching this repo's own
+# version tags (see RELEASE_NOTES.md / bin/beboputer_v7/__init__.py).
+#
+# NOTE: the resulting .app/.dmg are NOT code-signed or notarized (that
+# needs a paid Apple Developer ID and is out of scope here). A user
+# opening the unsigned .app for the first time will see Gatekeeper's
+# "unidentified developer" warning and needs to right-click -> Open
+# (or System Settings -> Privacy & Security -> "Open Anyway") once.
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch_label: x86_64
+          - runner: macos-14
+            arch_label: arm64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python (with tkinter)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify tkinter is importable
+        # Fails fast with a clear message instead of a confusing
+        # PyInstaller error deep into the build if this Python build
+        # doesn't have a working Tcl/Tk -- mirrors build_mac.sh's own
+        # check.
+        run: python3 -c "import tkinter; print('tkinter OK:', tkinter.TkVersion)"
+
+      - name: Install PyInstaller
+        run: pip3 install pyinstaller
+
+      - name: Build .app and .dmg
+        run: bash bin/beboputer_tk/MAC_INSTALL/build_mac.sh
+
+      - name: Read app version
+        id: version
+        run: |
+          VERSION=$(python3 -c "import sys; sys.path.insert(0, 'bin'); from beboputer_v7 import __version__; print(__version__)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Zip the .app (preserves bundle structure + exec bits)
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent Beboputer.app "Beboputer-${{ steps.version.outputs.version }}-macos-${{ matrix.arch_label }}.app.zip"
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beboputer-${{ steps.version.outputs.version }}-macos-${{ matrix.arch_label }}-app
+          path: dist/Beboputer-${{ steps.version.outputs.version }}-macos-${{ matrix.arch_label }}.app.zip
+          if-no-files-found: error
+
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beboputer-${{ steps.version.outputs.version }}-macos-${{ matrix.arch_label }}-dmg
+          path: dist/BeboputerInstaller.dmg
+          if-no-files-found: error
+
+  release:
+    # Only runs for an actual "v*" tag push, not manual workflow_dispatch
+    # runs -- attaches both architectures' .dmg to a GitHub Release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Attach .dmg files to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/BeboputerInstaller.dmg
+          fail_on_unmatched_files: true
