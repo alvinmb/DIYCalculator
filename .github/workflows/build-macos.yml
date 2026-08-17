@@ -106,6 +106,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      # softprops/action-gh-release needs write access to create/update
+      # a release and upload assets. The default GITHUB_TOKEN is
+      # read-only unless a job explicitly requests write here -- without
+      # this, the release step fails with "Resource not accessible by
+      # integration" even though both build jobs succeed and produce
+      # artifacts fine (that failure mode, seen on the first real run of
+      # this workflow: build succeeded, only this last step needed it).
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
