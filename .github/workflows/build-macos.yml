@@ -6,12 +6,19 @@ name: Build macOS package (tkinter)
 # Linux/Windows runners (see that script's own header comment).
 #
 # Two runners are used to cover both current Mac CPU families:
-#   macos-13  -> Intel   (x86_64)
-#   macos-14  -> Apple Silicon (arm64)   ("macos-latest" also currently
-#                                         resolves to this, but pinned
-#                                         explicitly here so the matrix
-#                                         labels stay meaningful even
-#                                         after GitHub moves the alias)
+#   macos-15-intel -> Intel   (x86_64) -- macos-13 (the previous Intel
+#                      label) was fully retired by GitHub in December
+#                      2025; macos-15-intel is the current replacement,
+#                      supported until Apple/GitHub drop x86_64 macOS
+#                      entirely (~Fall 2027). If a job using this label
+#                      ever sits queued indefinitely again, check
+#                      https://github.blog/changelog/ for a newer
+#                      Intel-label migration -- same failure mode as
+#                      this one.
+#   macos-14       -> Apple Silicon (arm64)   ("macos-latest" also
+#                      currently resolves to this, but pinned explicitly
+#                      here so the matrix labels stay meaningful even
+#                      after GitHub moves the alias)
 # PyInstaller always builds for whatever architecture it's *running
 # on* (the spec's target_arch=None means "native"), so this produces
 # two separate, architecture-specific builds rather than one
@@ -39,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch_label: x86_64
           - runner: macos-14
             arch_label: arm64
