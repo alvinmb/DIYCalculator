@@ -151,6 +151,8 @@
 <div class="sidebar">
   <h2>Beboputer Help</h2>
   <a href="#overview">Overview</a>
+  <a href="#install">Installation</a>
+  <a href="#portable">Portable (no-install) Zip</a>
   <div class="section-head">Menu Bar</div>
   <a href="#menu-file">File Menu</a>
   <a href="#menu-setup">Setup Menu</a>
@@ -212,6 +214,67 @@ hardware peripherals accessible through memory-mapped I/O.</p>
   <tr><td>Disassembler</td><td>Live disassembly of RAM from any address</td><td>Display menu</td></tr>
   <tr><td>Workbench 1</td><td>Toggle switches, LED bar, and 7-segment displays</td><td>Tools menu — requires power ON</td></tr>
 </table>
+
+<!-- ══════════════════════════════════════════════ INSTALLATION -->
+<h2 id="install">Installation</h2>
+<p>The application is pure Python + tkinter, so it runs on Windows, Raspberry Pi / Linux and macOS.
+Choose whichever package suits you:</p>
+<table>
+  <tr><th>Package</th><th>Platform</th><th>How to install</th></tr>
+  <tr><td><code>BeboputerTkSetup.exe</code></td><td>Windows 10 / 11</td>
+      <td>Run the installer. Python is bundled — nothing else needed. Start from the Start menu.</td></tr>
+  <tr><td><code>beboputer_&lt;version&gt;_all.deb</code></td><td>Raspberry Pi OS / Debian</td>
+      <td><code>sudo dpkg -i beboputer_&lt;version&gt;_all.deb</code> then <code>sudo apt-get install -f</code>.
+      Launch from the <strong>Education</strong> menu or type <code>beboputer</code>.</td></tr>
+  <tr><td><code>BeboputerInstaller.dmg</code></td><td>macOS (Intel &amp; Apple Silicon)</td>
+      <td>Drag <strong>Beboputer.app</strong> to Applications. The app is unsigned: the first time,
+      right-click &rarr; <strong>Open</strong>.</td></tr>
+  <tr><td><code>PY-DIYCALCULATOR-&lt;version&gt;-portable.zip</code></td><td>Windows, Pi / Linux, macOS</td>
+      <td>Unzip anywhere and run — no installer, no admin rights. See <a href="#portable">below</a>.</td></tr>
+</table>
+
+<h2 id="portable">Portable (no-install) Zip</h2>
+<p>The portable zip runs straight from the folder it is unzipped to — a USB stick, the Desktop,
+a network share — and leaves nothing behind when the folder is deleted.</p>
+
+<h3>Requirements</h3>
+<table>
+  <tr><th>Platform</th><th>What you need</th></tr>
+  <tr><td>Windows</td><td>Python 3.10 or newer from <a href="https://www.python.org/downloads/" target="_blank">python.org</a>
+      (tick <em>Add python.exe to PATH</em>; tkinter is included by default).</td></tr>
+  <tr><td>Raspberry Pi / Linux</td><td><code>sudo apt install python3 python3-tk</code></td></tr>
+  <tr><td>macOS</td><td>python.org installer (Homebrew users: <code>brew install python-tk</code>).</td></tr>
+</table>
+<p>No <code>pip</code> packages are required.</p>
+
+<h3>Starting the app</h3>
+<table>
+  <tr><th>Platform</th><th>Launcher</th></tr>
+  <tr><td>Windows</td><td>Double-click <code>Beboputer.bat</code>.
+      <code>Beboputer-console.bat</code> does the same but keeps a console open showing any error messages.</td></tr>
+  <tr><td>Raspberry Pi / Linux</td><td><code>./Beboputer.sh</code> (or <code>sh Beboputer.sh</code>)</td></tr>
+  <tr><td>macOS</td><td>Double-click <code>Beboputer.command</code> (first time: right-click &rarr; <strong>Open</strong>).</td></tr>
+</table>
+<div class="tip"><strong>Tip:</strong> If the <code>.sh</code> / <code>.command</code> launchers lose their execute
+permission while unzipping, run <code>chmod +x Beboputer.sh Beboputer.command</code> in the folder.</div>
+
+<h3>Folder layout</h3>
+<table>
+  <tr><th>Folder</th><th>Contents</th></tr>
+  <tr><td><code>Data/</code></td><td>Sample <code>.asm</code> programs — the default <strong>Open</strong> folder.</td></tr>
+  <tr><td><code>tutorial/</code></td><td>Tutorial exercise programs.</td></tr>
+  <tr><td><code>WorkInProgress/</code></td><td>Default <strong>Save</strong> folder, so your work travels with the app.</td></tr>
+  <tr><td><code>help/</code></td><td>This help file and the HTML Data Book.</td></tr>
+  <tr><td><code>bin/</code>, <code>BITMAPS/</code>, <code>Config/</code></td><td>Program code, graphics and default configuration.</td></tr>
+</table>
+<p>Custom calculator button definitions are saved per user (<code>%APPDATA%\PY-DIYCALCULATOR</code> on Windows,
+the home folder elsewhere) rather than inside the portable folder.</p>
+<p>To uninstall, delete the folder.</p>
+
+<h3>Building the zip</h3>
+<p>From the project root run <code>python make_portable.py</code>. The zip is written to
+<code>dist/PY-DIYCALCULATOR-&lt;version&gt;-portable.zip</code>, using the version number in
+<code>bin/beboputer_v7/__init__.py</code>.</p>
 
 <!-- ══════════════════════════════════════════════ MENU BAR -->
 <h2 id="menu-file">File Menu</h2>
